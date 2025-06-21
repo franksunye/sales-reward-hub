@@ -1,3 +1,43 @@
+# 通用Python项目忽略规则
+__pycache__/
+*.py[cod]
+*.so
+
+# 虚拟环境和依赖
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 日志和数据库
+*.log
+logs/
+*.db
+*.sqlite3
+
+# 配置和临时文件
+*.ini
+*.cfg
+*.bak
+*.swp
+.DS_Store
+*.json
+
+# 项目特有目录
+archive/
+state/
+config/
+weekly_reports/
+metabase_session.json
+
+# 编辑器相关
+.vscode/
+.VSCodeCounter/
+
 __pycache__/config.cpython-37.pyc
 __pycache__/data_processing_module.cpython-37.pyc
 __pycache__/file_operation_module.cpython-37.pyc
