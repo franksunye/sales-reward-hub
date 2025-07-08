@@ -495,7 +495,7 @@ def post_text_to_webhook(message, webhook_url=WEBHOOK_URL_DEFAULT):  # WEBHOOK_U
 
 def post_markdown_to_webhook(message, webhook_url):
     """
-    发送Markdown格式的消息到企业微信的Webhook。
+    发送Markdown格式的消息到企业微信的Webhook（旧版markdown格式，保留兼容性）。
 
     :param message: 要发送的Markdown格式的消息
     :param webhook_url: Webhook的URL
@@ -514,6 +514,28 @@ def post_markdown_to_webhook(message, webhook_url):
         logging.info(f"PostMarkdownToWebhook: Response status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logging.error(f"PostMarkdownToWebhook: 发送到Webhook时发生错误: {e}")
+
+def post_markdown_v2_to_webhook(message, webhook_url):
+    """
+    发送Markdown_v2格式的消息到企业微信的Webhook（支持表格等高级格式）。
+
+    :param message: 要发送的Markdown_v2格式的消息
+    :param webhook_url: Webhook的URL
+    """
+    post_data = {
+        'msgtype': 'markdown_v2',
+        'markdown_v2': {
+            'content': message
+        }
+    }
+
+    try:
+        # 发送POST请求
+        response = requests.post(webhook_url, json=post_data)
+        response.raise_for_status()  # 如果响应状态码不是200，则引发异常
+        logging.info(f"PostMarkdownV2ToWebhook: Response status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"PostMarkdownV2ToWebhook: 发送到Webhook时发生错误: {e}")
 
 def notify_contact_timeout_changes_template_card(contact_timeout_data):
     """

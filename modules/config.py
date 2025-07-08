@@ -112,6 +112,27 @@ REWARD_CONFIGS = {
             ]
         }
     },
+    # 北京2025年7月活动配置
+    "BJ-2025-07": {
+        "lucky_number": "8",
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "single_project_limit": 500000,
+            "enable_cap": True,
+            "single_contract_cap": 500000
+        },
+        "tiered_rewards": {
+            "min_contracts": 6,
+            "tiers": [
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 120000},
+                {"name": "精英奖", "threshold": 180000}
+            ]
+        }
+    },
     # 上海2025年4月活动配置
     "SH-2025-04": {
         "lucky_number": "6",
@@ -177,6 +198,28 @@ REWARD_CONFIGS = {
                 {"name": "精英奖", "threshold": 120000}
             ]
         }
+    },
+    # 上海2025年7月活动配置
+    "SH-2025-07": {
+        "lucky_number": "6",
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "single_project_limit": None,  # 上海没有工单金额上限
+            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
+            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
+        },
+        "tiered_rewards": {
+            "min_contracts": 5,  # 上海需要5个合同
+            "tiers": [
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000}
+            ]
+        }
     }
 }
 
@@ -211,6 +254,10 @@ API_URL_CONTACT_TIMEOUT = "http://metabase.fsgo365.cn:3000/api/card/980/query"
 # STATUS_FILENAME_CONTACT_TIMEOUT = './state/contact_timeout_status.json'
 WEBHOOK_URL_CONTACT_TIMEOUT = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=80ab1f45-2526-4b41-a639-c580ccde3e2f"
 
+# 第七个任务，待预约工单提醒
+API_URL_PENDING_ORDERS_REMINDER = METABASE_URL + "/api/card/1712/query"
+STATUS_FILENAME_PENDING_ORDERS = './state/pending_orders_reminder_status.json'
+
 ## 上海地区，2025年4月活动
 API_URL_SH_APR = METABASE_URL + "/api/card/1617/query"
 
@@ -236,7 +283,7 @@ WECOM_GROUP_NAME_SH_MAY = '（上海）运营群'
 CAMPAIGN_CONTACT_SH_MAY = '满浩浩'
 
 ## 上海地区，2025年6月活动
-API_URL_SH_JUN = METABASE_URL + "/api/card/1694/query"
+API_URL_SH_JUN = METABASE_URL + "/api/card/1708/query"
 
 # 销售激励活动 JOB signing_and_sales_incentive_jun_shanghai
 TEMP_CONTRACT_DATA_FILE_SH_JUN = 'state/ContractData-SH-Jun.csv'
@@ -246,6 +293,19 @@ STATUS_FILENAME_SH_JUN = 'state/send_status_sh_jun.json'
 # Pro
 WECOM_GROUP_NAME_SH_JUN = '（上海）运营群'
 CAMPAIGN_CONTACT_SH_JUN = '满浩浩'
+
+
+## 上海地区，2025年7月活动
+API_URL_SH_JULY = METABASE_URL + "/api/card/1749/query"
+
+# 销售激励活动 JOB signing_and_sales_incentive_july_shanghai
+TEMP_CONTRACT_DATA_FILE_SH_JULY = 'state/ContractData-SH-July.csv'
+PERFORMANCE_DATA_FILENAME_SH_JULY = 'state/PerformanceData-SH-July.csv'
+STATUS_FILENAME_SH_JULY = 'state/send_status_sh_july.json'
+
+# Pro
+WECOM_GROUP_NAME_SH_JULY = '（上海）运营群'
+CAMPAIGN_CONTACT_SH_JULY = '满浩浩'
 
 ## 上海的特殊配置选项
 # 销售激励活动 奖金池计算比例
@@ -278,7 +338,7 @@ WECOM_GROUP_NAME_BJ_MAY = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_MAY = '王爽'
 
 ## 北京地区，2025年6月活动
-API_URL_BJ_JUN = METABASE_URL + "/api/card/1693/query"
+API_URL_BJ_JUN = METABASE_URL + "/api/card/1707/query"
 
 # 北京销售激励活动 JOB signing_and_sales_incentive_jun_beijing
 TEMP_CONTRACT_DATA_FILE_BJ_JUN = 'state/ContractData-BJ-Jun.csv'
@@ -288,6 +348,18 @@ STATUS_FILENAME_BJ_JUN = 'state/send_status_bj_jun.json'
 # Pro
 WECOM_GROUP_NAME_BJ_JUN = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_JUN = '王爽'
+
+## 北京地区，2025年7月活动
+API_URL_BJ_JULY = METABASE_URL + "/api/card/1748/query"
+
+# 北京销售激励活动 JOB signing_and_sales_incentive_july_beijing
+TEMP_CONTRACT_DATA_FILE_BJ_JULY = 'state/ContractData-BJ-July.csv'
+PERFORMANCE_DATA_FILENAME_BJ_JULY = 'state/PerformanceData-BJ-July.csv'
+STATUS_FILENAME_BJ_JULY = 'state/send_status_bj_july.json'
+
+# Pro
+WECOM_GROUP_NAME_BJ_JULY = '（北京）修链服务运营'
+CAMPAIGN_CONTACT_BJ_JULY = '王爽'
 
 ## 北京的特殊配置选项
 # 销售激励活动 奖金池计算比例
@@ -330,15 +402,40 @@ SERVICE_PROVIDER_MAPPING = {
     "北京盛达洪雨防水技术有限公司": "盛达洪雨（沟通群）",
     "北京腾飞瑞欧建筑装饰有限公司": "潇译防水（沟通群）",
     "北京众德森建材有限责任公司": "众德森（沟通群）",
-    "北京九鼎建工建筑工程有限公司": "九鼎建工（沟通群）",
+    "北京九鼎建工科技工程有限公司": "九鼎建工（沟通群）",
     "北京顺建为安工程有限公司": "顺建为安（沟通群）",
     "三河市中豫防水工程有限公司": "中豫防水（沟通群）",
     "北京华锐龙盛建筑工程有限公司": "华锐龙盛（沟通群）",
     "云尚虹（北京）建筑工程有限公司": "云尚虹（沟通群）",
     "虹途控股（北京）有限责任公司": "虹途控股（沟通群）",
+    "北京经常亮工程技术有限公司": "经常亮（沟通群）",
 
     # 可以继续添加其他服务商的映射
     # "服务商名称": "接收人名称",
+}
+
+# 服务商webhook映射（待预约工单提醒专用）
+ORG_WEBHOOKS = {
+    # 服务商专属webhook配置
+    "北京经常亮工程技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=44b3d3db-009e-4477-bdbb-88832b232155",
+    "虹途控股（北京）有限责任公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=0cd6ba04-719d-4817-a8a5-4034c2e4781d",
+    "北京顺建为安工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b81aae61-820c-4123-8ed7-0287540be82d",
+    "北京九鼎建工科技工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c6f36d8e-6b06-4614-9869-a095168de0dc",
+    "北京久盾宏盛建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2ea71190-53b6-46ff-ad83-9d249d9d67e3",
+    "三河市中豫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=8a3c889a-1109-477c-8bd8-bdb3ca8599ce",
+    "北京恒润万通防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=77214359-c515-4463-a8d8-a80d691437d1",
+    "北京浩圣科技有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=23f3fac2-5390-45e8-b54b-619b025e335a",
+    "北京华夏精程防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=d6958739-31d9-4cfb-9ef0-238ff003061d",
+    "北京腾飞瑞欧建筑装饰有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=d60d7366-e66d-4202-88d3-bd87f43f7cab",
+    "云尚虹（北京）建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=1f383a88-107a-4760-a455-f00297203675",
+    "北京博远恒泰装饰装修有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a7696a0a-a392-412a-a5b6-ed34486ea6a0",
+    "北京华庭装饰工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9f0621da-2e4c-484b-b1f9-b65bcdd48cee",
+    "北京德客声商贸有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4ea9922b-1333-4e34-9fca-62cec5408c73",
+    "北京虹象防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b61d1232-ddfd-4cc4-81ed-f8f6b9cdc7b9",
+    "北京建君盛华技术服务有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b72b9e1d-1c82-4be6-8b58-239b2f941570",
+    "北京怀军防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=09a26589-f1b2-4d1c-b27d-01703ec32820",
+    "北京盛达洪雨防水技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=32aedd2b-ec5a-4fd8-a1bf-8a1e1a16ed6c",
+    # 其他未配置专属webhook的服务商将使用默认webhook
 }
 
 ##------ 徽章功能 ------##
@@ -349,7 +446,7 @@ ENABLE_BADGE_MANAGEMENT = True
 ELITE_BADGE_EMOJI = "\U0001F396"  # 奖章
 ELITE_BADGE_NAME = f"【{ELITE_BADGE_EMOJI}精英管家】"
 # 精英管家列表，2025年4月份增加的逻辑，精英管家是技术工程师的一个头衔
-ELITE_HOUSEKEEPER = ["胡林波", "余金凤", "文刘飞", "李卓", "吕世军"]  # 可以根据需要添加更多管家
+ELITE_HOUSEKEEPER = ["文刘飞", "孔祥达1", "陈东"]  # 可以根据需要添加更多管家
 
 # 新锐管家徽章配置，2025年5月新增
 RISING_STAR_BADGE_EMOJI = "\U0001F195"  # 新

@@ -38,20 +38,20 @@ def run_jobs_serially():
                 logging.error(f"An error occurred while running signing_and_sales_incentive_jun_beijing: {e}")
                 logging.error(traceback.format_exc())
 
-        elif current_month == 5:
-            # 上海5月份
+        elif current_month == 7:
+            # 上海7月份
             try:
-                signing_and_sales_incentive_may_shanghai()
+                signing_and_sales_incentive_july_shanghai()
                 time.sleep(5)
             except Exception as e:
-                logging.error(f"An error occurred while running signing_and_sales_incentive_may_shanghai: {e}")
+                logging.error(f"An error occurred while running signing_and_sales_incentive_july_shanghai: {e}")
                 logging.error(traceback.format_exc())
-            # 北京5月份
+            # 北京7月份
             try:
-                signing_and_sales_incentive_may_beijing()
+                signing_and_sales_incentive_july_beijing()
                 time.sleep(5)
             except Exception as e:
-                logging.error(f"An error occurred while running signing_and_sales_incentive_may_beijing: {e}")
+                logging.error(f"An error occurred while running signing_and_sales_incentive_july_beijing: {e}")
                 logging.error(traceback.format_exc())                                       
         else:
             logging.info("No tasks scheduled for this month.")       
@@ -80,6 +80,19 @@ def daily_service_report_task():
 # 使用schedule库调度日报任务，每天11点执行
 schedule.every().day.at("11:00").do(daily_service_report_task)
 
+# 定义一个函数来执行待预约工单提醒任务
+def pending_orders_reminder_task():
+    with ui_lock:  # 确保在执行 UI 操作时获得锁
+        try:
+            send_pending_orders_reminder()  # 调用待预约工单提醒函数
+            logging.info("Pending orders reminder sent successfully.")
+        except Exception as e:
+            logging.error(f"An error occurred while sending pending orders reminder: {e}")
+            logging.error(traceback.format_exc())
+
+# 使用schedule库调度待预约工单提醒任务，每天9点执行
+schedule.every().day.at("09:00").do(pending_orders_reminder_task)
+
 if __name__ == '__main__':
     logging.info('Program started')
 
@@ -87,21 +100,23 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=task_scheduler.start)
     scheduler_thread.daemon = True  # 设置为守护线程
     # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
-    # scheduler_thread.start()
+    scheduler_thread.start()
 
     # 单独测试任务
     # generate_daily_service_report()
     # check_technician_status()
-    signing_and_sales_incentive_jun_beijing()
-    # signing_and_sales_incentive_may_shanghai()
+    # signing_and_sales_incentive_jun_beijing()
     # signing_and_sales_incentive_jun_shanghai()
+    # signing_and_sales_incentive_july_beijing()
+    # signing_and_sales_incentive_july_shanghai()
+    # pending_orders_reminder_task()
 
-    # # 启动调度循环
-    # while True:
-    #     try:
-    #         schedule.run_pending()  # 这里也在运行schedule的任务
-    #         time.sleep(1)
-    #     except Exception as e:
-    #         logging.error(f"Job failed with exception: {e}")
-    #         logging.error(traceback.format_exc())
-    #         time.sleep(5)
+    # 启动调度循环
+    while True:
+        try:
+            schedule.run_pending()  # 这里也在运行schedule的任务
+            time.sleep(1)
+        except Exception as e:
+            logging.error(f"Job failed with exception: {e}")
+            logging.error(traceback.format_exc())
+            time.sleep(5)
