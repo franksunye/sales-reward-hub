@@ -187,21 +187,67 @@ def send_sla_violation_notifications(violation_data):
         except Exception as e:
             logging.error(f"发送消息给 {receiver_name} 时出错: {e}")
 
+def safe_parse_datetime(time_str):
+    """
+    安全解析时间字符串，兼容Python 3.7.2
+    处理微秒位数不足的问题
+
+    Args:
+        time_str: 时间字符串
+
+    Returns:
+        datetime: 解析后的时间对象
+    """
+    import re
+
+    # 移除可能的Z后缀
+    time_str = time_str.replace("Z", "")
+
+    # 正则表达式匹配时间格式
+    # 匹配: YYYY-MM-DDTHH:MM:SS.微秒+时区 或 YYYY-MM-DDTHH:MM:SS+时区
+    pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?([\+\-]\d{2}:\d{2})'
+    match = re.match(pattern, time_str)
+
+    if not match:
+        # 如果正则匹配失败，尝试直接解析
+        return datetime.fromisoformat(time_str)
+
+    base_time = match.group(1)      # 基础时间部分
+    microseconds = match.group(2)   # 微秒部分
+    timezone = match.group(3)       # 时区部分
+
+    if microseconds:
+        # 将微秒部分标准化为6位
+        if len(microseconds) < 6:
+            # 不足6位，右侧补0
+            microseconds = microseconds.ljust(6, '0')
+        elif len(microseconds) > 6:
+            # 超过6位，截断到6位
+            microseconds = microseconds[:6]
+
+        # 重新组装标准格式的时间字符串
+        standard_time_str = f"{base_time}.{microseconds}{timezone}"
+    else:
+        # 没有微秒部分，直接使用
+        standard_time_str = f"{base_time}{timezone}"
+
+    return datetime.fromisoformat(standard_time_str)
+
 def construct_sla_violation_message(violation_record):
     try:
-        # 解析建单时间并格式化
-        create_time = datetime.fromisoformat(violation_record['saCreateTime'].replace("Z", ""))  # 处理时区
-        # formatted_time = create_time.strftime("%Y年%m月%d日 %H:%M")  # 格式化为 YYYY年MM月DD日 HH:MM
+        # 使用安全的时间解析方法，兼容Python 3.7.2
+        create_time = safe_parse_datetime(violation_record['saCreateTime'])
+        formatted_time = create_time.strftime("%Y-%m-%d %H:%M")  # 格式化为 YYYY-MM-DD HH:MM
 
         # 使用 str.format() 构建消息内容
         msg = (
             f"超时通知:\n"
             f"工单编号：{violation_record['orderNum']}\n"
-            f"建单时间：{create_time}\n"
+            f"建单时间：{formatted_time}\n"
             f"管家：{violation_record['supervisorName']}\n"
             f"违规类型：{violation_record['msg']}\n"
             f"违规描述：{violation_record['memo']}\n"
-            f"说明：以上数据为服务商昨日工单超时统计，如有异议请于下周一十二点前联系运营人员王金申诉。"
+            f"说明：以上数据为服务商昨日工单超时统计，如有异议请于下周一十二点前联系运营申诉。"
         )
         return msg
     except Exception as e:

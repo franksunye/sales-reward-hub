@@ -100,7 +100,7 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=task_scheduler.start)
     scheduler_thread.daemon = True  # 设置为守护线程
     # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
-    scheduler_thread.start()
+    # scheduler_thread.start()
 
     # 单独测试任务
     # generate_daily_service_report()
@@ -109,14 +109,14 @@ if __name__ == '__main__':
     # signing_and_sales_incentive_jun_shanghai()
     # signing_and_sales_incentive_july_beijing()
     # signing_and_sales_incentive_july_shanghai()
-    # pending_orders_reminder_task()
+    pending_orders_reminder_task()
 
-    # 启动调度循环
-    while True:
-        try:
-            schedule.run_pending()  # 这里也在运行schedule的任务
-            time.sleep(1)
-        except Exception as e:
-            logging.error(f"Job failed with exception: {e}")
-            logging.error(traceback.format_exc())
-            time.sleep(5)
+    # # 启动调度循环
+    # while True:
+    #     try:
+    #         schedule.run_pending()  # 这里也在运行schedule的任务
+    #         time.sleep(1)
+    #     except Exception as e:
+    #         logging.error(f"Job failed with exception: {e}")
+    #         logging.error(traceback.format_exc())
+    #         time.sleep(5)

@@ -263,6 +263,70 @@ def format_create_time(iso_time_str):
         logging.warning(f'时间格式转换失败: {iso_time_str}, 错误: {e}')
         return iso_time_str
 
+def filter_orders_by_time_threshold(orders_data):
+    """
+    过滤工单数据，排除：
+    - 待预约状态，48小时之内的需要排除
+    - 暂不上门状态，48小时之内的需要排除
+
+    Args:
+        orders_data: 原始工单数据列表
+
+    Returns:
+        filtered_orders: 过滤后的工单数据列表
+    """
+    from datetime import datetime, timezone
+
+    filtered_orders = []
+    current_time = datetime.now(timezone.utc)
+
+    for order in orders_data:
+        try:
+            # 解析工单数据
+            order_info = {
+                'orderNum': order[0],
+                'name': order[1],
+                'address': order[2],
+                'supervisorName': order[3],
+                'createTime': order[4],
+                'orgName': order[5],
+                'orderstatus': order[6]
+            }
+
+            # 解析创建时间
+            create_time_str = order_info['createTime']
+            if '+' in create_time_str:
+                create_time = datetime.fromisoformat(create_time_str)
+            else:
+                create_time = datetime.fromisoformat(create_time_str.replace('Z', '+00:00'))
+
+            # 确保创建时间有时区信息
+            if create_time.tzinfo is None:
+                create_time = create_time.replace(tzinfo=timezone.utc)
+
+            # 计算时间差（小时）
+            time_diff = current_time - create_time
+            hours_elapsed = time_diff.total_seconds() / 3600
+
+            # 获取工单状态
+            order_status = order_info['orderstatus']
+
+            # 过滤逻辑：待预约和暂不上门状态，48小时之内的需要排除
+            should_include = True
+
+            if ('待预约' in order_status or '暂不上门' in order_status) and hours_elapsed < 48:
+                should_include = False
+                logging.info(f"过滤掉工单 {order_info['orderNum']} (状态: {order_status}, 创建时间: {hours_elapsed:.1f}小时前)")
+
+            if should_include:
+                filtered_orders.append(order)
+
+        except Exception as e:
+            logging.warning(f"处理工单数据时出错，跳过: {order}, 错误: {e}")
+            continue
+
+    return filtered_orders
+
 def group_orders_by_org(orders_data):
     """按服务商分组工单数据"""
     grouped = {}
@@ -445,19 +509,31 @@ def send_pending_orders_reminder():
 
         orders_data = response['data']['rows']
         total_orders = len(orders_data)
-        logging.info(f'获取到 {total_orders} 条工单数据')
+        logging.info(f'获取到 {total_orders} 条原始工单数据')
 
         if total_orders == 0:
             logging.info('没有待预约工单，任务结束')
             return
 
-        # 2. 数据处理和分组
+        # 2. 应用时间过滤
+        logging.info('正在应用时间过滤规则...')
+        logging.info('- 排除待预约状态48小时之内的工单')
+        logging.info('- 排除暂不上门状态48小时之内的工单')
+        filtered_orders_data = filter_orders_by_time_threshold(orders_data)
+        filtered_count = len(filtered_orders_data)
+        logging.info(f'过滤后剩余 {filtered_count} 条工单数据')
+
+        if filtered_count == 0:
+            logging.info('过滤后没有符合条件的工单，任务结束')
+            return
+
+        # 3. 数据处理和分组
         logging.info('正在按服务商分组工单数据...')
-        grouped_orders = group_orders_by_org(orders_data)
+        grouped_orders = group_orders_by_org(filtered_orders_data)
         org_count = len(grouped_orders)
         logging.info(f'共分为 {org_count} 个服务商组')
 
-        # 3. 发送通知
+        # 4. 发送通知
         success_count = 0
         failed_count = 0
 
@@ -481,7 +557,7 @@ def send_pending_orders_reminder():
                 failed_count += 1
                 logging.error(f'✗ {org_name} 提醒发送失败: {e}')
 
-        # 4. 任务总结
+        # 5. 任务总结
         logging.info(f'待预约工单提醒任务完成 - 成功: {success_count}, 失败: {failed_count}')
 
     except Exception as e:

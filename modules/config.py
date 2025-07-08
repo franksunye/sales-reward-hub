@@ -241,7 +241,7 @@ TASK_CHECK_INTERVAL = 10
 
 # 北京地区
 # 北京运营企微群机器人通讯地址
-# WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=59cf22c5-0623-4b34-b207-0f404f13eeeb'
+# WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4fbae71d-8d83-479f-a2db-7690eeb37a5c'
 WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=689cebff-3328-4150-9741-fed8b8ce4713'
 PHONE_NUMBER = '15327103039'
 
@@ -409,6 +409,21 @@ SERVICE_PROVIDER_MAPPING = {
     "云尚虹（北京）建筑工程有限公司": "云尚虹（沟通群）",
     "虹途控股（北京）有限责任公司": "虹途控股（沟通群）",
     "北京经常亮工程技术有限公司": "经常亮（沟通群）",
+    
+    # 上海区域
+    "上海国坦装潢设计工程有限公司": "国坦工作群",
+    "上海昊炫建筑材料有限公司": "昊炫工作群",
+    "上海昆昱防水工程有限公司": "昆昱工作群",
+    "上海妙才建筑防水工程有限公司": "妙才工作群",
+    "上海荃璆实业有限公司": "荃璆工作群",
+    "上海锐常实业有限公司": "锐常工作群",
+    "上海若金汤防水工程有限公司": "若金汤工作群",
+    "上海涛芫防水工程有限公司": "荃璆工作群",
+    "上海位卫防水工程有限公司": "位卫工作群",
+    "上海雁棠建筑工程有限公司": "雁棠工作群",
+    "上海翊增建筑工程有限公司": "翊增工作群",
+    "上海云风防水工程有限公司": "昆昱工作群",
+    "上海哲佑防水工程有限公司": "哲佑工作群",
 
     # 可以继续添加其他服务商的映射
     # "服务商名称": "接收人名称",
@@ -435,6 +450,18 @@ ORG_WEBHOOKS = {
     "北京建君盛华技术服务有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b72b9e1d-1c82-4be6-8b58-239b2f941570",
     "北京怀军防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=09a26589-f1b2-4d1c-b27d-01703ec32820",
     "北京盛达洪雨防水技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=32aedd2b-ec5a-4fd8-a1bf-8a1e1a16ed6c",
+    # 上海地区
+    "上海国坦装潢设计工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4b25fb8e-b08f-4260-9f5c-eff87766ea2a",
+    "上海昊炫建筑材料有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=daaf7c55-639c-4366-9d47-0909a4d8cf59",
+    "上海昆昱防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c05e83b9-1f4a-4603-a8bc-2de74f42eaf8",
+    "上海妙才建筑防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=68489387-abc8-4f49-9804-d0c8b08e8288",
+    "上海荃璆实业有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9a4e331e-44ef-4356-a5b6-40108e4ccd53",
+    "上海锐常实业有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=957f398b-686b-4c42-b02a-51f91fac0fff",
+    "上海若金汤防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=71152288-4a43-4ac7-a393-49f3636b4391",
+    "上海位卫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4703b5a8-994a-401b-a06c-b04a86bed01a",
+    "上海雁棠建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b74d3962-2399-423c-9491-b21dff0fe1a7",
+    "上海哲佑防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=84eb80c4-def8-40c8-82e3-842fd0b01e7d",
+
     # 其他未配置专属webhook的服务商将使用默认webhook
 }
 
