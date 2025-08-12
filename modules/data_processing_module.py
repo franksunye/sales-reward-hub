@@ -455,7 +455,12 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
         # 计算下一级奖励所需金额差，如果启用了绩效金额，使用绩效金额，否则使用合同金额
         amount = housekeeper_data['performance_amount'] if config.ENABLE_PERFORMANCE_AMOUNT_CAP else housekeeper_data['total_amount']
         next_reward = None
-        if amount >= 120000 and '精英奖' not in housekeeper_data['awarded']:
+        if amount >=160000 and '卓越奖' not in housekeeper_data['awarded']:
+            # 卓越奖
+            reward_types.append("节节高")
+            reward_names.append("卓越奖")
+            housekeeper_data['awarded'].append('卓越奖')
+        elif amount >= 120000 and '精英奖' not in housekeeper_data['awarded']:
             # 精英奖
             reward_types.append("节节高")
             reward_names.append("精英奖")
@@ -478,7 +483,7 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
             reward_types.append("节节高")
             reward_names.append("基础奖")
             housekeeper_data['awarded'].append('基础奖')
-        elif not set(["精英奖", "优秀奖", "达标奖", "基础奖"]).intersection(housekeeper_data['awarded']):
+        elif not set(["卓越奖", "精英奖", "优秀奖", "达标奖", "基础奖"]).intersection(housekeeper_data['awarded']):
             next_reward = "基础奖"  # 如果没有获得任何奖项，则下一个奖项是基础奖
 
         # 自动发放所有低级别奖项（如果之前未获得）
@@ -498,13 +503,19 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
             reward_types.append("节节高")
             reward_names.append("精英奖")
             housekeeper_data['awarded'].append('精英奖')
+        if '卓越奖' not in housekeeper_data['awarded'] and amount >= 160000:
+            reward_types.append("节节高")
+            reward_names.append("卓越奖")
+            housekeeper_data['awarded'].append('卓越奖')
 
         if not next_reward:
-            if '优秀奖' in housekeeper_data['awarded'] and  amount < 120000 and  not set(["精英奖"]).intersection(housekeeper_data['awarded']):
+            if '精英奖' in housekeeper_data['awarded'] and  amount < 160000 and  not set(["卓越奖"]).intersection(housekeeper_data['awarded']):
+                next_reward = "卓越奖"
+            elif '优秀奖' in housekeeper_data['awarded'] and  amount < 120000 and  not set(["卓越奖","精英奖"]).intersection(housekeeper_data['awarded']):
                 next_reward = "精英奖"
-            elif '达标奖' in housekeeper_data['awarded'] and  amount < 80000 and  not set(["精英奖", "优秀奖"]).intersection(housekeeper_data['awarded']):
+            elif '达标奖' in housekeeper_data['awarded'] and  amount < 80000 and  not set(["卓越奖","精英奖", "优秀奖"]).intersection(housekeeper_data['awarded']):
                 next_reward = "优秀奖"
-            elif '基础奖' in housekeeper_data['awarded'] and  amount < 60000 and  not set(["精英奖", "优秀奖", "达标奖"]).intersection(housekeeper_data['awarded']):
+            elif '基础奖' in housekeeper_data['awarded'] and  amount < 60000 and  not set(["卓越奖","精英奖", "优秀奖", "达标奖"]).intersection(housekeeper_data['awarded']):
                 next_reward = "达标奖"
 
         # 计算距离下一级奖励所需的金额差
@@ -517,8 +528,10 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
                 next_reward_gap = f"距离 {next_reward} 还需 {round(80000 - amount, 2):,} 元"
             elif next_reward == "精英奖":
                 next_reward_gap = f"距离 {next_reward} 还需 {round(120000 - amount, 2):,} 元"
+            elif next_reward == "卓越奖":
+                next_reward_gap = f"距离 {next_reward} 还需 {round(160000 - amount, 2):,} 元"
     else:
-        if  not set(["精英奖", "优秀奖", "达标奖"]).intersection(housekeeper_data['awarded']):
+        if  not set(["卓越奖", "精英奖", "优秀奖", "达标奖"]).intersection(housekeeper_data['awarded']):
             next_reward_gap = f"距离达成节节高奖励条件还需 {JIEJIEGAO_CONTRACT_COUNT_THRESHOLD -  housekeeper_data['count']} 单"
 
     return ', '.join(reward_types), ', '.join(reward_names), next_reward_gap

@@ -133,6 +133,27 @@ REWARD_CONFIGS = {
             ]
         }
     },
+    # 北京2025年8月活动配置
+    "BJ-2025-08": {
+        "lucky_number": "8",
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "single_project_limit": 500000,
+            "enable_cap": True,
+            "single_contract_cap": 500000
+        },
+        "tiered_rewards": {
+            "min_contracts": 6,
+            "tiers": [
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 120000},
+                {"name": "精英奖", "threshold": 180000}
+            ]
+        }
+    },
     # 上海2025年4月活动配置
     "SH-2025-04": {
         "lucky_number": "6",
@@ -201,6 +222,28 @@ REWARD_CONFIGS = {
     },
     # 上海2025年7月活动配置
     "SH-2025-07": {
+        "lucky_number": "6",
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "single_project_limit": None,  # 上海没有工单金额上限
+            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
+            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
+        },
+        "tiered_rewards": {
+            "min_contracts": 5,  # 上海需要5个合同
+            "tiers": [
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000}
+            ]
+        }
+    },
+    # 上海2025年8月活动配置
+    "SH-2025-08": {
         "lucky_number": "6",
         "lucky_rewards": {
             "base": {"name": "接好运", "threshold": 0},
@@ -307,6 +350,18 @@ STATUS_FILENAME_SH_JULY = 'state/send_status_sh_july.json'
 WECOM_GROUP_NAME_SH_JULY = '（上海）运营群'
 CAMPAIGN_CONTACT_SH_JULY = '满浩浩'
 
+## 上海地区，2025年8月活动
+API_URL_SH_AUG = METABASE_URL + "/api/card/1801/query"
+
+# 销售激励活动 JOB signing_and_sales_incentive_aug_shanghai
+TEMP_CONTRACT_DATA_FILE_SH_AUG = 'state/ContractData-SH-Aug.csv'
+PERFORMANCE_DATA_FILENAME_SH_AUG = 'state/PerformanceData-SH-Aug.csv'
+STATUS_FILENAME_SH_AUG = 'state/send_status_sh_aug.json'
+
+# Pro
+WECOM_GROUP_NAME_SH_AUG = '（上海）运营群'
+CAMPAIGN_CONTACT_SH_AUG = '满浩浩'
+
 ## 上海的特殊配置选项
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO = 0.002  # 默认为0.2%,可根据需要调整
@@ -361,6 +416,18 @@ STATUS_FILENAME_BJ_JULY = 'state/send_status_bj_july.json'
 WECOM_GROUP_NAME_BJ_JULY = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_JULY = '王爽'
 
+## 北京地区，2025年8月活动
+API_URL_BJ_AUG = METABASE_URL + "/api/card/1800/query"
+
+# 北京销售激励活动 JOB signing_and_sales_incentive_aug_beijing
+TEMP_CONTRACT_DATA_FILE_BJ_AUG = 'state/ContractData-BJ-Aug.csv'
+PERFORMANCE_DATA_FILENAME_BJ_AUG = 'state/PerformanceData-BJ-Aug.csv'
+STATUS_FILENAME_BJ_AUG = 'state/send_status_bj_aug.json'
+
+# Pro
+WECOM_GROUP_NAME_BJ_AUG = '（北京）修链服务运营'
+CAMPAIGN_CONTACT_BJ_AUG = '王爽'
+
 ## 北京的特殊配置选项
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO_BJ_FEB = 0.002  # 默认为0.2%,可根据需要调整
@@ -381,52 +448,6 @@ SLA_VIOLATIONS_RECORDS_FILE = './state/sla_violations.json'
 # SLA监控配置
 SLA_CONFIG = {
     "FORCE_MONDAY": False,  # 测试时设为 True，正式环境设为 False
-}
-# 服务商名称到接收人名称的映射
-SERVICE_PROVIDER_MAPPING = {
-
-    # "北京恒润万通防水工程有限公司": "孙埜",
-    # "北京博远恒泰装饰装修有限公司": "孙埜",
-    # "北京腾飞瑞欧建筑装饰有限公司": "孙埜",
-    # "北京久安有方建筑工程有限公司": "孙埜",
-
-    "北京博远恒泰装饰装修有限公司": "博远恒泰（沟通群）",
-    "北京德客声商贸有限公司": "德客声（沟通群）",
-    "北京恒润万通防水工程有限公司": "恒润万通（沟通群）",
-    "北京华庭装饰工程有限公司": "华庭装饰（沟通群）",
-    "北京华夏精程防水工程有限公司": "华夏精程（沟通群）",
-    "北京怀军防水工程有限公司": "怀军防水（沟通群）",
-    "北京建君盛华技术服务有限公司": "建君盛华（沟通群）",
-    "北京虹象防水工程有限公司": "久安有方（沟通群）",
-    "北京久盾宏盛建筑工程有限公司": "久盾宏盛（沟通群）",
-    "北京盛达洪雨防水技术有限公司": "盛达洪雨（沟通群）",
-    "北京腾飞瑞欧建筑装饰有限公司": "潇译防水（沟通群）",
-    "北京众德森建材有限责任公司": "众德森（沟通群）",
-    "北京九鼎建工科技工程有限公司": "九鼎建工（沟通群）",
-    "北京顺建为安工程有限公司": "顺建为安（沟通群）",
-    "三河市中豫防水工程有限公司": "中豫防水（沟通群）",
-    "北京华锐龙盛建筑工程有限公司": "华锐龙盛（沟通群）",
-    "云尚虹（北京）建筑工程有限公司": "云尚虹（沟通群）",
-    "虹途控股（北京）有限责任公司": "虹途控股（沟通群）",
-    "北京经常亮工程技术有限公司": "经常亮（沟通群）",
-    
-    # 上海区域
-    "上海国坦装潢设计工程有限公司": "国坦工作群",
-    "上海昊炫建筑材料有限公司": "昊炫工作群",
-    "上海昆昱防水工程有限公司": "昆昱工作群",
-    "上海妙才建筑防水工程有限公司": "妙才工作群",
-    "上海荃璆实业有限公司": "荃璆工作群",
-    "上海锐常实业有限公司": "锐常工作群",
-    "上海若金汤防水工程有限公司": "若金汤工作群",
-    "上海涛芫防水工程有限公司": "荃璆工作群",
-    "上海位卫防水工程有限公司": "位卫工作群",
-    "上海雁棠建筑工程有限公司": "雁棠工作群",
-    "上海翊增建筑工程有限公司": "翊增工作群",
-    "上海云风防水工程有限公司": "昆昱工作群",
-    "上海哲佑防水工程有限公司": "哲佑工作群",
-
-    # 可以继续添加其他服务商的映射
-    # "服务商名称": "接收人名称",
 }
 
 # 服务商webhook映射（待预约工单提醒专用）
@@ -461,7 +482,8 @@ ORG_WEBHOOKS = {
     "上海位卫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4703b5a8-994a-401b-a06c-b04a86bed01a",
     "上海雁棠建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b74d3962-2399-423c-9491-b21dff0fe1a7",
     "上海哲佑防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=84eb80c4-def8-40c8-82e3-842fd0b01e7d",
-
+    "上海涛芫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9a4e331e-44ef-4356-a5b6-40108e4ccd53",
+    "上海云风防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c05e83b9-1f4a-4603-a8bc-2de74f42eaf8",
     # 其他未配置专属webhook的服务商将使用默认webhook
 }
 
@@ -473,7 +495,7 @@ ENABLE_BADGE_MANAGEMENT = True
 ELITE_BADGE_EMOJI = "\U0001F396"  # 奖章
 ELITE_BADGE_NAME = f"【{ELITE_BADGE_EMOJI}精英管家】"
 # 精英管家列表，2025年4月份增加的逻辑，精英管家是技术工程师的一个头衔
-ELITE_HOUSEKEEPER = ["文刘飞", "孔祥达1", "陈东"]  # 可以根据需要添加更多管家
+ELITE_HOUSEKEEPER = ["余金凤"]  # 可以根据需要添加更多管家
 
 # 新锐管家徽章配置，2025年5月新增
 RISING_STAR_BADGE_EMOJI = "\U0001F195"  # 新

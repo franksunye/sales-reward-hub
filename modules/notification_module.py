@@ -212,7 +212,7 @@ def notify_awards_shanghai_generate_message_march(performance_data_filename, sta
         '达标奖': '300',
         '优秀奖': '400',
         '精英奖': '800',
-        # '卓越奖': '1200',
+        '卓越奖': '1200',
     }
 
     for record in records:
