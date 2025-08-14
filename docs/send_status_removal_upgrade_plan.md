@@ -1,22 +1,23 @@
-# Send Status 机制移除升级计划
+# Send Status 机制移除升级计划（合同通知专项）
 
 ## 1. 项目概述
 
 ### 1.1 升级目标
-移除冗余的send_status文件机制，简化系统架构，保持现有功能完整性。
+移除合同通知功能中冗余的send_status文件机制，简化系统架构，保持现有功能完整性。
 
 ### 1.2 背景分析
-当前系统存在三重状态跟踪机制：
+当前合同通知系统存在三重状态跟踪机制：
 - CSV文件的`'是否发送通知'`字段（业务层去重）
 - send_status JSON文件（技术层去重）
 - task_manager数据库（任务执行状态）
 
-由于task_manager已接管消息发送管理，send_status机制已成为冗余。
+由于task_manager已接管消息发送管理，合同通知中的send_status机制已成为冗余。
 
 ### 1.3 升级范围
-- **包含功能**：合同通知、技师状态变更通知
+- **包含功能**：仅限合同通知功能
+- **排除功能**：技师状态变更通知（使用独立的send_status机制，不在本次升级范围）
 - **影响文件**：notification_module.py, file_utils.py, config.py, jobs.py
-- **数据文件**：所有send_status_*.json文件
+- **数据文件**：合同相关的send_status_*.json文件（如send_status_bj_aug.json等）
 
 ## 2. 风险评估与质量保证策略
 
@@ -25,11 +26,13 @@
 #### 高风险项
 1. **消息重复发送**：移除去重机制可能导致重复通知
 2. **消息丢失**：逻辑错误可能导致应发送的消息未发送
-3. **技师状态变更功能中断**：该功能完全依赖send_status
 
 #### 中风险项
 1. **配置文件清理**：移除配置项可能影响其他引用
-2. **历史数据处理**：现有send_status文件的处理
+2. **历史数据处理**：现有合同相关send_status文件的处理
+
+#### 低风险项
+1. **技师状态变更功能**：该功能使用独立的send_status机制，不受本次升级影响
 
 ### 2.2 质量保证策略
 
@@ -47,60 +50,23 @@
 
 ## 3. 详细实施计划
 
-### 3.1 阶段一：准备和分析（1-2天）
+### 3.1 阶段一：准备和分析（1天）
 
 #### 任务清单
-- [ ] 完整代码审查，识别所有send_status使用点
-- [ ] 创建当前功能的基准测试用例
-- [ ] 备份现有send_status文件
-- [ ] 分析技师状态变更功能的替代方案
+- [ ] 完整代码审查，识别合同通知中所有send_status使用点
+- [ ] 创建合同通知功能的基准测试用例
+- [ ] 备份现有合同相关send_status文件
+- [ ] 确认技师状态变更功能不受影响
 
 #### 交付物
-- 代码使用点清单
+- 合同通知send_status使用点清单
 - 基准测试套件
-- 技师状态变更重构方案
+- 影响范围确认报告
 
-### 3.2 阶段二：技师状态变更功能重构（2-3天）
-
-#### 重构方案
-将技师状态变更的去重逻辑迁移到task_manager：
-
-```python
-# 新的实现方案
-def notify_technician_status_changes(status_changes, status_filename=None):
-    for change in status_changes:
-        change_id = change[0]
-        
-        # 检查是否已存在相同change_id的已完成任务
-        if not is_change_already_processed(change_id):
-            create_task('send_wechat_message', company_name, message, 
-                       business_id=change_id, business_type='technician_status')
-            post_text_to_webhook(message)
-
-def is_change_already_processed(change_id):
-    # 查询task_manager数据库
-    conn = sqlite3.connect('tasks.db')
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT COUNT(*) FROM tasks 
-        WHERE business_id = ? AND business_type = 'technician_status' 
-        AND status = 'completed'
-    """, (change_id,))
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count > 0
-```
-
-#### 任务清单
-- [ ] 扩展task_manager数据库schema（添加business_id, business_type字段）
-- [ ] 实现新的去重逻辑
-- [ ] 创建技师状态变更专项测试
-- [ ] 验证功能等价性
-
-### 3.3 阶段三：合同通知功能简化（1-2天）
+### 3.2 阶段二：合同通知功能简化（1-2天）
 
 #### 简化方案
-移除send_status检查，只依赖CSV字段：
+移除合同通知中的send_status检查，只依赖CSV字段：
 
 ```python
 # 简化后的逻辑
@@ -110,16 +76,16 @@ def notify_awards_aug_beijing(performance_data_filename, status_filename=None):
 
     for record in records:
         contract_id = record['合同ID(_id)']
-        
+
         # 只检查CSV字段，移除send_status检查
         if record['是否发送通知'] == 'N':
             # 创建任务
             create_task('send_wecom_message', WECOM_GROUP_NAME_BJ_AUG, msg)
-            
+
             if record['激活奖励状态'] == '1':
                 jiangli_msg = generate_award_message(record, awards_mapping, "BJ")
                 create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ_AUG, jiangli_msg)
-            
+
             # 只更新CSV字段
             record['是否发送通知'] = 'Y'
             updated = True
@@ -129,51 +95,54 @@ def notify_awards_aug_beijing(performance_data_filename, status_filename=None):
 ```
 
 #### 任务清单
-- [ ] 修改所有合同通知函数
-- [ ] 移除send_status相关参数和调用
+- [ ] 修改所有合同通知函数（notify_awards_*系列）
+- [ ] 移除合同通知函数中的send_status相关参数和调用
+- [ ] 保留技师状态变更功能不变
 - [ ] 创建合同通知专项测试
 - [ ] 验证去重逻辑正确性
 
-### 3.4 阶段四：清理和优化（1天）
+### 3.3 阶段三：清理和优化（1天）
 
 #### 清理范围
-1. **文件清理**
-   - 移除file_utils.py中的send_status相关函数
-   - 清理config.py中的STATUS_FILENAME_*配置
-   - 删除历史send_status文件
+1. **配置清理**
+   - 清理config.py中合同相关的STATUS_FILENAME_*配置
+   - 保留技师状态变更的STATUS_FILENAME_TS配置
+   - 删除历史合同send_status文件
 
 2. **代码清理**
-   - 移除所有send_status相关导入
-   - 清理函数参数中的status_filename
-   - 更新函数文档
+   - 移除合同通知函数中的send_status相关导入和调用
+   - 保留file_utils.py中的send_status函数（技师功能仍需使用）
+   - 清理合同通知函数参数中的status_filename
+   - 更新相关函数文档
 
 #### 任务清单
-- [ ] 移除send_status相关函数和配置
-- [ ] 清理历史数据文件
+- [ ] 清理合同相关的send_status配置
+- [ ] 删除历史合同send_status数据文件
 - [ ] 更新代码文档
 - [ ] 执行完整回归测试
 
 ## 4. 测试计划
 
 ### 4.1 单元测试
-- [ ] 技师状态变更去重逻辑测试
 - [ ] 合同通知去重逻辑测试
-- [ ] task_manager扩展功能测试
+- [ ] CSV字段更新逻辑测试
+- [ ] 技师状态变更功能不受影响验证
 
 ### 4.2 集成测试
 - [ ] 完整的合同通知流程测试
-- [ ] 完整的技师状态变更流程测试
-- [ ] 重复数据处理测试
+- [ ] 重复合同数据处理测试
 - [ ] 异常情况处理测试
+- [ ] 技师状态变更功能正常运行验证
 
 ### 4.3 性能测试
 - [ ] 大量数据处理性能对比
 - [ ] 数据库查询性能测试
 
 ### 4.4 用户验收测试
-- [ ] 8月份活动通知功能验证
-- [ ] 技师状态变更通知验证
+- [ ] 8月份合同通知功能验证
+- [ ] 技师状态变更通知正常运行验证
 - [ ] 消息发送准确性验证
+- [ ] 无重复消息发送验证
 
 ## 5. 回滚计划
 
@@ -212,35 +181,38 @@ def notify_awards_aug_beijing(performance_data_filename, status_filename=None):
 
 | 阶段 | 时间 | 负责人 | 关键里程碑 |
 |------|------|--------|------------|
-| 阶段一 | 第1-2天 | 开发团队 | 完成分析和准备 |
-| 阶段二 | 第3-5天 | 开发团队 | 技师功能重构完成 |
-| 阶段三 | 第6-7天 | 开发团队 | 合同功能简化完成 |
-| 阶段四 | 第8天 | 开发团队 | 清理和测试完成 |
-| 验收 | 第9天 | 业务团队 | 用户验收通过 |
+| 阶段一 | 第1天 | 开发团队 | 完成分析和准备 |
+| 阶段二 | 第2-3天 | 开发团队 | 合同功能简化完成 |
+| 阶段三 | 第4天 | 开发团队 | 清理和测试完成 |
+| 验收 | 第5天 | 业务团队 | 用户验收通过 |
 
 ## 8. 成功标准
 
 ### 8.1 功能标准
-- [ ] 所有现有通知功能正常工作
+- [ ] 所有合同通知功能正常工作
+- [ ] 技师状态变更功能不受影响
 - [ ] 无消息重复发送
 - [ ] 无消息丢失
 - [ ] 系统性能无下降
 
 ### 8.2 代码质量标准
-- [ ] 代码简化，可维护性提升
-- [ ] 无冗余配置和文件
+- [ ] 合同通知代码简化，可维护性提升
+- [ ] 移除冗余的合同send_status配置和文件
+- [ ] 保留必要的技师状态变更send_status机制
 - [ ] 测试覆盖率≥90%
 - [ ] 文档更新完整
 
 ### 8.3 业务标准
-- [ ] 8月份活动通知正常
+- [ ] 8月份合同通知正常
 - [ ] 技师状态变更通知正常
 - [ ] 用户体验无变化
 - [ ] 运维复杂度降低
 
 ---
 
-**文档版本**: v1.0  
-**创建日期**: 2025-08-14  
-**负责人**: Frank & AI Assistant  
+**文档版本**: v2.0
+**创建日期**: 2025-08-14
+**更新日期**: 2025-08-14
+**负责人**: Frank & AI Assistant
 **审核状态**: 待审核
+**更新说明**: 明确升级范围仅限合同通知功能，技师状态变更功能不在范围内
