@@ -32,9 +32,6 @@ python main.py
 
 # 或使用批处理文件
 start.bat
-
-# 启动仪表板
-streamlit run streamlit_app/app.py
 ```
 
 ## 当前活动配置
