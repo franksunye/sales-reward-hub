@@ -131,9 +131,6 @@ def generate_daily_service_report():
 
     logging.info('Daily service report generation completed.')
 
-
-
-
 def send_pending_orders_reminder():
     """待预约工单提醒任务"""
     from modules.data_utils import (

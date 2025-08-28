@@ -34,17 +34,17 @@ def run_jobs_serially():
             logging.error(f"An error occurred while running signing_and_sales_incentive_aug_beijing: {e}")
             logging.error(traceback.format_exc())
 
-    elif current_month == 7:
-        # 上海7月份
+    elif current_month == 9:
+        # 上海9月份
         try:
-            signing_and_sales_incentive_july_shanghai()
+            # signing_and_sales_incentive_july_shanghai()
             time.sleep(5)
         except Exception as e:
             logging.error(f"An error occurred while running signing_and_sales_incentive_july_shanghai: {e}")
             logging.error(traceback.format_exc())
-        # 北京7月份
+        # 北京9月份
         try:
-            signing_and_sales_incentive_july_beijing()
+            # signing_and_sales_incentive_july_beijing()
             time.sleep(5)
         except Exception as e:
             logging.error(f"An error occurred while running signing_and_sales_incentive_july_beijing: {e}")
@@ -91,11 +91,8 @@ if __name__ == '__main__':
 
     # 单独测试任务
     # generate_daily_service_report()
-    # check_technician_status()
     # signing_and_sales_incentive_aug_beijing()
     # signing_and_sales_incentive_aug_shanghai()
-    # signing_and_sales_incentive_july_beijing()
-    # signing_and_sales_incentive_july_shanghai()
     # pending_orders_reminder_task()
 
     # 启动调度循环

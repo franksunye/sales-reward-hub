@@ -158,7 +158,9 @@ STATUS_FILENAME_SH_AUG = 'state/send_status_sh_aug.json'
 WECOM_GROUP_NAME_SH_AUG = '（上海）运营群'
 CAMPAIGN_CONTACT_SH_AUG = '满浩浩'
 
-## 上海的特殊配置选项
+## 上海的通用配置选项
+WECOM_GROUP_NAME_SH = '（上海）运营群'
+CAMPAIGN_CONTACT_SH = '满浩浩'
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO = 0.002  # 默认为0.2%,可根据需要调整
 
