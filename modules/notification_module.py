@@ -1,21 +1,40 @@
 # notification_module.py
 import logging
-import pyautogui
-import pyperclip
 import time
-import pygetwindow as gw
-import re
 from modules.log_config import setup_logging
 import requests
 from modules.config import *
 from modules.file_utils import load_send_status, update_send_status, get_all_records_from_csv, write_performance_data_to_csv
-from datetime import datetime, timezone
 from task_manager import create_task
 
 # 配置日志
 setup_logging()
 # 使用专门的发送消息日志记录器
 send_logger = logging.getLogger('sendLogger')
+
+def get_awards_mapping(config_key):
+    """
+    从配置中获取奖励金额映射
+
+    Args:
+        config_key: 配置键，如 "SH-2025-04", "BJ-2025-08"
+
+    Returns:
+        dict: 奖励名称到金额的映射
+    """
+    if config_key in REWARD_CONFIGS:
+        return REWARD_CONFIGS[config_key].get("awards_mapping", {})
+    else:
+        # 如果配置不存在，返回默认映射（向后兼容）
+        return {
+            '接好运': '36',
+            '接好运万元以上': '66',
+            '基础奖': '200',
+            '达标奖': '300',
+            '优秀奖': '400',
+            '精英奖': '800',
+            '卓越奖': '1200',
+        }
 
 def generate_award_message(record, awards_mapping, city="BJ"):
     service_housekeeper = record["管家(serviceHousekeeper)"]
@@ -88,20 +107,23 @@ def preprocess_amount(amount):
         # 处理无效或空数据（例如，返回0或其他占位符）
         return "0"
 
-# 2025年6月，北京. 幸运数字8，单合同金额1万以上和以下幸运奖励不同；节节高三档；合同累计考虑工单合同金额5万封顶
-def notify_awards_jun_beijing(performance_data_filename, status_filename):
-    """通知奖励并更新性能数据文件，同时跟踪发送状态"""
+# 通用北京通知函数
+def notify_awards_beijing_generic(performance_data_filename, status_filename, config_key, enable_rising_star_badge=False):
+    """
+    通用的北京奖励通知函数
+
+    Args:
+        performance_data_filename: 业绩数据文件名
+        status_filename: 状态文件名
+        config_key: 配置键，如 "BJ-2025-06", "BJ-2025-05"
+        enable_rising_star_badge: 是否启用新星徽章（默认False，只有部分月份启用）
+    """
     records = get_all_records_from_csv(performance_data_filename)
     send_status = load_send_status(status_filename)
     updated = False
 
-    awards_mapping = {
-        '接好运': '36',
-        '接好运万元以上': '66',
-        '达标奖': '200',
-        '优秀奖': '400',
-        '精英奖': '600'
-    }
+    # 使用配置化的奖励映射
+    awards_mapping = get_awards_mapping(config_key)
 
     for record in records:
         contract_id = record['合同ID(_id)']
@@ -114,7 +136,7 @@ def notify_awards_jun_beijing(performance_data_filename, status_filename):
         if ENABLE_BADGE_MANAGEMENT:
             if service_housekeeper in ELITE_HOUSEKEEPER:
                 service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
-            elif service_housekeeper in RISING_STAR_HOUSEKEEPER:
+            elif enable_rising_star_badge and service_housekeeper in RISING_STAR_HOUSEKEEPER:
                 service_housekeeper = f'{RISING_STAR_BADGE_NAME}{service_housekeeper}'
 
         if record['是否发送通知'] == 'N' and send_status.get(contract_id) != '发送成功':
@@ -128,12 +150,12 @@ def notify_awards_jun_beijing(performance_data_filename, status_filename):
 
 \U0001F44A {next_msg}。
 '''
-            create_task('send_wecom_message', WECOM_GROUP_NAME_BJ_MAY, msg)
+            create_task('send_wecom_message', WECOM_GROUP_NAME_BJ, msg)
             time.sleep(3)
 
             if record['激活奖励状态'] == '1':
                 jiangli_msg = generate_award_message(record, awards_mapping, "BJ")
-                create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ_MAY, jiangli_msg)
+                create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ, jiangli_msg)
 
             update_send_status(status_filename, contract_id, '发送成功')
 
@@ -145,59 +167,24 @@ def notify_awards_jun_beijing(performance_data_filename, status_filename):
         write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
         logging.info("PerformanceData.csv updated with notification status.")
 
-# 2025年5月，北京. 幸运数字6，单合同金额1万以上和以下幸运奖励不同；节节高三档；合同累计考虑工单合同金额10万封顶
+# 包装函数：保持向后兼容
+def notify_awards_jun_beijing(performance_data_filename, status_filename):
+    """2025年6月北京通知函数（包装函数）"""
+    return notify_awards_beijing_generic(
+        performance_data_filename,
+        status_filename,
+        "BJ-2025-06",
+        enable_rising_star_badge=True  # 6月份启用新星徽章
+    )
+
 def notify_awards_may_beijing(performance_data_filename, status_filename):
-    """通知奖励并更新性能数据文件，同时跟踪发送状态"""
-    records = get_all_records_from_csv(performance_data_filename)
-    send_status = load_send_status(status_filename)
-    updated = False
-
-    awards_mapping = {
-        '接好运': '28',
-        '接好运万元以上': '58',
-        '达标奖': '200',
-        '优秀奖': '400',
-        '精英奖': '600'
-    }
-
-    for record in records:
-        contract_id = record['合同ID(_id)']
-
-        processed_accumulated_amount = preprocess_amount(record["管家累计金额"])
-        processed_enter_performance_amount = preprocess_amount(record["计入业绩金额"])
-        service_housekeeper = record["管家(serviceHousekeeper)"]
-
-        # 添加是否启用徽章管理的判断，如果启用则在北京的精英管家名称前添加徽章名称
-        if ENABLE_BADGE_MANAGEMENT and service_housekeeper in ELITE_HOUSEKEEPER:
-            service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
-
-        if record['是否发送通知'] == 'N' and send_status.get(contract_id) != '发送成功':
-            next_msg = '恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 \U0001F389\U0001F389\U0001F389' if '无' in record["备注"] else f'{record["备注"]}'
-            msg = f'''\U0001F9E8\U0001F9E8\U0001F9E8 签约喜报 \U0001F9E8\U0001F9E8\U0001F9E8
-恭喜 {service_housekeeper} 签约合同 {record["合同编号(contractdocNum)"]} 并完成线上收款\U0001F389\U0001F389\U0001F389
-
-\U0001F33B 本单为活动期间平台累计签约第 {record["活动期内第几个合同"]} 单，个人累计签约第 {record["管家累计单数"]} 单。
-
-\U0001F33B {record["管家(serviceHousekeeper)"]}累计签约 {processed_accumulated_amount} 元{f', 累计计入业绩 {processed_enter_performance_amount} 元' if ENABLE_PERFORMANCE_AMOUNT_CAP_BJ_FEB else ''}
-
-\U0001F44A {next_msg}。
-'''
-            create_task('send_wecom_message', WECOM_GROUP_NAME_BJ_MAY, msg)
-            time.sleep(3)
-
-            if record['激活奖励状态'] == '1':
-                jiangli_msg = generate_award_message(record, awards_mapping, "BJ")
-                create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ_MAY, jiangli_msg)
-
-            update_send_status(status_filename, contract_id, '发送成功')
-
-            record['是否发送通知'] = 'Y'
-            updated = True
-            logging.info(f"Notification sent for contract INFO: {record['管家(serviceHousekeeper)']}, {record['合同ID(_id)']}")
-
-    if updated:
-        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
-        logging.info("PerformanceData.csv updated with notification status.")
+    """2025年5月北京通知函数（包装函数）"""
+    return notify_awards_beijing_generic(
+        performance_data_filename,
+        status_filename,
+        "BJ-2025-05",
+        enable_rising_star_badge=False  # 5月份不启用新星徽章
+    )
 
 def notify_awards_shanghai_generate_message_march(performance_data_filename, status_filename,contract_data):
     """通知奖励并更新性能数据文件，同时跟踪发送状态"""
@@ -205,15 +192,8 @@ def notify_awards_shanghai_generate_message_march(performance_data_filename, sta
     send_status = load_send_status(status_filename)
     updated = False
 
-    awards_mapping = {
-        '接好运': '36',
-        '接好运万元以上': '66',
-        '基础奖': '200',
-        '达标奖': '300',
-        '优秀奖': '400',
-        '精英奖': '800',
-        '卓越奖': '1200',
-    }
+    # 使用配置化的奖励映射（上海4月配置）
+    awards_mapping = get_awards_mapping("SH-2025-04")
 
     for record in records:
         contract_id = record['合同ID(_id)']
@@ -254,52 +234,6 @@ def notify_awards_shanghai_generate_message_march(performance_data_filename, sta
     if updated:
         write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
         logging.info("PerformanceData.csv updated with notification status.")
-def notify_technician_status_changes(status_changes, status_filename):
-    """
-    通知技师的状态变更信息，并更新状态记录文件。
-
-    :param status_changes: 状态变更数组
-    :param status_filename: 状态记录文件的路径
-    """
-    # 加载状态记录文件
-    send_status = load_send_status(status_filename)
-
-    for change in status_changes:
-        change_id = change[0]
-        change_time = change[1]
-        technician_name = change[2]
-        company_name = change[3]
-        update_content = change[5]
-
-        parsed_time = datetime.strptime(change_time, "%Y-%m-%dT%H:%M:%S.%f%z")
-        simplified_time = parsed_time.strftime("%Y-%m-%d %H:%M")
-
-        online_icon = "🟢"
-        offline_icon = "🔴"
-
-        status = update_content[0] if update_content else ""
-
-        # 根据提取的状态决定使用哪个 Emoji
-        if status == "上线":
-            status_icon = online_icon
-        elif status == "下线":
-            status_icon = offline_icon
-        else:
-            status_icon = ""  # 如果状态不是上线或下线，不使用图标
-
-        # message = f"技师状态变更：\n技师姓名：{technician_name}\n公司名称：{company_name}\n更新时间：{change_time}\n更新内容：{update_content}"
-        message = f"您好，公司的管家：{technician_name}，在{simplified_time} {status_icon} {update_content} 了。"
-
-        if change_id not in send_status:
-
-            create_task('send_wechat_message', company_name, message)
-            # send_wechat_message('文件传输助手', message)
-
-            post_text_to_webhook(message)
-
-            update_send_status(status_filename, change_id, '通知成功')
-
-            logging.info(f"Notification sent for technician status change: {change_id}")
 
 def post_text_to_webhook(message, webhook_url=WEBHOOK_URL_DEFAULT):  # WEBHOOK_URL_DEFAULT 是默认的 Webhook URL
     post_data = {
@@ -363,50 +297,6 @@ def post_markdown_v2_to_webhook(message, webhook_url):
         logging.info(f"PostMarkdownV2ToWebhook: Response status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logging.error(f"PostMarkdownV2ToWebhook: 发送到Webhook时发生错误: {e}")
-
-def notify_contact_timeout_changes_template_card(contact_timeout_data):
-    """
-    通知工单联络超时的信息，使用企业微信的template_card格式。
-
-    :param contact_timeout_data: 工单联络超时数据
-    """
-    message_count = 0  # 初始化消息计数器
-    horizontal_content_list = []
-
-    # 构建消息标题
-    total_messages = len(contact_timeout_data)
-    title = "联系超时汇总（上周）共计 {} 条".format(total_messages)
-
-    for data in contact_timeout_data[:6]:  # 只处理前6条数据
-        message_count += 1
-        order_number = data[0][-6:]  # 仅保留工单编号的后6位
-        housekeeper = data[2]
-        assign_time = data[3]
-
-        # 解析分单时间
-        parsed_time = datetime.strptime(assign_time, "%Y-%m-%dT%H:%M:%S%z")
-        # 将分单时间转换为本地时间
-        local_assign_time = parsed_time.astimezone()
-
-        # 计算时间差
-        time_difference = datetime.now(timezone.utc) - local_assign_time
-        days = time_difference.days
-        hours, remainder = divmod(time_difference.seconds, 3600)
-        minutes, _ = divmod(remainder, 60)
-
-        # 构建消息
-        simplified_time = parsed_time.strftime("%Y-%m-%d %H")
-        time_difference_str = "{}天 {}小时".format(days, hours)
-        message_number = "{:02d}".format(message_count)  # 格式化编号，始终为两位数
-
-        # 消息内容
-        horizontal_content_list.append({
-            "keyname": "{}. 单号".format(message_number),
-            "value": "{}，{}，{}，超：{}".format(order_number, housekeeper, simplified_time, time_difference_str)
-        })
-
-    if horizontal_content_list:
-        post_template_card_to_webhook(title, total_messages, horizontal_content_list, WEBHOOK_URL_CONTACT_TIMEOUT)
 
 def post_template_card_to_webhook(title, total_messages, horizontal_content_list, webhook_url):
     """
