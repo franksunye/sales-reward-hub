@@ -1,136 +1,37 @@
 # config.py
 
-# 上海的特殊配置选项（提前定义，以便在REWARD_CONFIGS中使用）
-# 业绩金额上限配置
-PERFORMANCE_AMOUNT_CAP = 40000  # 单个合同计入业绩金额上限
-# 是否启用业绩金额上限
-ENABLE_PERFORMANCE_AMOUNT_CAP = False
+# 上海的特殊配置选项（已弃用，请使用 REWARD_CONFIGS 中的配置）
+# @deprecated: 以下配置已被通用化配置替换，仅保留用于兼容性
+PERFORMANCE_AMOUNT_CAP = 40000  # 单个合同计入业绩金额上限 - 已弃用
+ENABLE_PERFORMANCE_AMOUNT_CAP = False  # 是否启用业绩金额上限 - 已弃用
 
 # 通用奖励配置
 REWARD_CONFIGS = {
-    # 北京2024年11月活动配置
-    "BJ-2024-11": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
+    # 上海2025年4月活动配置
+    "SH-2025-04": {
+        "lucky_number": "",  # 禁用幸运奖（最简单的方案）
         "performance_limits": {
-            "single_project_limit": 50000,
-            "enable_cap": False
+            "enable_cap": False,  # 上海不启用业绩上限，使用 total_amount
+            "single_contract_cap": 40000  # 单合同上限（如果启用的话）
         },
         "tiered_rewards": {
-            "min_contracts": 6,
+            "min_contracts": 5,  # 上海需要5个合同
             "tiers": [
-                {"name": "达标奖", "threshold": 40000},
-                {"name": "优秀奖", "threshold": 60000},
-                {"name": "精英奖", "threshold": 100000}
-            ]
-        }
-    },
-    # 北京2025年2月活动配置
-    "BJ-2025-02": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": 100000,
-            "enable_cap": True,
-            "single_contract_cap": 100000
-        },
-        "tiered_rewards": {
-            "min_contracts": 6,
-            "tiers": [
+                {"name": "基础奖", "threshold": 40000},
                 {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 100000},
-                {"name": "精英奖", "threshold": 160000}
-            ]
-        }
-    },
-    # 北京2025年4月活动配置
-    "BJ-2025-04": {
-        "lucky_number": "8",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": 100000,
-            "enable_cap": True,
-            "single_contract_cap": 100000
-        },
-        "tiered_rewards": {
-            "min_contracts": 6,
-            "tiers": [
-                {"name": "达标奖", "threshold": 40000},
                 {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
+                {"name": "精英奖", "threshold": 120000},
+                {"name": "卓越奖", "threshold": 160000}
             ]
-        }
-    },
-    # 北京2025年5月活动配置
-    "BJ-2025-05": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
         },
-        "performance_limits": {
-            "single_project_limit": 100000,
-            "enable_cap": True,
-            "single_contract_cap": 100000
-        },
-        "tiered_rewards": {
-            "min_contracts": 6,
-            "tiers": [
-                {"name": "达标奖", "threshold": 80000},
-                {"name": "优秀奖", "threshold": 120000},
-                {"name": "精英奖", "threshold": 160000}
-            ]
-        }
-    },
-    # 北京2025年6月活动配置
-    "BJ-2025-06": {
-        "lucky_number": "8",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": 500000,
-            "enable_cap": True,
-            "single_contract_cap": 500000
-        },
-        "tiered_rewards": {
-            "min_contracts": 6,
-            "tiers": [
-                {"name": "达标奖", "threshold": 80000},
-                {"name": "优秀奖", "threshold": 120000},
-                {"name": "精英奖", "threshold": 180000}
-            ]
-        }
-    },
-    # 北京2025年7月活动配置
-    "BJ-2025-07": {
-        "lucky_number": "8",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": 500000,
-            "enable_cap": True,
-            "single_contract_cap": 500000
-        },
-        "tiered_rewards": {
-            "min_contracts": 6,
-            "tiers": [
-                {"name": "达标奖", "threshold": 80000},
-                {"name": "优秀奖", "threshold": 120000},
-                {"name": "精英奖", "threshold": 180000}
-            ]
+        "awards_mapping": {
+            "接好运": "36",
+            "接好运万元以上": "66",
+            "基础奖": "200",
+            "达标奖": "300",
+            "优秀奖": "400",
+            "精英奖": "800",
+            "卓越奖": "1200"
         }
     },
     # 北京2025年8月活动配置
@@ -152,118 +53,71 @@ REWARD_CONFIGS = {
                 {"name": "优秀奖", "threshold": 120000},
                 {"name": "精英奖", "threshold": 180000}
             ]
+        },
+        "awards_mapping": {
+            "接好运": "36",
+            "接好运万元以上": "66",
+            "达标奖": "200",
+            "优秀奖": "400",
+            "精英奖": "600"
         }
     },
-    # 上海2025年4月活动配置
-    "SH-2025-04": {
+
+    # 北京2025年6月活动配置（用于 notify_awards_jun_beijing）
+    "BJ-2025-06": {
+        "lucky_number": "8",
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "enable_cap": True,
+            "single_contract_cap": 50000
+        },
+        "tiered_rewards": {
+            "min_contracts": 6,
+            "tiers": [
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 120000},
+                {"name": "精英奖", "threshold": 180000}
+            ]
+        },
+        "awards_mapping": {
+            "接好运": "36",
+            "接好运万元以上": "66",
+            "达标奖": "200",
+            "优秀奖": "400",
+            "精英奖": "600"
+        }
+    },
+
+    # 北京2025年5月活动配置（用于 notify_awards_may_beijing）
+    "BJ-2025-05": {
         "lucky_number": "6",
         "lucky_rewards": {
             "base": {"name": "接好运", "threshold": 0},
             "high": {"name": "接好运万元以上", "threshold": 10000}
         },
         "performance_limits": {
-            "single_project_limit": None,  # 上海没有工单金额上限
-            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
-            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
+            "enable_cap": True,
+            "single_contract_cap": 100000
         },
         "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
+            "min_contracts": 6,
             "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 120000},
+                {"name": "精英奖", "threshold": 180000}
             ]
+        },
+        "awards_mapping": {
+            "接好运": "28",
+            "接好运万元以上": "58",
+            "达标奖": "200",
+            "优秀奖": "400",
+            "精英奖": "600"
         }
     },
-    # 上海2025年5月活动配置
-    "SH-2025-05": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": None,  # 上海没有工单金额上限
-            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
-            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
-        },
-        "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
-            "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
-            ]
-        }
-    },
-    # 上海2025年6月活动配置
-    "SH-2025-06": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": None,  # 上海没有工单金额上限
-            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
-            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
-        },
-        "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
-            "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
-            ]
-        }
-    },
-    # 上海2025年7月活动配置
-    "SH-2025-07": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": None,  # 上海没有工单金额上限
-            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
-            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
-        },
-        "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
-            "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
-            ]
-        }
-    },
-    # 上海2025年8月活动配置
-    "SH-2025-08": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
-        "performance_limits": {
-            "single_project_limit": None,  # 上海没有工单金额上限
-            "enable_cap": ENABLE_PERFORMANCE_AMOUNT_CAP,
-            "single_contract_cap": PERFORMANCE_AMOUNT_CAP
-        },
-        "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
-            "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000}
-            ]
-        }
-    }
 }
 
 # 归档文件夹
@@ -288,67 +142,9 @@ TASK_CHECK_INTERVAL = 10
 WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=689cebff-3328-4150-9741-fed8b8ce4713'
 PHONE_NUMBER = '15327103039'
 
-# 第二个任务，北京技师状态检查 JOB check_technician_status
-API_URL_TS = "http://metabase.fsgo365.cn:3000/api/card/719/query"
-STATUS_FILENAME_TS = './state/technician_status_record.json'
-
-# 第六个任务，工单联络超时提醒
-API_URL_CONTACT_TIMEOUT = "http://metabase.fsgo365.cn:3000/api/card/980/query"
-# STATUS_FILENAME_CONTACT_TIMEOUT = './state/contact_timeout_status.json'
-WEBHOOK_URL_CONTACT_TIMEOUT = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=80ab1f45-2526-4b41-a639-c580ccde3e2f"
-
 # 第七个任务，待预约工单提醒
 API_URL_PENDING_ORDERS_REMINDER = METABASE_URL + "/api/card/1712/query"
 STATUS_FILENAME_PENDING_ORDERS = './state/pending_orders_reminder_status.json'
-
-## 上海地区，2025年4月活动
-API_URL_SH_APR = METABASE_URL + "/api/card/1617/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_apr_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_APR = 'state/ContractData-SH-Apr.csv'
-PERFORMANCE_DATA_FILENAME_SH_APR = 'state/PerformanceData-SH-Apr.csv'
-STATUS_FILENAME_SH_APR = 'state/send_status_sh_apr.json'
-
-# Pro
-WECOM_GROUP_NAME_SH_APR = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_APR = '满浩浩'
-
-## 上海地区，2025年5月活动
-API_URL_SH_MAY = METABASE_URL + "/api/card/1694/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_may_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_MAY = 'state/ContractData-SH-May.csv'
-PERFORMANCE_DATA_FILENAME_SH_MAY = 'state/PerformanceData-SH-May.csv'
-STATUS_FILENAME_SH_MAY = 'state/send_status_sh_may.json'
-
-# Pro
-WECOM_GROUP_NAME_SH_MAY = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_MAY = '满浩浩'
-
-## 上海地区，2025年6月活动
-API_URL_SH_JUN = METABASE_URL + "/api/card/1708/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_jun_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_JUN = 'state/ContractData-SH-Jun.csv'
-PERFORMANCE_DATA_FILENAME_SH_JUN = 'state/PerformanceData-SH-Jun.csv'
-STATUS_FILENAME_SH_JUN = 'state/send_status_sh_jun.json'
-
-# Pro
-WECOM_GROUP_NAME_SH_JUN = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_JUN = '满浩浩'
-
-
-## 上海地区，2025年7月活动
-API_URL_SH_JULY = METABASE_URL + "/api/card/1749/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_july_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_JULY = 'state/ContractData-SH-July.csv'
-PERFORMANCE_DATA_FILENAME_SH_JULY = 'state/PerformanceData-SH-July.csv'
-STATUS_FILENAME_SH_JULY = 'state/send_status_sh_july.json'
-
-# Pro
-WECOM_GROUP_NAME_SH_JULY = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_JULY = '满浩浩'
 
 ## 上海地区，2025年8月活动
 API_URL_SH_AUG = METABASE_URL + "/api/card/1801/query"
@@ -368,54 +164,6 @@ BONUS_POOL_RATIO = 0.002  # 默认为0.2%,可根据需要调整
 
 # 注意：业绩金额上限配置和是否启用业绩金额上限已移至文件顶部
 
-## 北京地区，2025年4月活动
-API_URL_BJ_APR = METABASE_URL + "/api/card/1616/query"
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_apr_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_APR = 'state/ContractData-BJ-Apr.csv'
-PERFORMANCE_DATA_FILENAME_BJ_APR = 'state/PerformanceData-BJ-Apr.csv'
-STATUS_FILENAME_BJ_APR = 'state/send_status_bj_apr.json'
-
-# Pro
-WECOM_GROUP_NAME_BJ_APR = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_APR = '王爽'
-
-## 北京地区，2025年5月活动
-API_URL_BJ_MAY = METABASE_URL + "/api/card/1693/query"
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_may_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_MAY = 'state/ContractData-BJ-May.csv'
-PERFORMANCE_DATA_FILENAME_BJ_MAY = 'state/PerformanceData-BJ-May.csv'
-STATUS_FILENAME_BJ_MAY = 'state/send_status_bj_may.json'
-
-# Pro
-WECOM_GROUP_NAME_BJ_MAY = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_MAY = '王爽'
-
-## 北京地区，2025年6月活动
-API_URL_BJ_JUN = METABASE_URL + "/api/card/1707/query"
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_jun_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_JUN = 'state/ContractData-BJ-Jun.csv'
-PERFORMANCE_DATA_FILENAME_BJ_JUN = 'state/PerformanceData-BJ-Jun.csv'
-STATUS_FILENAME_BJ_JUN = 'state/send_status_bj_jun.json'
-
-# Pro
-WECOM_GROUP_NAME_BJ_JUN = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_JUN = '王爽'
-
-## 北京地区，2025年7月活动
-API_URL_BJ_JULY = METABASE_URL + "/api/card/1748/query"
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_july_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_JULY = 'state/ContractData-BJ-July.csv'
-PERFORMANCE_DATA_FILENAME_BJ_JULY = 'state/PerformanceData-BJ-July.csv'
-STATUS_FILENAME_BJ_JULY = 'state/send_status_bj_july.json'
-
-# Pro
-WECOM_GROUP_NAME_BJ_JULY = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_JULY = '王爽'
-
 ## 北京地区，2025年8月活动
 API_URL_BJ_AUG = METABASE_URL + "/api/card/1800/query"
 
@@ -428,7 +176,11 @@ STATUS_FILENAME_BJ_AUG = 'state/send_status_bj_aug.json'
 WECOM_GROUP_NAME_BJ_AUG = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_AUG = '王爽'
 
-## 北京的特殊配置选项
+## 北京的通用配置选项
+
+WECOM_GROUP_NAME_BJ = '（北京）修链服务运营'
+CAMPAIGN_CONTACT_BJ = '王爽'
+
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO_BJ_FEB = 0.002  # 默认为0.2%,可根据需要调整
 
