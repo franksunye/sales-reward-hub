@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../modules')))
-from modules.file_utils import get_unique_housekeeper_award_list
+from modules.data_utils import get_unique_housekeeper_award_list
 
 class TestFileUtils(unittest.TestCase):
 

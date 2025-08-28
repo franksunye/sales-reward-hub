@@ -4,7 +4,7 @@ import time
 from modules.log_config import setup_logging
 import requests
 from modules.config import *
-from modules.file_utils import load_send_status, update_send_status, get_all_records_from_csv, write_performance_data_to_csv
+from modules.data_utils import load_send_status, update_send_status, get_all_records_from_csv, write_performance_data_to_csv
 from task_manager import create_task
 
 # 配置日志
@@ -218,11 +218,11 @@ def notify_awards_shanghai_generate_message_march(performance_data_filename, sta
 
 \U0001F44A {next_msg}。
 '''
-            create_task('send_wecom_message', WECOM_GROUP_NAME_SH_MAY, msg)
+            create_task('send_wecom_message', WECOM_GROUP_NAME_SH, msg)
 
             if record['激活奖励状态'] == '1':
                 jiangli_msg = generate_award_message(record, awards_mapping, "SH")
-                create_task('send_wechat_message', CAMPAIGN_CONTACT_SH_MAY, jiangli_msg)
+                create_task('send_wechat_message', CAMPAIGN_CONTACT_SH, jiangli_msg)
 
             update_send_status(status_filename, contract_id, '发送成功')
             time.sleep(2)
@@ -254,28 +254,6 @@ def post_text_to_webhook(message, webhook_url=WEBHOOK_URL_DEFAULT):  # WEBHOOK_U
     except requests.exceptions.RequestException as e:
         logging.error(f"sendToWebhook: 发送到Webhook时发生错误: {e}")
 
-def post_markdown_to_webhook(message, webhook_url):
-    """
-    发送Markdown格式的消息到企业微信的Webhook（旧版markdown格式，保留兼容性）。
-
-    :param message: 要发送的Markdown格式的消息
-    :param webhook_url: Webhook的URL
-    """
-    post_data = {
-        'msgtype': 'markdown',
-        'markdown': {
-            'content': message
-        }
-    }
-
-    try:
-        # 发送POST请求
-        response = requests.post(webhook_url, json=post_data)
-        response.raise_for_status()  # 如果响应状态码不是200，则引发异常
-        logging.info(f"PostMarkdownToWebhook: Response status: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logging.error(f"PostMarkdownToWebhook: 发送到Webhook时发生错误: {e}")
-
 def post_markdown_v2_to_webhook(message, webhook_url):
     """
     发送Markdown_v2格式的消息到企业微信的Webhook（支持表格等高级格式）。
@@ -297,52 +275,3 @@ def post_markdown_v2_to_webhook(message, webhook_url):
         logging.info(f"PostMarkdownV2ToWebhook: Response status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logging.error(f"PostMarkdownV2ToWebhook: 发送到Webhook时发生错误: {e}")
-
-def post_template_card_to_webhook(title, total_messages, horizontal_content_list, webhook_url):
-    """
-    发送template_card格式的消息到企业微信的Webhook。
-
-    :param title: 消息标题
-    :param total_messages: 总消息数
-    :param horizontal_content_list: 二级标题+文本列表
-    :param webhook_url: Webhook的URL
-    """
-    post_data = {
-        "msgtype": "template_card",
-        "template_card": {
-            "card_type": "text_notice",
-            "source": {
-                "icon_url": "http://metabase.fsgo365.cn:3000/app/assets/img/favicon.ico",
-                "desc": "修链Metabase",
-                "desc_color": 0
-            },
-            "main_title": {
-                "title": "联系超时汇总（上周）报告",
-                "desc": "超时时间的规则为1小时以内，晚上10点后的工单，第二天上午8点前需要联系..."
-            },
-            "emphasis_content": {
-                "title": "{}".format(total_messages),
-                "desc": "联系超时汇总（上周）共计"
-            },
-            "horizontal_content_list": horizontal_content_list,
-            "jump_list": [
-                {
-                    "type": 1,
-                    "url": "http://metabase.fsgo365.cn:3000/question/980",
-                    "title": "超时工单列表"
-                }
-            ],
-            "card_action": {
-                "type": 1,
-                "url": "http://metabase.fsgo365.cn:3000/question/980"
-            }
-        }
-    }
-
-    try:
-        # 发送POST请求
-        response = requests.post(webhook_url, json=post_data)
-        response.raise_for_status()  # 如果响应状态码不是200，则引发异常
-        logging.info(f"PostTemplateCardToWebhook: Response status: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logging.error(f"PostTemplateCardToWebhook: 发送到Webhook时发生错误: {e}")

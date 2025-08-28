@@ -93,7 +93,7 @@ Metabase API → CSV文件 → 数据处理 → 奖励计算 → 通知发送
 │   ├── config.py        # 配置管理
 │   ├── data_processing_module.py  # 数据处理
 │   ├── notification_module.py     # 通知发送
-│   └── file_utils.py    # 文件操作
+│   └── data_utils.py    # 数据处理工具
 ├── state/               # 数据文件存储
 ├── logs/                # 日志文件
 └── docs/                # 项目文档

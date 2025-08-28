@@ -64,10 +64,13 @@ REWARD_CONFIGS = {
 - `notify_awards_apr_beijing()` - 北京4月通知
 - `notify_awards_shanghai_generate_message_march()` - 上海通知
 
-### 5. 文件操作 (file_utils.py)
+### 5. 数据处理工具 (data_utils.py)
 - CSV文件读写
 - 数据归档
 - 状态文件管理
+- 时间处理函数
+- 数据格式化函数
+- 消息格式化函数
 
 ## 数据流架构
 
