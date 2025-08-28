@@ -3,8 +3,6 @@ import logging
 from modules.log_config import setup_logging
 from datetime import date
 from modules.config import (
-    PERFORMANCE_AMOUNT_CAP,
-    ENABLE_PERFORMANCE_AMOUNT_CAP,
     BONUS_POOL_RATIO,  # Import the configurable bonus pool ratio
 )
 from modules import config  # Add config import to use config.x consistently
@@ -102,12 +100,11 @@ def determine_rewards_generic(
     # 记录所有奖励名称，用于后续检查
     all_tier_names = [tier["name"] for tier in tiers]
 
-    # 检查是否启用业绩上限
+    # 确定使用哪个金额字段 - 完全基于配置
     performance_limits = reward_config.get("performance_limits", {})
     enable_cap = performance_limits.get("enable_cap", False)
 
-    # 确定使用哪个金额字段
-    if enable_cap and 'performance_amount' in housekeeper_data:
+    if enable_cap:
         amount = housekeeper_data['performance_amount']
     else:
         amount = housekeeper_data['total_amount']
@@ -182,6 +179,26 @@ def determine_rewards_jun_beijing_generic(contract_number, housekeeper_data, cur
         housekeeper_data,
         current_contract_amount,
         "BJ-2025-06"
+    )
+
+# 使用通用奖励确定函数的4月上海奖励计算函数
+def determine_rewards_apr_shanghai_generic(contract_number, housekeeper_data, current_contract_amount):
+    """
+    上海4月活动奖励确定函数（通用版本）
+
+    Args:
+        contract_number: 合同编号
+        housekeeper_data: 管家数据，包含count、total_amount、performance_amount和awarded等信息
+        current_contract_amount: 当前合同金额
+
+    Returns:
+        tuple: (reward_types_str, reward_names_str, next_reward_gap)
+    """
+    return determine_rewards_generic(
+        contract_number,
+        housekeeper_data,
+        current_contract_amount,
+        "SH-2025-04"
     )
 
 # 2025年6月，北京. 幸运数字8，单合同金额1万以上和以下幸运奖励不同；节节高三档；合同金额5万以上按5万计算
@@ -368,7 +385,9 @@ def process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_
             }
 
         contract_amount = float(contract['合同金额(adjustRefundMoney)'])
-        performance_amount = min(contract_amount, config.PERFORMANCE_AMOUNT_CAP)  # 使用配置的上限值
+        # 使用配置中的业绩上限值
+        performance_cap = config.REWARD_CONFIGS["SH-2025-04"]["performance_limits"]["single_contract_cap"]
+        performance_amount = min(contract_amount, performance_cap)
 
         housekeeper_contracts[unique_housekeeper_key]['count'] += 1
         housekeeper_contracts[unique_housekeeper_key]['total_amount'] += contract_amount
@@ -382,8 +401,8 @@ def process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_
 
         processed_contract_ids.add(contract_id)
 
-        # 根据每月的奖项规则不同，使用当月的奖项规则函数
-        reward_types, reward_names, next_reward_gap = determine_rewards_shanghai_apr(contract_count_in_activity, housekeeper_contracts[unique_housekeeper_key], contract_amount)
+        # 根据每月的奖项规则不同，使用当月的奖项规则函数（已替换为通用版本）
+        reward_types, reward_names, next_reward_gap = determine_rewards_apr_shanghai_generic(contract_count_in_activity, housekeeper_contracts[unique_housekeeper_key], contract_amount)
 
         if contract_id in existing_contract_ids:
             logging.debug(f"Skipping existing contract ID: {contract_id}")
@@ -433,7 +452,8 @@ def process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_
 
     return performance_data
 
-# 4月份的奖励规则
+# 4月份的奖励规则 - 已弃用，请使用 determine_rewards_apr_shanghai_generic
+# @deprecated: 该函数已被通用化版本替换，仅保留用于测试验证
 def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_amount):
     # 定义节节高奖励的合同数量阈值
     JIEJIEGAO_CONTRACT_COUNT_THRESHOLD = 5
@@ -442,13 +462,14 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
     reward_names = []
     next_reward_gap = ""  # 下一级奖励所需金额差
 
-    # 幸运数字6 (仅在6月份活动中判断)
-    current_month = date.today().month
-    if current_month == 6:
-        reward_type, reward_name = determine_lucky_number_reward(contract_number, contract_amount, "6")
-        if reward_type:
-            reward_types.append(reward_type)
-            reward_names.append(reward_name)
+    # 幸运数字奖励已禁用（采用方案一：完全禁用幸运奖）
+    # 原逻辑：幸运数字6 (仅在6月份活动中判断)
+    # current_month = date.today().month
+    # if current_month == 6:
+    #     reward_type, reward_name = determine_lucky_number_reward(contract_number, contract_amount, "6")
+    #     if reward_type:
+    #         reward_types.append(reward_type)
+    #         reward_names.append(reward_name)
 
     # 节节高奖励逻辑（需要管家合同数量大于等于5）
     if housekeeper_data['count'] >= JIEJIEGAO_CONTRACT_COUNT_THRESHOLD:
