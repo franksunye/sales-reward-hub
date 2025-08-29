@@ -31,7 +31,61 @@
 
 ## 2. 技术架构升级
 
-### 2.1 组件复用和新建
+### 2.1 系统交互序列图
+
+```mermaid
+sequenceDiagram
+    participant Job as signing_and_sales_incentive_sep_shanghai()
+    participant API as Metabase API
+    participant DataSave as save_to_csv_with_headers()
+    participant DataProc as process_data_shanghai_sep()
+    participant PlatformReward as determine_rewards_apr_shanghai_generic()
+    participant SelfReward as determine_self_referral_rewards()
+    participant NotifyGen as notify_awards_shanghai_generic()
+    participant TaskQueue as create_task()
+    participant Archive as archive_file()
+
+    Job->>API: 1. 发送API请求获取合同数据
+    API-->>Job: 返回包含新字段的合同数据
+
+    Job->>DataSave: 2. 保存原始数据到CSV
+    Note over DataSave: 包含4个新增API字段
+
+    Job->>DataProc: 3. 处理合同数据
+    Note over DataProc: 按sourceType分类处理
+
+    loop 遍历每个合同
+        alt 平台单 (sourceType != 1)
+            DataProc->>PlatformReward: 4a. 计算节节高奖励
+            PlatformReward-->>DataProc: 返回奖励信息
+        else 自引单 (sourceType == 1)
+            DataProc->>SelfReward: 4b. 计算自引单奖励
+            Note over SelfReward: 项目地址去重逻辑
+            SelfReward-->>DataProc: 返回奖励信息
+        end
+    end
+
+    DataProc-->>Job: 5. 返回处理后的业绩数据
+    Note over Job: 写入PerformanceData-SH-Sep.csv<br/>包含8个新增字段
+
+    Job->>NotifyGen: 6. 生成通知任务
+
+    loop 遍历需要通知的记录
+        NotifyGen->>TaskQueue: 7a. 创建群通知任务
+        Note over TaskQueue: send_wecom_message
+
+        alt 有奖励激活
+            NotifyGen->>TaskQueue: 7b. 创建个人奖励通知任务
+            Note over TaskQueue: send_wechat_message
+        end
+    end
+
+    Job->>Archive: 8. 归档原始数据文件
+
+    Note over Job: Job执行完成<br/>任务队列异步处理通知
+```
+
+### 2.2 组件复用和新建
 ```
 signing_and_sales_incentive_sep_shanghai()
 ├── 数据获取层: send_request_with_managed_session() [复用]
@@ -43,7 +97,7 @@ signing_and_sales_incentive_sep_shanghai()
 └── 文件管理层: archive_file() [复用]
 ```
 
-### 2.2 统一订单处理流程
+### 2.3 统一订单处理流程
 ```
 Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据文件 → 生成通知任务 → 归档
                 ↓              ↓                ↓            ↓
@@ -51,7 +105,7 @@ Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据�
             识别订单类型   自引单:去重规则      奖励信息    加入任务队列
 ```
 
-### 2.3 数据处理详细流程
+### 2.4 数据处理详细流程
 ```
 订单数据 → 类型识别 → 奖励计算 → 记录到CSV → 生成通知任务
    ↓         ↓         ↓         ↓         ↓
@@ -101,7 +155,7 @@ Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据�
 
 **完整字段结构**：
 ```csv
-活动编号,合同ID(_id),活动城市(province),工单编号(serviceAppointmentNum),Status,管家(serviceHousekeeper),合同编号(contractdocNum),合同金额(adjustRefundMoney),支付金额(paidAmount),差额(difference),State,创建时间(createTime),服务商(orgName),签约时间(signedDate),Doorsill,款项来源类型(tradeIn),转化率(conversion),平均客单价(average),活动期内第几个合同,管家累计金额,管家累计单数,奖金池,计入业绩金额,激活奖励状态,奖励类型,奖励名称,是否发送通知,备注,登记时间,工单类型,项目地址,平台单累计数量,平台单累计金额,自引单累计数量,自引单累计金额
+活动编号,合同ID(_id),活动城市(province),工单编号(serviceAppointmentNum),Status,管家(serviceHousekeeper),合同编号(contractdocNum),合同金额(adjustRefundMoney),支付金额(paidAmount),差额(difference),State,创建时间(createTime),服务商(orgName),签约时间(signedDate),Doorsill,款项来源类型(tradeIn),转化率(conversion),平均客单价(average),活动期内第几个合同,管家累计金额,管家累计单数,奖金池,计入业绩金额,激活奖励状态,奖励类型,奖励名称,是否发送通知,备注,登记时间,管家ID(serviceHousekeeperId),工单类型,客户联系地址(contactsAddress),项目地址(projectAddress),平台单累计数量,平台单累计金额,自引单累计数量,自引单累计金额
 ```
 
 **字段变化策略**：
@@ -112,9 +166,11 @@ Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据�
 - `管家累计单数` → **保持原有语义**：继续表示管家所有类型订单的累计单数
 - 其他27个字段保持原有含义不变
 
-**新增字段（6个）**：
+**新增字段（8个）**：
+- `管家ID(serviceHousekeeperId)`: 管家唯一标识，从API新增字段获取 (String)
 - `工单类型`: 自引单/平台单，从sourceType字段转换而来 (String)
-- `项目地址`: 项目地址，从API新增字段projectAddress获取 (String)
+- `客户联系地址(contactsAddress)`: 客户联系地址，从API新增字段获取 (String)
+- `项目地址(projectAddress)`: 项目地址，从API新增字段获取 (String)
 - `平台单累计数量`: 管家平台单累计数量 (Integer)
 - `平台单累计金额`: 管家平台单累计金额 (Float)
 - `自引单累计数量`: 管家自引单累计数量 (Integer)
@@ -126,6 +182,7 @@ Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据�
 3. **新增统计**：通过新增字段提供平台单和自引单的分类统计
 4. **统一奖励字段**：平台单和自引单都使用原有的`奖励类型`和`奖励名称`字段，无需新增专用字段
 5. **数据一致性**：`管家累计金额` = `平台单累计金额` + `自引单累计金额`
+6. **扩展性考虑**：新增`管家ID`和`客户联系地址`字段，虽然本次暂不使用，但为后续功能扩展提供数据基础
 
 ### 3.3 内存数据结构升级
 
@@ -197,6 +254,8 @@ def process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_
         # 字段映射：API字段名 -> CSV字段名
         source_type = int(contract.get('工单类型(sourceType)', 2))  # 默认为平台单
         project_address = contract.get('项目地址(projectAddress)', '')
+        housekeeper_id = contract.get('管家ID(serviceHousekeeperId)', '')
+        contact_address = contract.get('客户联系地址(contactsAddress)', '')
         housekeeper_key = f"{contract['管家(serviceHousekeeper)']}_{contract['服务商(orgName)']}"
 
         # 初始化管家数据结构
@@ -231,7 +290,8 @@ def process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_
         # 生成业绩数据记录（包含新增字段）
         performance_record = create_performance_record(contract, reward_types, reward_names,
                                                      housekeeper_contracts[housekeeper_key],
-                                                     contract_count_in_activity, source_type, project_address)
+                                                     contract_count_in_activity, source_type,
+                                                     housekeeper_id, contact_address, project_address)
         performance_data.append(performance_record)
 
         processed_contract_ids.add(contract_id)
@@ -538,7 +598,7 @@ FIELD_MAPPING = {
 ### 7.2 辅助函数实现
 ```python
 def create_performance_record(contract, reward_types, reward_names, housekeeper_data,
-                            contract_count, source_type, project_address):
+                            contract_count, source_type, housekeeper_id, contact_address, project_address):
     """创建业绩数据记录，包含新增字段"""
     order_type_text = "自引单" if source_type == 1 else "平台单"
 
@@ -548,9 +608,11 @@ def create_performance_record(contract, reward_types, reward_names, housekeeper_
         '管家(serviceHousekeeper)': contract['管家(serviceHousekeeper)'],
         # ... 其他原有字段 ...
 
-        # 新增字段
+        # 新增字段（8个）
+        '管家ID(serviceHousekeeperId)': housekeeper_id,
         '工单类型': order_type_text,
-        '项目地址': project_address,
+        '客户联系地址(contactsAddress)': contact_address,
+        '项目地址(projectAddress)': project_address,
         '平台单累计数量': housekeeper_data['platform_count'],
         '平台单累计金额': housekeeper_data['platform_amount'],
         '自引单累计数量': housekeeper_data['self_referral_count'],
