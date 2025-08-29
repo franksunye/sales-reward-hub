@@ -18,6 +18,7 @@ build/
 logs/
 *.db
 *.sqlite3
+tasks.db
 
 # 配置和临时文件
 *.ini
@@ -408,4 +409,5 @@ archive/state/ContractData-SH-Apr_202504291553.csv
 .gitignore
 tasks.db
 .gitignore
+tasks.db
 tasks.db
