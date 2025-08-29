@@ -81,7 +81,9 @@ def generate_award_message(record, awards_mapping, city="BJ"):
                 award_info = awards_mapping[award]
                 award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 \U0001F9E7\U0001F9E7\U0001F9E7')
 
-    return f'{service_housekeeper}签约合同{contract_number}\n\n' + '\n'.join(award_messages)
+    # 获取订单类型，默认为平台单
+    order_type = record.get("工单类型", "平台单")
+    return f'{service_housekeeper}签约合同（{order_type}）{contract_number}\n\n' + '\n'.join(award_messages)
 
 def preprocess_rate(rate):
     # 检查比率数据是否为空或不是有效的浮点数
@@ -275,3 +277,76 @@ def post_markdown_v2_to_webhook(message, webhook_url):
         logging.info(f"PostMarkdownV2ToWebhook: Response status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logging.error(f"PostMarkdownV2ToWebhook: 发送到Webhook时发生错误: {e}")
+
+
+def notify_awards_shanghai_generic(performance_data_filename, status_filename, config_key):
+    """
+    通用的上海通知任务生成函数，参考北京模式
+
+    Args:
+        performance_data_filename: 业绩数据文件名
+        status_filename: 状态文件名
+        config_key: 配置键，如 "SH-2025-09"
+    """
+    records = get_all_records_from_csv(performance_data_filename)
+    send_status = load_send_status(status_filename)
+    awards_mapping = get_awards_mapping(config_key)
+    updated = False
+
+    for record in records:
+        contract_id = record['合同ID(_id)']
+        if record['是否发送通知'] == 'N' and send_status.get(contract_id) != '发送成功':
+            # 生成群通知任务（使用现有消息构建方式）
+            processed_conversion_rate = preprocess_rate(record["转化率(conversion)"])
+            # 根据订单类型决定结尾消息逻辑
+            order_type = record.get("工单类型", "平台单")
+            if order_type == "自引单":
+                # 自引单统一显示固定消息
+                next_msg = '继续加油，争取更多奖励'
+            else:
+                # 平台单按照8月份逻辑处理：根据备注字段动态生成
+                next_msg = '恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩' if '无' in record["备注"] else f'{record["备注"]}'
+
+            # 新增：显示订单类型和分类统计
+            order_type = record.get("工单类型", "平台单")  # 默认为平台单
+            platform_count = record.get("平台单累计数量", 0)
+            self_referral_count = record.get("自引单累计数量", 0)
+            platform_amount = preprocess_amount(record.get("平台单累计金额", "0"))
+            self_referral_amount = preprocess_amount(record.get("自引单累计金额", "0"))
+
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {record["管家(serviceHousekeeper)"]} 签约合同（{order_type}） {record["合同编号(contractdocNum)"]} 并完成线上收款🎉🎉🎉
+
+🌻 本单为本月平台累计签约第 {record["活动期内第几个合同"]} 单，
+
+🌻 个人累计签约平台单第 {platform_count} 单， 个人累计签约自引单第 {self_referral_count} 单。
+🌻 个人累计签约平台单金额 {platform_amount} 元，自引单金额{self_referral_amount}元
+
+🌻 个人平台单转化率 {processed_conversion_rate}，
+
+👊 {next_msg} 🎉🎉🎉。
+'''
+            create_task('send_wecom_message', '（上海）运营群', msg)
+
+            # 生成个人奖励通知任务
+            if record['激活奖励状态'] == '1':
+                jiangli_msg = generate_award_message(record, awards_mapping, "SH")
+                # 使用配置中的活动管理人
+                from modules.config import CAMPAIGN_CONTACT_SH_SEP
+                create_task('send_wechat_message', CAMPAIGN_CONTACT_SH_SEP, jiangli_msg)
+
+            # 更新发送状态（保持与现有系统一致）
+            update_send_status(status_filename, contract_id, '发送成功')
+            record['是否发送通知'] = 'Y'
+            updated = True
+
+    if updated:
+        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
+
+
+# 包装函数：上海9月
+def notify_awards_sep_shanghai(performance_data_filename, status_filename):
+    return notify_awards_shanghai_generic(
+        performance_data_filename, status_filename, "SH-2025-09"
+    )

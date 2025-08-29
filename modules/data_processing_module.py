@@ -452,6 +452,222 @@ def process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_
 
     return performance_data
 
+
+def get_self_referral_config(config_key):
+    """
+    获取自引单奖励配置
+
+    Args:
+        config_key: 配置键，如 "SH-2025-09"
+
+    Returns:
+        dict: 自引单奖励配置
+    """
+    if config_key in config.REWARD_CONFIGS:
+        return config.REWARD_CONFIGS[config_key].get("self_referral_rewards", {})
+    else:
+        # 默认配置（向后兼容）
+        return {
+            "enable": False,
+            "reward_type": "",
+            "reward_name": "",
+            "deduplication_field": ""
+        }
+
+
+def determine_self_referral_rewards(project_address, housekeeper_data, config_key):
+    """
+    自引单奖励计算函数
+
+    Args:
+        project_address: 项目地址
+        housekeeper_data: 管家数据
+        config_key: 配置键，如 "SH-2025-09"
+
+    Returns:
+        tuple: (reward_type, reward_name, is_qualified)
+        - reward_type: 奖励类型，写入业绩数据文件
+        - reward_name: 奖励名称，写入业绩数据文件
+        - is_qualified: 是否符合奖励条件
+    """
+    # 获取自引单配置
+    self_referral_config = get_self_referral_config(config_key)
+
+    # 检查是否启用自引单奖励
+    if not self_referral_config.get("enable", False):
+        return ("", "", False)
+
+    # 获取奖励信息（用于写入业绩数据文件）
+    reward_type = self_referral_config.get("reward_type", "自引单")
+    reward_name = self_referral_config.get("reward_name", "红包")
+
+    # 检查项目地址是否已存在（去重逻辑）
+    if project_address not in housekeeper_data['self_referral_projects']:
+        housekeeper_data['self_referral_projects'].add(project_address)
+        housekeeper_data['self_referral_rewards'] += 1
+        return (reward_type, reward_name, True)
+    else:
+        return ("", "", False)
+
+
+def process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_award_lists):
+    """
+    上海9月数据处理函数，支持平台单和自引单双轨处理
+
+    Args:
+        contract_data: 合同数据列表
+        existing_contract_ids: 已存在的合同ID集合
+        housekeeper_award_lists: 管家历史奖励列表
+
+    Returns:
+        list: 处理后的业绩数据列表
+    """
+    logging.info(f"Starting Shanghai Sep data processing with {len(existing_contract_ids)} existing contract IDs.")
+
+    config_key = "SH-2025-09"
+    performance_data = []
+    contract_count_in_activity = len(existing_contract_ids) + 1
+    housekeeper_contracts = {}
+    processed_contract_ids = set()
+
+    logging.info("Starting to process contract data...")
+
+    for contract in contract_data:
+        contract_id = str(contract['合同ID(_id)'])
+        if contract_id in existing_contract_ids or contract_id in processed_contract_ids:
+            logging.debug(f"Skipping existing/duplicate contract ID: {contract_id}")
+            continue
+
+        # 字段映射：API字段名 -> CSV字段名
+        source_type = int(contract.get('工单类型(sourceType)', 2))  # 默认为平台单
+        project_address = contract.get('项目地址(projectAddress)', '')
+        housekeeper_id = contract.get('管家ID(serviceHousekeeperId)', '')
+        contact_address = contract.get('客户联系地址(contactsAddress)', '')
+
+        housekeeper = contract['管家(serviceHousekeeper)']
+        service_provider = contract['服务商(orgName)']
+        housekeeper_key = f"{housekeeper}_{service_provider}"
+
+        # 初始化管家数据结构
+        if housekeeper_key not in housekeeper_contracts:
+            housekeeper_award = []
+            if housekeeper_key in housekeeper_award_lists:
+                housekeeper_award = housekeeper_award_lists[housekeeper_key]
+
+            housekeeper_contracts[housekeeper_key] = {
+                'count': 0, 'total_amount': 0, 'performance_amount': 0, 'awarded': housekeeper_award,
+                'platform_count': 0, 'platform_amount': 0,
+                'self_referral_count': 0, 'self_referral_amount': 0,
+                'self_referral_projects': set(),
+                'self_referral_rewards': 0
+            }
+
+        contract_amount = float(contract['合同金额(adjustRefundMoney)'])
+
+        # 使用配置中的业绩上限值
+        performance_cap = config.REWARD_CONFIGS[config_key]["performance_limits"]["single_contract_cap"]
+        performance_amount = min(contract_amount, performance_cap)
+
+        # 根据订单类型应用不同的奖励规则
+        reward_types = ""
+        reward_names = ""
+        next_reward_gap = ""
+
+        if source_type == 1:
+            # 自引单：项目地址去重奖励
+            reward_types, reward_names, _ = determine_self_referral_rewards(
+                project_address, housekeeper_contracts[housekeeper_key], config_key)
+            # 自引单固定备注
+            next_reward_gap = "继续加油，争取更多奖励"
+            # 更新自引单统计
+            housekeeper_contracts[housekeeper_key]['self_referral_count'] += 1
+            housekeeper_contracts[housekeeper_key]['self_referral_amount'] += contract_amount
+        else:
+            # 平台单：节节高奖励，获取动态备注
+            reward_types, reward_names, next_reward_gap = determine_rewards_apr_shanghai_generic(
+                contract_count_in_activity, housekeeper_contracts[housekeeper_key], contract_amount)
+            # 更新平台单统计
+            housekeeper_contracts[housekeeper_key]['platform_count'] += 1
+            housekeeper_contracts[housekeeper_key]['platform_amount'] += contract_amount
+
+        # 更新总体统计
+        housekeeper_contracts[housekeeper_key]['count'] += 1
+        housekeeper_contracts[housekeeper_key]['total_amount'] += contract_amount
+        housekeeper_contracts[housekeeper_key]['performance_amount'] += performance_amount
+
+        # 转换为整数（保持与现有逻辑一致）
+        housekeeper_contracts[housekeeper_key]['total_amount'] = int(housekeeper_contracts[housekeeper_key]['total_amount'])
+        housekeeper_contracts[housekeeper_key]['performance_amount'] = int(housekeeper_contracts[housekeeper_key]['performance_amount'])
+
+        active_status = 1 if reward_types else 0  # 激活状态基于是否有奖励类型
+        order_type_text = "自引单" if source_type == 1 else "平台单"
+
+        # 生成业绩数据记录
+        performance_entry = create_performance_record_shanghai_sep(
+            contract, reward_types, reward_names, housekeeper_contracts[housekeeper_key],
+            contract_count_in_activity, active_status, order_type_text,
+            housekeeper_id, contact_address, project_address, next_reward_gap
+        )
+
+        performance_data.append(performance_entry)
+        processed_contract_ids.add(contract_id)
+        contract_count_in_activity += 1
+
+        logging.debug(f"Processed contract {contract_id}, type: {order_type_text}")
+
+    logging.info(f"Shanghai Sep data processing completed. Processed {len(performance_data)} contracts.")
+    return performance_data
+
+
+def create_performance_record_shanghai_sep(contract, reward_types, reward_names, housekeeper_data,
+                                          contract_count, active_status, order_type_text,
+                                          housekeeper_id, contact_address, project_address, next_reward_gap):
+    """创建上海9月业绩数据记录，包含新增字段"""
+    from datetime import datetime
+
+    return {
+        # 原有字段
+        '活动编号': 'SH-2025-09',
+        '合同ID(_id)': contract['合同ID(_id)'],
+        '活动城市(province)': contract['活动城市(province)'],
+        '工单编号(serviceAppointmentNum)': contract['工单编号(serviceAppointmentNum)'],
+        'Status': contract['Status'],
+        '管家(serviceHousekeeper)': contract['管家(serviceHousekeeper)'],
+        '合同编号(contractdocNum)': contract['合同编号(contractdocNum)'],
+        '合同金额(adjustRefundMoney)': contract['合同金额(adjustRefundMoney)'],
+        '支付金额(paidAmount)': contract['支付金额(paidAmount)'],
+        '差额(difference)': contract['差额(difference)'],
+        'State': contract['State'],
+        '创建时间(createTime)': contract['创建时间(createTime)'],
+        '服务商(orgName)': contract['服务商(orgName)'],
+        '签约时间(signedDate)': contract['签约时间(signedDate)'],
+        'Doorsill': contract['Doorsill'],
+        '款项来源类型(tradeIn)': contract['款项来源类型(tradeIn)'],
+        '转化率(conversion)': contract['转化率(conversion)'],
+        '平均客单价(average)': contract['平均客单价(average)'],
+        '活动期内第几个合同': contract_count,
+        '管家累计金额': housekeeper_data['total_amount'],
+        '管家累计单数': housekeeper_data['count'],
+        '奖金池': 0,  # 暂时设为0，根据需要调整
+        '计入业绩金额': housekeeper_data['performance_amount'],
+        '激活奖励状态': active_status,
+        '奖励类型': reward_types,
+        '奖励名称': reward_names,
+        '是否发送通知': 'N',
+        '备注': next_reward_gap,
+        '登记时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+
+        # 新增字段（8个）
+        '管家ID(serviceHousekeeperId)': housekeeper_id,
+        '工单类型': order_type_text,
+        '客户联系地址(contactsAddress)': contact_address,
+        '项目地址(projectAddress)': project_address,
+        '平台单累计数量': housekeeper_data['platform_count'],
+        '平台单累计金额': housekeeper_data['platform_amount'],
+        '自引单累计数量': housekeeper_data['self_referral_count'],
+        '自引单累计金额': housekeeper_data['self_referral_amount']
+    }
+
 # 4月份的奖励规则 - 已弃用，请使用 determine_rewards_apr_shanghai_generic
 # @deprecated: 该函数已被通用化版本替换，仅保留用于测试验证
 def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_amount):

@@ -7,33 +7,6 @@ ENABLE_PERFORMANCE_AMOUNT_CAP = False  # 是否启用业绩金额上限 - 已弃
 
 # 通用奖励配置
 REWARD_CONFIGS = {
-    # 上海2025年4月活动配置
-    "SH-2025-04": {
-        "lucky_number": "",  # 禁用幸运奖（最简单的方案）
-        "performance_limits": {
-            "enable_cap": False,  # 上海不启用业绩上限，使用 total_amount
-            "single_contract_cap": 40000  # 单合同上限（如果启用的话）
-        },
-        "tiered_rewards": {
-            "min_contracts": 5,  # 上海需要5个合同
-            "tiers": [
-                {"name": "基础奖", "threshold": 40000},
-                {"name": "达标奖", "threshold": 60000},
-                {"name": "优秀奖", "threshold": 80000},
-                {"name": "精英奖", "threshold": 120000},
-                {"name": "卓越奖", "threshold": 160000}
-            ]
-        },
-        "awards_mapping": {
-            "接好运": "36",
-            "接好运万元以上": "66",
-            "基础奖": "200",
-            "达标奖": "300",
-            "优秀奖": "400",
-            "精英奖": "800",
-            "卓越奖": "1200"
-        }
-    },
     # 北京2025年8月活动配置
     "BJ-2025-08": {
         "lucky_number": "8",
@@ -63,59 +36,67 @@ REWARD_CONFIGS = {
         }
     },
 
-    # 北京2025年6月活动配置（用于 notify_awards_jun_beijing）
-    "BJ-2025-06": {
-        "lucky_number": "8",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
+    # 上海2025年4月活动配置
+    "SH-2025-04": {
+        "lucky_number": "",  # 禁用幸运奖（最简单的方案）
         "performance_limits": {
-            "enable_cap": True,
-            "single_contract_cap": 50000
+            "enable_cap": False,  # 上海不启用业绩上限，使用 total_amount
+            "single_contract_cap": 40000  # 单合同上限（如果启用的话）
         },
         "tiered_rewards": {
-            "min_contracts": 6,
+            "min_contracts": 5,  # 上海需要5个合同
             "tiers": [
-                {"name": "达标奖", "threshold": 80000},
-                {"name": "优秀奖", "threshold": 120000},
-                {"name": "精英奖", "threshold": 180000}
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000},
+                {"name": "卓越奖", "threshold": 160000}
             ]
         },
         "awards_mapping": {
             "接好运": "36",
             "接好运万元以上": "66",
-            "达标奖": "200",
+            "基础奖": "200",
+            "达标奖": "300",
             "优秀奖": "400",
-            "精英奖": "600"
+            "精英奖": "800",
+            "卓越奖": "1200"
         }
     },
-
-    # 北京2025年5月活动配置（用于 notify_awards_may_beijing）
-    "BJ-2025-05": {
-        "lucky_number": "6",
-        "lucky_rewards": {
-            "base": {"name": "接好运", "threshold": 0},
-            "high": {"name": "接好运万元以上", "threshold": 10000}
-        },
+    # 上海2025年9月活动配置
+    "SH-2025-09": {
+        "lucky_number": "",  # 禁用幸运奖
         "performance_limits": {
-            "enable_cap": True,
-            "single_contract_cap": 100000
+            "enable_cap": False,  # 上海不启用业绩上限
+            "single_contract_cap": 40000
         },
         "tiered_rewards": {
-            "min_contracts": 6,
+            "min_contracts": 5,  # 平台单需要5个合同
             "tiers": [
-                {"name": "达标奖", "threshold": 80000},
-                {"name": "优秀奖", "threshold": 120000},
-                {"name": "精英奖", "threshold": 180000}
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000},
+                {"name": "卓越奖", "threshold": 160000}
             ]
         },
         "awards_mapping": {
-            "接好运": "28",
-            "接好运万元以上": "58",
-            "达标奖": "200",
+            # 平台单奖励（复用上海4月配置）
+            "基础奖": "200",
+            "达标奖": "300",
             "优秀奖": "400",
-            "精英奖": "600"
+            "精英奖": "800",
+            "卓越奖": "1200",
+            # 自引单奖励（新增）
+            "红包": "50"
+        },
+        # 新增：自引单奖励配置
+        "self_referral_rewards": {
+            "enable": True,  # 启用自引单奖励
+            "reward_type": "自引单",
+            "reward_name": "红包",
+            "deduplication_field": "projectAddress"  # 去重字段
+            # 注意：奖励金额统一在awards_mapping中定义，避免重复配置
         }
     },
 }
@@ -157,6 +138,18 @@ STATUS_FILENAME_SH_AUG = 'state/send_status_sh_aug.json'
 # Pro
 WECOM_GROUP_NAME_SH_AUG = '（上海）运营群'
 CAMPAIGN_CONTACT_SH_AUG = '满浩浩'
+
+## 上海地区，2025年9月活动
+API_URL_SH_SEP = METABASE_URL + "/api/card/1838/query"
+
+# 销售激励活动 JOB signing_and_sales_incentive_sep_shanghai
+TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/RawData-SH-Sep.csv'
+PERFORMANCE_DATA_FILENAME_SH_SEP = 'state/PerformanceData-SH-Sep.csv'
+STATUS_FILENAME_SH_SEP = 'state/send_status_shanghai_sep.json'
+
+# 通知配置
+WECOM_GROUP_NAME_SH_SEP = '（上海）运营群'
+CAMPAIGN_CONTACT_SH_SEP = '满浩浩'
 
 ## 上海的通用配置选项
 WECOM_GROUP_NAME_SH = '（上海）运营群'

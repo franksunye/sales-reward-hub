@@ -91,7 +91,106 @@ def signing_and_sales_incentive_aug_shanghai():
     archive_file(contract_data_filename)
     logging.info('SHANGHAI 2025 8月 Conq & triumph, take 1 more city, Data archived')
 
-    logging.info('SHANGHAI 2025 8月 Conq & triumph, take 1 more city, Job ended')    
+    logging.info('SHANGHAI 2025 8月 Conq & triumph, take 1 more city, Job ended')
+
+
+# 2025年9月，上海. 签约和奖励播报，支持平台单和自引单双轨处理
+def signing_and_sales_incentive_sep_shanghai():
+    contract_data_filename = TEMP_CONTRACT_DATA_FILE_SH_SEP
+    performance_data_filename = PERFORMANCE_DATA_FILENAME_SH_SEP
+    status_filename = STATUS_FILENAME_SH_SEP
+    api_url = API_URL_SH_SEP
+
+    logging.info('SHANGHAI 2025 9月 双轨激励, Job started ...')
+
+    # 1. 获取API数据
+    response = send_request_with_managed_session(api_url)
+    logging.info('SHANGHAI 2025 9月 双轨激励, Request sent')
+
+    # 检查API响应
+    if not response or 'data' not in response:
+        logging.error('SHANGHAI 2025 9月 双轨激励, API request failed or returned invalid data')
+        return
+
+    rows = response['data']['rows']
+
+    # 2. 字段映射：API字段名 -> CSV字段名
+    contract_data = []
+    for row in rows:
+        mapped_row = {
+            '合同ID(_id)': row[0],
+            '活动城市(province)': row[1],
+            '工单编号(serviceAppointmentNum)': row[2],
+            'Status': row[3],
+            '管家(serviceHousekeeper)': row[4],
+            '合同编号(contractdocNum)': row[5],
+            '合同金额(adjustRefundMoney)': row[6],
+            '支付金额(paidAmount)': row[7],
+            '差额(difference)': row[8],
+            'State': row[9],
+            '创建时间(createTime)': row[10],
+            '服务商(orgName)': row[11],
+            '签约时间(signedDate)': row[12],
+            'Doorsill': row[13],
+            '款项来源类型(tradeIn)': row[14],
+            '转化率(conversion)': row[15],
+            '平均客单价(average)': row[16],
+            # 新增字段
+            '管家ID(serviceHousekeeperId)': row[17],
+            '工单类型(sourceType)': row[18],
+            '客户联系地址(contactsAddress)': row[19],
+            '项目地址(projectAddress)': row[20]
+        }
+        contract_data.append(mapped_row)
+
+    # 3. 保存原始数据到CSV文件（包含新增字段）
+    columns = [
+        "_id", "province", "serviceAppointmentNum", "status", "serviceHousekeeper",
+        "contractdocNum", "adjustRefundMoney", "paidAmount", "difference", "state",
+        "createTime", "orgName", "signedDate", "doorsill", "tradeIn", "conversion",
+        "average", "serviceHousekeeperId", "sourceType", "contactsAddress", "projectAddress"
+    ]
+    save_to_csv_with_headers(contract_data, contract_data_filename, columns)
+    logging.info('SHANGHAI 2025 9月 双轨激励, Raw data saved')
+
+    # 4. 获取已存在的合同ID
+    existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
+    logging.info(f'SHANGHAI 2025 9月 双轨激励, Found {len(existing_contract_ids)} existing contracts')
+
+    # 5. 获取管家历史奖励列表
+    housekeeper_award_lists = get_unique_housekeeper_award_list(performance_data_filename)
+
+    # 6. 数据处理（双轨处理逻辑）
+    processed_data = process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_award_lists)
+    logging.info('SHANGHAI 2025 9月 双轨激励, Data processed')
+
+    # 7. 写入业绩数据文件（包含新增字段）
+    performance_data_headers = [
+        '活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status',
+        '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)',
+        '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)',
+        '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)',
+        '转化率(conversion)', '平均客单价(average)', '活动期内第几个合同', '管家累计金额',
+        '管家累计单数', '奖金池', '计入业绩金额', '激活奖励状态', '奖励类型', '奖励名称',
+        '是否发送通知', '备注', '登记时间',
+        # 新增字段
+        '管家ID(serviceHousekeeperId)', '工单类型', '客户联系地址(contactsAddress)',
+        '项目地址(projectAddress)', '平台单累计数量', '平台单累计金额',
+        '自引单累计数量', '自引单累计金额'
+    ]
+
+    write_performance_data_to_csv(performance_data_filename, processed_data, performance_data_headers)
+    logging.info('SHANGHAI 2025 9月 双轨激励, Performance data written')
+
+    # 8. 通知处理（使用通用函数）
+    notify_awards_shanghai_generic(performance_data_filename, status_filename, "SH-2025-09")
+    logging.info('SHANGHAI 2025 9月 双轨激励, Notifications processed')
+
+    # 9. 归档原始数据文件
+    archive_file(contract_data_filename)
+    logging.info('SHANGHAI 2025 9月 双轨激励, Data archived')
+
+    logging.info('SHANGHAI 2025 9月 双轨激励, Job ended')
 
 def generate_daily_service_report():
     logging.info('Daily service report generation started...')

@@ -149,14 +149,21 @@ def get_unique_housekeeper_award_list(file_path):
         return cleaned_grouped_rewards
     except FileNotFoundError:
         return {}
+    except pd.errors.EmptyDataError:
+        return {}  # 处理空文件的情况
     
 def load_send_status(filename):
     """加载发送状态文件"""
     try:
         with open(filename, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            content = f.read().strip()
+            if not content:
+                return {}  # 处理空文件
+            return json.loads(content)
     except FileNotFoundError:
         return {}
+    except json.JSONDecodeError:
+        return {}  # 处理无效JSON文件
 
 def save_send_status(filename, status):
     """保存发送状态到文件"""
