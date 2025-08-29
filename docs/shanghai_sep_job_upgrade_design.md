@@ -31,49 +31,39 @@
 
 ## 2. 技术架构升级
 
-### 2.1 新增组件
+### 2.1 组件复用和新建
 ```
 signing_and_sales_incentive_sep_shanghai()
-├── 数据获取层: send_request_with_managed_session() [升级]
-├── 数据处理层: process_data_shanghai_sep() [新建]
+├── 数据获取层: send_request_with_managed_session() [复用]
+├── 数据保存层: save_to_csv_with_headers() [复用，传入新字段列表]
+├── 数据处理层: process_data_shanghai_sep() [新建，基于process_data_shanghai_apr]
 ├── 平台单奖励计算: determine_rewards_apr_shanghai_generic() [复用]
 ├── 自引单奖励计算: determine_self_referral_rewards() [新建]
-├── 通知发送层: notify_awards_shanghai_sep() [新建]
+├── 通知发送层: notify_awards_shanghai_generic() [新建，参考北京模式]
 └── 文件管理层: archive_file() [复用]
 ```
 
 ### 2.2 统一订单处理流程
 ```
-Metabase API → CSV临时文件 → 订单分类处理 → 差异化奖励计算 → 统一业绩数据文件 → 统一通知发送 → 文件归档
-                    ↓
-            订单类型识别 (sourceType)
-                ↓
-        [平台单订单] + [自引单订单]
-                ↓         ↓
-        节节高奖励规则  项目地址去重规则
-                ↓         ↓
-        写入统一的奖励类型/名称到业绩数据文件
-                ↓
-        统一从业绩数据文件读取 → 配置获取金额 → 生成通知消息
+Metabase API → 订单数据 → 按类型应用奖励规则 → 业绩数据文件 → 生成通知任务 → 归档
+                ↓              ↓                ↓            ↓
+            sourceType    平台单:节节高规则      统一记录    create_task()
+            识别订单类型   自引单:去重规则      奖励信息    加入任务队列
 ```
 
-### 2.3 详细数据转换流程
+### 2.3 数据处理详细流程
 ```
-API数组数据 → CSV字典数据 → 分类处理 → 奖励计算 → 业绩数据文件 → 通知发送
-     ↓              ↓           ↓         ↓           ↓           ↓
-  原始字段      标准化字段   平台单/自引单  奖励类型/名称  完整记录    读取奖励信息
-                                ↓         ↓
-                            节节高奖励  自引单红包
-                                ↓         ↓
-                            写入CSV    写入CSV
-                                ↓
-                        统一从CSV读取 → 配置获取金额 → 生成消息
+订单数据 → 类型识别 → 奖励计算 → 记录到CSV → 生成通知任务
+   ↓         ↓         ↓         ↓         ↓
+原始订单   sourceType  应用规则   奖励信息   create_task()
+          1=自引单    平台单:累计金额阈值      ↓
+          其他=平台单  自引单:项目地址去重   任务队列
 ```
 
-**数据流说明**：
-1. **数据处理阶段**：计算奖励后将奖励类型和名称写入业绩数据文件
-2. **通知发送阶段**：从业绩数据文件读取奖励信息，通过awards_mapping获取金额
-3. **关键原则**：业绩数据文件是奖励信息的唯一数据源
+**核心原则**：
+- 所有订单统一处理，仅奖励规则不同
+- 业绩数据文件是唯一的奖励信息源
+- 通知任务与业务逻辑解耦，通过任务队列异步处理
 
 ## 3. 数据结构升级
 
@@ -118,24 +108,24 @@ API数组数据 → CSV字典数据 → 分类处理 → 奖励计算 → 业绩
 
 **保留字段（29个原有字段）**：
 - 所有原有字段保持不变，确保向后兼容性
-- `管家累计金额` → **语义变更**：现在专指平台单累计金额
-- `管家累计单数` → **语义变更**：现在专指平台单累计单数
+- `管家累计金额` → **保持原有语义**：继续表示管家所有类型订单的累计金额
+- `管家累计单数` → **保持原有语义**：继续表示管家所有类型订单的累计单数
 - 其他27个字段保持原有含义不变
 
 **新增字段（6个）**：
 - `工单类型`: 自引单/平台单，从sourceType字段转换而来 (String)
 - `项目地址`: 项目地址，从API新增字段projectAddress获取 (String)
-- `平台单累计数量`: 管家平台单累计数量，与`管家累计单数`数值相同 (Integer)
-- `平台单累计金额`: 管家平台单累计金额，与`管家累计金额`数值相同 (Float)
+- `平台单累计数量`: 管家平台单累计数量 (Integer)
+- `平台单累计金额`: 管家平台单累计金额 (Float)
 - `自引单累计数量`: 管家自引单累计数量 (Integer)
 - `自引单累计金额`: 管家自引单累计金额 (Float)
 
 **重要说明**：
 1. **无字段删除**：为保证数据完整性和向后兼容，不删除任何原有字段
-2. **语义重定义**：`管家累计金额`和`管家累计单数`现在专指平台单数据
-3. **数据冗余**：`平台单累计数量`与`管家累计单数`数值相同，`平台单累计金额`与`管家累计金额`数值相同
+2. **语义保持**：`管家累计金额`和`管家累计单数`保持原有含义，避免破坏现有报表和分析
+3. **新增统计**：通过新增字段提供平台单和自引单的分类统计
 4. **统一奖励字段**：平台单和自引单都使用原有的`奖励类型`和`奖励名称`字段，无需新增专用字段
-5. **渐进迁移**：后续版本可考虑逐步废弃冗余字段，当前版本保持兼容性优先
+5. **数据一致性**：`管家累计金额` = `平台单累计金额` + `自引单累计金额`
 
 ### 3.3 内存数据结构升级
 
@@ -193,21 +183,61 @@ housekeeper_contracts = {
 def process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_award_lists):
     # 1. 初始化数据结构
     config_key = "SH-2025-09"
+    performance_data = []
+    contract_count_in_activity = len(existing_contract_ids) + 1
+    housekeeper_contracts = {}
+    processed_contract_ids = set()
 
     # 2. 统一遍历所有订单
     for contract in contract_data:
-        source_type = contract['工单类型(sourceType)']
+        contract_id = contract['合同ID(_id)']
+        if contract_id in existing_contract_ids or contract_id in processed_contract_ids:
+            continue
+
+        # 字段映射：API字段名 -> CSV字段名
+        source_type = int(contract.get('工单类型(sourceType)', 2))  # 默认为平台单
+        project_address = contract.get('项目地址(projectAddress)', '')
+        housekeeper_key = f"{contract['管家(serviceHousekeeper)']}_{contract['服务商(orgName)']}"
+
+        # 初始化管家数据结构
+        if housekeeper_key not in housekeeper_contracts:
+            housekeeper_contracts[housekeeper_key] = {
+                'count': 0, 'total_amount': 0, 'performance_amount': 0, 'awarded': [],
+                'platform_count': 0, 'platform_amount': 0,
+                'self_referral_count': 0, 'self_referral_amount': 0,
+                'self_referral_projects': set()
+            }
 
         # 根据订单类型应用不同的奖励规则
         if source_type == 1:
-            # 自引单订单：应用项目地址去重奖励规则
-            apply_self_referral_reward_rules(contract, housekeeper_contracts, config_key)
+            # 自引单：项目地址去重奖励
+            reward_types, reward_names, _ = determine_self_referral_rewards(
+                project_address, housekeeper_contracts[housekeeper_key], config_key)
+            # 更新自引单统计
+            housekeeper_contracts[housekeeper_key]['self_referral_count'] += 1
+            housekeeper_contracts[housekeeper_key]['self_referral_amount'] += contract_amount
         else:
-            # 平台单订单：应用节节高奖励规则
-            apply_platform_reward_rules(contract, housekeeper_contracts, config_key)
+            # 平台单：节节高奖励
+            reward_types, reward_names, _ = determine_rewards_apr_shanghai_generic(
+                contract_count_in_activity, housekeeper_contracts[housekeeper_key], contract_amount)
+            # 更新平台单统计
+            housekeeper_contracts[housekeeper_key]['platform_count'] += 1
+            housekeeper_contracts[housekeeper_key]['platform_amount'] += contract_amount
 
-    # 3. 生成统一的业绩数据记录
-    # 4. 返回处理结果
+        # 更新总体统计
+        housekeeper_contracts[housekeeper_key]['count'] += 1
+        housekeeper_contracts[housekeeper_key]['total_amount'] += contract_amount
+
+        # 生成业绩数据记录（包含新增字段）
+        performance_record = create_performance_record(contract, reward_types, reward_names,
+                                                     housekeeper_contracts[housekeeper_key],
+                                                     contract_count_in_activity, source_type, project_address)
+        performance_data.append(performance_record)
+
+        processed_contract_ids.add(contract_id)
+        contract_count_in_activity += 1
+
+    return performance_data
 ```
 
 ### 4.2 自引单奖励计算 - determine_self_referral_rewards()
@@ -250,34 +280,75 @@ def determine_self_referral_rewards(project_address, housekeeper_data, config_ke
         return ("", "", False)
 ```
 
-### 4.3 统一通知发送 - notify_awards_shanghai_sep()
-**新建函数，基于 notify_awards_shanghai_generate_message_march() 升级**
+### 4.3 统一通知任务生成 - notify_awards_shanghai_generic()
+**新建函数，参考北京通用模式 notify_awards_beijing_generic()**
 
 **核心逻辑**：
-1. 群通知：发送订单签约喜报到运营群（包含不同订单类型的统计）
-2. 个人奖励通知：发送给活动管理员（满浩浩）
-3. 统一从业绩数据文件读取所有订单的奖励信息
-4. 使用配置驱动的奖励金额映射，无需区分订单类型
+1. 读取业绩数据文件，获取奖励信息
+2. 生成群通知任务：发送订单签约喜报到运营群
+3. 生成个人奖励通知任务：发送给活动管理员
+4. 通过 create_task() 将通知任务加入队列，与业务逻辑解耦
 
 **实现逻辑**：
 ```python
-def notify_awards_shanghai_sep(performance_data_filename, status_filename, contract_data):
-    # 读取业绩数据文件（与原有逻辑一致）
-    records = get_all_records_from_csv(performance_data_filename)
+def notify_awards_shanghai_generic(performance_data_filename, status_filename, config_key):
+    """
+    通用的上海通知任务生成函数，参考北京模式
 
-    # 使用配置化的奖励映射（上海9月配置）
-    awards_mapping = get_awards_mapping("SH-2025-09")
+    Args:
+        performance_data_filename: 业绩数据文件名
+        status_filename: 状态文件名
+        config_key: 配置键，如 "SH-2025-09"
+    """
+    records = get_all_records_from_csv(performance_data_filename)
+    send_status = load_send_status(status_filename)
+    awards_mapping = get_awards_mapping(config_key)
+    updated = False
 
     for record in records:
-        if record['是否发送通知'] == 'N':
-            # 生成群通知消息（包含平台单和自引单统计）
-            msg = generate_group_notification_message(record)
+        contract_id = record['合同ID(_id)']
+        if record['是否发送通知'] == 'N' and send_status.get(contract_id) != '发送成功':
+            # 生成群通知任务（使用现有消息构建方式）
+            processed_accumulated_amount = preprocess_amount(record["管家累计金额"])
+            processed_conversion_rate = preprocess_rate(record["转化率(conversion)"])
+            next_msg = '恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉' if '无' in record["备注"] else f'{record["备注"]}'
+
+            # 新增：显示订单类型
+            order_type = record.get("工单类型", "平台单")  # 默认为平台单
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {record["管家(serviceHousekeeper)"]} 签约合同（{order_type}） {record["合同编号(contractdocNum)"]} 并完成线上收款🎉🎉🎉
+
+🌻 本单为本月平台累计签约第 {record["活动期内第几个合同"]} 单，
+
+🌻 个人累计签约第 {record["管家累计单数"]} 单，
+
+🌻 个人累计签约 {processed_accumulated_amount} 元，
+
+🌻 个人转化率 {processed_conversion_rate}，
+
+👊 {next_msg}。
+'''
             create_task('send_wecom_message', WECOM_GROUP_NAME_SH_SEP, msg)
 
-            # 生成个人奖励消息（统一处理）
+            # 生成个人奖励通知任务
             if record['激活奖励状态'] == '1':
                 jiangli_msg = generate_award_message(record, awards_mapping, "SH")
                 create_task('send_wechat_message', CAMPAIGN_CONTACT_SH_SEP, jiangli_msg)
+
+            # 更新发送状态（保持与现有系统一致）
+            update_send_status(status_filename, contract_id, '发送成功')
+            record['是否发送通知'] = 'Y'
+            updated = True
+
+    if updated:
+        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
+
+# 包装函数：上海9月
+def notify_awards_sep_shanghai(performance_data_filename, status_filename):
+    return notify_awards_shanghai_generic(
+        performance_data_filename, status_filename, "SH-2025-09"
+    )
 ```
 
 **关键特点**：
@@ -293,17 +364,19 @@ def notify_awards_shanghai_sep(performance_data_filename, status_filename, contr
 
 🌻 本单为本月平台累计签约第 {平台单序号} 单，
 
-🌻 个人累计签约平台单第 {个人平台单数量} 单， 个人累计签约自引单第 {个人自引单数量} 单。
-🌻 个人累计签约平台单金额 {平台单金额} 元，自引单金额{自引单金额}元
+🌻 个人累计签约第 {个人累计单数} 单，
 
-🌻 个人平台单转化率 {转化率}%，
+🌻 个人累计签约 {个人累计金额} 元，
+
+🌻 个人转化率 {转化率}，
 
 👊 {奖励状态描述} 🎉🎉🎉。
 ```
 
 **数据来源**：
 - 平台单/自引单类型：从业绩数据文件的 `工单类型` 字段获取
-- 统计数据：从业绩数据文件的新增统计字段获取
+- 统计数据：保持与现有上海通知格式一致，使用原有字段
+- 详细分类统计：可在后续版本中考虑添加平台单/自引单分类显示
 
 **个人奖励消息格式（发送给活动管理员）**：
 统一使用现有的 `generate_award_message()` 函数处理所有奖励类型：
@@ -390,8 +463,8 @@ REWARD_CONFIGS = {
             "enable": True,  # 启用自引单奖励
             "reward_type": "自引单",
             "reward_name": "红包",
-            "reward_amount": 50,
             "deduplication_field": "projectAddress"  # 去重字段
+            # 注意：奖励金额统一在awards_mapping中定义，避免重复配置
         }
     }
 }
@@ -417,7 +490,6 @@ def get_self_referral_config(config_key):
             "enable": False,
             "reward_type": "",
             "reward_name": "",
-            "reward_amount": 0,
             "deduplication_field": ""
         }
 ```
@@ -438,30 +510,82 @@ def get_self_referral_config(config_key):
 - **台账数据完整性**: 所有新增字段正确记录
 
 ### 6.3 风险评估
-- **数据源变化风险**: 需要确认新字段的数据质量
-- **逻辑复杂度增加**: 双轨处理可能增加出错概率
-- **向后兼容性**: 确保不影响其他月份的job
-- **字段语义变更风险**: `管家累计金额`和`管家累计单数`语义变更可能影响现有报表和分析
-- **数据冗余风险**: 新增的平台单字段与原有字段数据重复，需要确保数据一致性
+- **数据源变化风险**: 需要确认新字段的数据质量和API稳定性
+- **逻辑复杂度增加**: 双轨处理可能增加出错概率，需要充分测试
+- **向后兼容性**: 确保不影响其他月份的job和现有报表系统
+- **字段映射风险**: API字段名与CSV字段名的映射需要准确无误
+- **配置一致性风险**: 确保awards_mapping与self_referral_rewards配置保持一致
 
-## 7. 后续优化建议
+## 7. 技术实现补充
 
-### 7.1 代码复用优化
+### 7.1 字段映射关系
+```python
+# API响应字段 -> CSV字段映射
+FIELD_MAPPING = {
+    # 原有字段保持不变
+    '_id': '合同ID(_id)',
+    'serviceHousekeeper': '管家(serviceHousekeeper)',
+    # ... 其他原有字段 ...
+
+    # 新增字段映射
+    'serviceHousekeeperId': '管家ID(serviceHousekeeperId)',
+    'sourceType': '工单类型(sourceType)',
+    'contactsAddress': '客户联系地址(contactsAddress)',
+    'projectAddress': '项目地址(projectAddress)'
+}
+```
+
+### 7.2 辅助函数实现
+```python
+def create_performance_record(contract, reward_types, reward_names, housekeeper_data,
+                            contract_count, source_type, project_address):
+    """创建业绩数据记录，包含新增字段"""
+    order_type_text = "自引单" if source_type == 1 else "平台单"
+
+    return {
+        # 原有字段...
+        '合同ID(_id)': contract['合同ID(_id)'],
+        '管家(serviceHousekeeper)': contract['管家(serviceHousekeeper)'],
+        # ... 其他原有字段 ...
+
+        # 新增字段
+        '工单类型': order_type_text,
+        '项目地址': project_address,
+        '平台单累计数量': housekeeper_data['platform_count'],
+        '平台单累计金额': housekeeper_data['platform_amount'],
+        '自引单累计数量': housekeeper_data['self_referral_count'],
+        '自引单累计金额': housekeeper_data['self_referral_amount']
+    }
+
+def preprocess_amount(amount_str):
+    """金额预处理函数（复用现有逻辑）"""
+    # 实现与现有上海通知函数一致的金额格式化
+    pass
+
+def preprocess_rate(rate_str):
+    """转化率预处理函数（复用现有逻辑）"""
+    # 实现与现有上海通知函数一致的转化率格式化
+    pass
+```
+
+## 8. 后续优化建议
+
+### 8.1 代码复用优化
 - 抽象通用的合同处理逻辑
 - 统一奖励计算接口
 - 优化通知消息模板系统
 - **配置驱动优化**：将自引单配置完全纳入REWARD_CONFIGS体系
 
-### 7.2 监控增强
+### 8.2 监控增强
 - 新增自引单处理监控指标
 - 项目地址去重效果监控
 - 双轨奖励发放准确性监控
 - **配置一致性监控**：确保awards_mapping与self_referral_rewards配置一致
 
-### 7.3 配置管理优化
+### 8.3 配置管理优化
 - 考虑将配置外部化（JSON文件或数据库）
 - 增加配置验证机制
 - 支持配置热更新（如果需要）
 
 ---
-*本设计文档遵循KISS原则，专注核心升级要点。详细实现请参考现有代码模式。*
+*本设计文档已根据现有技术实现进行修订，确保技术方案的一致性和可行性。*
