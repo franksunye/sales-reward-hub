@@ -143,7 +143,7 @@ CAMPAIGN_CONTACT_SH_AUG = '满浩浩'
 API_URL_SH_SEP = METABASE_URL + "/api/card/1838/query"
 
 # 销售激励活动 JOB signing_and_sales_incentive_sep_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/RawData-SH-Sep.csv'
+TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/ContractData-SH-Sep.csv'
 PERFORMANCE_DATA_FILENAME_SH_SEP = 'state/PerformanceData-SH-Sep.csv'
 STATUS_FILENAME_SH_SEP = 'state/send_status_shanghai_sep.json'
 
