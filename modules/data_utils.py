@@ -90,8 +90,7 @@ def write_performance_data(filename, data, headers):
             writer.writeheader()
         writer.writerows(data)
         
-def write_performance_data_to_csv(filename, data, fieldnames):
-    """写入性能数据到文件"""
+def update_performance_data(filename, data, fieldnames):
     with open(filename, mode='w', encoding='utf-8-sig', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()

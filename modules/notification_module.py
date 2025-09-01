@@ -4,7 +4,7 @@ import time
 from modules.log_config import setup_logging
 import requests
 from modules.config import *
-from modules.data_utils import load_send_status, update_send_status, get_all_records_from_csv, write_performance_data_to_csv
+from modules.data_utils import load_send_status, update_send_status, get_all_records_from_csv, update_performance_data
 from task_manager import create_task
 
 # 配置日志
@@ -166,7 +166,7 @@ def notify_awards_beijing_generic(performance_data_filename, status_filename, co
             logging.info(f"Notification sent for contract INFO: {record['管家(serviceHousekeeper)']}, {record['合同ID(_id)']}")
 
     if updated:
-        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
+        update_performance_data(performance_data_filename, records, list(records[0].keys()))
         logging.info("PerformanceData.csv updated with notification status.")
 
 # 包装函数：保持向后兼容
@@ -234,7 +234,7 @@ def notify_awards_shanghai_generate_message_march(performance_data_filename, sta
             logging.info(f"Notification sent for contract INFO: {record['管家(serviceHousekeeper)']}, {record['合同ID(_id)']}")
 
     if updated:
-        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
+        update_performance_data(performance_data_filename, records, list(records[0].keys()))
         logging.info("PerformanceData.csv updated with notification status.")
 
 def post_text_to_webhook(message, webhook_url=WEBHOOK_URL_DEFAULT):  # WEBHOOK_URL_DEFAULT 是默认的 Webhook URL
@@ -320,8 +320,8 @@ def notify_awards_shanghai_generic(performance_data_filename, status_filename, c
 
 🌻 本单为本月平台累计签约第 {record["活动期内第几个合同"]} 单，
 
-🌻 个人累计签约平台单第 {platform_count} 单， 个人累计签约自引单第 {self_referral_count} 单。
-🌻 个人累计签约平台单金额 {platform_amount} 元，自引单金额{self_referral_amount}元
+🌻 个人平台单累计签约第 {platform_count} 单， 自引单累计签约第 {self_referral_count} 单。
+🌻 个人平台单金额累计签约 {platform_amount} 元，自引单金额累计签约 {self_referral_amount}元
 
 🌻 个人平台单转化率 {processed_conversion_rate}，
 
@@ -342,7 +342,7 @@ def notify_awards_shanghai_generic(performance_data_filename, status_filename, c
             updated = True
 
     if updated:
-        write_performance_data_to_csv(performance_data_filename, records, list(records[0].keys()))
+        update_performance_data(performance_data_filename, records, list(records[0].keys()))
 
 
 # 包装函数：上海9月

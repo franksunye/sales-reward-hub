@@ -144,11 +144,12 @@ def signing_and_sales_incentive_sep_shanghai():
         contract_data.append(mapped_row)
 
     # 3. 保存原始数据到CSV文件（包含新增字段）
+    # 修复：使用与数据结构匹配的列名
     columns = [
-        "_id", "province", "serviceAppointmentNum", "status", "serviceHousekeeper",
-        "contractdocNum", "adjustRefundMoney", "paidAmount", "difference", "state",
-        "createTime", "orgName", "signedDate", "doorsill", "tradeIn", "conversion",
-        "average", "serviceHousekeeperId", "sourceType", "contactsAddress", "projectAddress"
+        "合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)",
+        "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State",
+        "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)",
+        "平均客单价(average)", "管家ID(serviceHousekeeperId)", "工单类型(sourceType)", "客户联系地址(contactsAddress)", "项目地址(projectAddress)"
     ]
     save_to_csv_with_headers(contract_data, contract_data_filename, columns)
     logging.info('SHANGHAI 2025 9月 双轨激励, Raw data saved')
@@ -179,7 +180,8 @@ def signing_and_sales_incentive_sep_shanghai():
         '自引单累计数量', '自引单累计金额'
     ]
 
-    write_performance_data_to_csv(performance_data_filename, processed_data, performance_data_headers)
+    write_performance_data(performance_data_filename, processed_data, performance_data_headers)
+
     logging.info('SHANGHAI 2025 9月 双轨激励, Performance data written')
 
     # 8. 通知处理（使用通用函数）
