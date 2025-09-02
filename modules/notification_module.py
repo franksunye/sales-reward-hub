@@ -350,3 +350,13 @@ def notify_awards_sep_shanghai(performance_data_filename, status_filename):
     return notify_awards_shanghai_generic(
         performance_data_filename, status_filename, "SH-2025-09"
     )
+
+# 包装函数：北京9月
+def notify_awards_sep_beijing(performance_data_filename, status_filename):
+    """北京9月通知函数（包装函数）"""
+    return notify_awards_beijing_generic(
+        performance_data_filename,
+        status_filename,
+        "BJ-2025-09",
+        enable_rising_star_badge=False  # 9月份禁用新星徽章
+    )

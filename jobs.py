@@ -309,4 +309,45 @@ def send_pending_orders_reminder():
         logging.error(f'待预约工单提醒任务执行失败: {e}')
         import traceback
         logging.error(traceback.format_exc())
-    
+
+
+# 2025年9月，北京.
+# 幸运数字改为个人签约顺序（5的倍数），统一58元奖励；节节高10个合同解锁，奖励翻倍；禁用徽章机制
+def signing_and_sales_incentive_sep_beijing():
+    """北京2025年9月签约激励Job"""
+    from modules.config import (
+        API_URL_BJ_SEP, TEMP_CONTRACT_DATA_FILE_BJ_SEP,
+        PERFORMANCE_DATA_FILENAME_BJ_SEP, STATUS_FILENAME_BJ_SEP
+    )
+    from modules.data_processing_module import process_data_sep_beijing
+    from modules.notification_module import notify_awards_sep_beijing
+
+    logging.info('BEIJING 2025 9月, Job started ...')
+
+    response = send_request_with_managed_session(API_URL_BJ_SEP)
+    logging.info('BEIJING 2025 9月, Request sent')
+
+    rows = response['data']['rows']
+    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
+    save_to_csv_with_headers(rows, TEMP_CONTRACT_DATA_FILE_BJ_SEP, columns)
+
+    logging.info(f'BEIJING 2025 9月, Data saved to {TEMP_CONTRACT_DATA_FILE_BJ_SEP}')
+
+    contract_data = read_contract_data(TEMP_CONTRACT_DATA_FILE_BJ_SEP)
+    existing_contract_ids = collect_unique_contract_ids_from_file(PERFORMANCE_DATA_FILENAME_BJ_SEP)
+    housekeeper_award_lists = get_housekeeper_award_list(PERFORMANCE_DATA_FILENAME_BJ_SEP)
+
+    # 使用9月专用数据处理逻辑
+    processed_data = process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
+    logging.info('BEIJING 2025 9月, Data processed')
+
+    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
+
+    write_performance_data(PERFORMANCE_DATA_FILENAME_BJ_SEP, processed_data, performance_data_headers)
+
+    # 使用9月专用通知逻辑
+    notify_awards_sep_beijing(PERFORMANCE_DATA_FILENAME_BJ_SEP, STATUS_FILENAME_BJ_SEP)
+
+    archive_file(TEMP_CONTRACT_DATA_FILE_BJ_SEP)
+    logging.info('BEIJING 2025 9月, Data archived')
+    logging.info('BEIJING 2025 9月, Job ended')

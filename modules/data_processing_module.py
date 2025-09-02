@@ -38,6 +38,73 @@ def determine_lucky_number_reward(
 
     return reward_type, reward_name
 
+
+def determine_lucky_number_reward_generic(
+    contract_number: int,
+    current_contract_amount: float,
+    housekeeper_contract_count: int,
+    config_key: str
+) -> tuple:
+    """
+    通用幸运数字奖励确定函数
+
+    Args:
+        contract_number: 合同编号（用于传统模式）
+        current_contract_amount: 当前合同金额
+        housekeeper_contract_count: 管家个人合同数量（用于个人顺序模式）
+        config_key: 配置键
+
+    Returns:
+        tuple: (reward_type, reward_name)
+    """
+    reward_config = config.REWARD_CONFIGS.get(config_key, {})
+    lucky_number = reward_config.get("lucky_number", "")
+    lucky_mode = reward_config.get("lucky_number_mode", "contract_number")
+
+    if not lucky_number:
+        return "", ""
+
+    # 根据模式选择判断逻辑
+    if lucky_mode == "personal_sequence":
+        # 个人签约顺序模式：判断是否为指定倍数
+        target_multiple = int(lucky_number)
+        if housekeeper_contract_count % target_multiple == 0:
+            return "幸运数字", "接好运"
+    else:
+        # 传统模式：基于合同编号末位
+        if lucky_number in str(contract_number % 10):
+            lucky_rewards = reward_config.get("lucky_rewards", {})
+            high_threshold = lucky_rewards.get("high", {}).get("threshold", 10000)
+            if current_contract_amount >= high_threshold:
+                return "幸运数字", lucky_rewards.get("high", {}).get("name", "接好运万元以上")
+            else:
+                return "幸运数字", lucky_rewards.get("base", {}).get("name", "接好运")
+
+    return "", ""
+
+
+def should_enable_badge(config_key: str, badge_type: str) -> bool:
+    """
+    检查是否启用指定徽章
+
+    Args:
+        config_key: 配置键
+        badge_type: 徽章类型 ("elite" 或 "rising_star")
+
+    Returns:
+        bool: 是否启用徽章
+    """
+    reward_config = config.REWARD_CONFIGS.get(config_key, {})
+    badge_config = reward_config.get("badge_config", {})
+
+    if badge_type == "elite":
+        return badge_config.get("enable_elite_badge", True)  # 默认启用
+    elif badge_type == "rising_star":
+        return badge_config.get("enable_rising_star_badge", False)  # 默认禁用
+
+    return False
+
+
 def determine_rewards_generic(
     contract_number,
     housekeeper_data,
@@ -179,6 +246,15 @@ def determine_rewards_jun_beijing_generic(contract_number, housekeeper_data, cur
         housekeeper_data,
         current_contract_amount,
         "BJ-2025-06"
+    )
+
+# 使用通用奖励确定函数的9月北京奖励计算函数
+def determine_rewards_sep_beijing_generic(contract_number, housekeeper_data, current_contract_amount):
+    return determine_rewards_generic(
+        contract_number,
+        housekeeper_data,
+        current_contract_amount,
+        "BJ-2025-09"
     )
 
 # 使用通用奖励确定函数的4月上海奖励计算函数
@@ -619,9 +695,16 @@ def process_data_shanghai_sep(contract_data, existing_contract_ids, housekeeper_
             # 自引单固定备注
             next_reward_gap = "继续加油，争取更多奖励"
         else:
-            # 平台单：节节高奖励，获取动态备注
+            # 平台单：节节高奖励，使用平台单专用数据
+            # 创建只包含平台单数据的临时结构
+            platform_only_data = {
+                'count': housekeeper_contracts[housekeeper_key]['platform_count'],
+                'total_amount': housekeeper_contracts[housekeeper_key]['platform_amount'],
+                'performance_amount': housekeeper_contracts[housekeeper_key]['platform_amount'],
+                'awarded': housekeeper_contracts[housekeeper_key]['awarded']
+            }
             reward_types, reward_names, next_reward_gap = determine_rewards_sep_shanghai_generic(
-                contract_count_in_activity, housekeeper_contracts[housekeeper_key], contract_amount)
+                contract_count_in_activity, platform_only_data, contract_amount)
 
         # 检查是否为已存在合同，如果是则跳过记录创建
         if contract_id in existing_contract_ids:
@@ -801,3 +884,25 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
             next_reward_gap = f"距离达成节节高奖励条件还需 {JIEJIEGAO_CONTRACT_COUNT_THRESHOLD -  housekeeper_data['count']} 单"
 
     return ', '.join(reward_types), ', '.join(reward_names), next_reward_gap
+
+
+# 北京9月数据处理函数（包装函数）
+def process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists):
+    """
+    北京9月数据处理函数（包装函数）
+    复用process_data_jun_beijing逻辑，但使用新的奖励计算配置
+    """
+    # 临时保存原有的奖励计算函数
+    original_determine_rewards = globals().get('determine_rewards_jun_beijing_generic')
+
+    # 临时替换为9月的奖励计算函数
+    globals()['determine_rewards_jun_beijing_generic'] = determine_rewards_sep_beijing_generic
+
+    try:
+        # 调用原有的数据处理逻辑
+        result = process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
+        return result
+    finally:
+        # 恢复原有的奖励计算函数
+        if original_determine_rewards:
+            globals()['determine_rewards_jun_beijing_generic'] = original_determine_rewards

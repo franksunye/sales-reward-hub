@@ -7,6 +7,34 @@ ENABLE_PERFORMANCE_AMOUNT_CAP = False  # 是否启用业绩金额上限 - 已弃
 
 # 通用奖励配置
 REWARD_CONFIGS = {
+    # 北京2025年6月活动配置（8月复用此配置）
+    "BJ-2025-06": {
+        "lucky_number": "8",  # 8月活动使用幸运数字8
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运万元以上", "threshold": 10000}
+        },
+        "performance_limits": {
+            "single_project_limit": 500000,
+            "enable_cap": True,
+            "single_contract_cap": 500000
+        },
+        "tiered_rewards": {
+            "min_contracts": 6,
+            "tiers": [
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 120000},
+                {"name": "精英奖", "threshold": 180000}
+            ]
+        },
+        "awards_mapping": {
+            "接好运": "36",
+            "接好运万元以上": "66",
+            "达标奖": "200",
+            "优秀奖": "400",
+            "精英奖": "600"
+        }
+    },
     # 北京2025年8月活动配置
     "BJ-2025-08": {
         "lucky_number": "8",
@@ -33,6 +61,38 @@ REWARD_CONFIGS = {
             "达标奖": "200",
             "优秀奖": "400",
             "精英奖": "600"
+        }
+    },
+    # 北京2025年9月活动配置
+    "BJ-2025-09": {
+        "lucky_number": "5",  # 基于个人合同顺序的倍数
+        "lucky_number_mode": "personal_sequence",  # 个人顺序模式
+        "lucky_rewards": {
+            "base": {"name": "接好运", "threshold": 0},
+            "high": {"name": "接好运", "threshold": 999999999}  # 统一奖励，不区分金额
+        },
+        "performance_limits": {
+            "single_project_limit": 50000,  # 调整为5万
+            "enable_cap": True,
+            "single_contract_cap": 50000
+        },
+        "tiered_rewards": {
+            "min_contracts": 10,  # 提升至10个合同
+            "tiers": [
+                {"name": "达标奖", "threshold": 80000},
+                {"name": "优秀奖", "threshold": 180000},
+                {"name": "精英奖", "threshold": 280000}
+            ]
+        },
+        "awards_mapping": {
+            "接好运": "58",  # 统一58元
+            "达标奖": "400",  # 翻倍
+            "优秀奖": "800",  # 翻倍
+            "精英奖": "1600"  # 翻倍
+        },
+        "badge_config": {
+            "enable_elite_badge": False,
+            "enable_rising_star_badge": False
         }
     },
 
@@ -170,6 +230,18 @@ STATUS_FILENAME_BJ_AUG = 'state/send_status_bj_aug.json'
 # Pro
 WECOM_GROUP_NAME_BJ_AUG = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_AUG = '王爽'
+
+## 北京地区，2025年9月活动
+API_URL_BJ_SEP = METABASE_URL + "/api/card/1803/query"  # 新的API端点
+
+# 北京销售激励活动 JOB signing_and_sales_incentive_sep_beijing
+TEMP_CONTRACT_DATA_FILE_BJ_SEP = 'state/ContractData-BJ-Sep.csv'
+PERFORMANCE_DATA_FILENAME_BJ_SEP = 'state/PerformanceData-BJ-Sep.csv'
+STATUS_FILENAME_BJ_SEP = 'state/send_status_bj_sep.json'
+
+# 通知配置
+WECOM_GROUP_NAME_BJ_SEP = '（北京）修链服务运营'
+CAMPAIGN_CONTACT_BJ_SEP = '王爽'
 
 ## 北京的通用配置选项
 
