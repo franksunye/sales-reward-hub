@@ -142,23 +142,17 @@ def determine_rewards_generic(
     reward_names = []
     next_reward_gap = ""  # 下一级奖励所需金额差
 
-    # 幸运数字奖励逻辑
-    lucky_number = reward_config.get("lucky_number", "")
-    if lucky_number:
-        lucky_rewards = reward_config.get("lucky_rewards", {})
+    # 幸运数字奖励逻辑 - 使用通用幸运数字函数
+    lucky_reward_type, lucky_reward_name = determine_lucky_number_reward_generic(
+        contract_number=contract_number,
+        current_contract_amount=current_contract_amount,
+        housekeeper_contract_count=housekeeper_data.get('count', 0),
+        config_key=config_key
+    )
 
-        # 检查幸运数字
-        if lucky_number in str(contract_number % 10):
-            reward_types.append("幸运数字")
-
-            # 根据合同金额确定奖励名称
-            high_threshold = lucky_rewards.get("high", {}).get("threshold", 10000)
-            if current_contract_amount >= high_threshold:
-                reward_name = lucky_rewards.get("high", {}).get("name", "接好运万元以上")
-                reward_names.append(reward_name)
-            else:
-                reward_name = lucky_rewards.get("base", {}).get("name", "接好运")
-                reward_names.append(reward_name)
+    if lucky_reward_type:
+        reward_types.append(lucky_reward_type)
+        reward_names.append(lucky_reward_name)
     # 节节高奖励逻辑
     tiered_rewards = reward_config.get("tiered_rewards", {})
     min_contracts = tiered_rewards.get("min_contracts", 6)
