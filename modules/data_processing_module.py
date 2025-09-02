@@ -890,19 +890,23 @@ def determine_rewards_shanghai_apr(contract_number, housekeeper_data, contract_a
 def process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists):
     """
     北京9月数据处理函数（包装函数）
-    复用process_data_jun_beijing逻辑，但使用新的奖励计算配置
+    复用process_data_jun_beijing逻辑，但使用新的奖励计算配置和5万元上限
     """
-    # 临时保存原有的奖励计算函数
+    # 临时保存原有的配置和函数
     original_determine_rewards = globals().get('determine_rewards_jun_beijing_generic')
+    original_performance_cap = getattr(config, 'PERFORMANCE_AMOUNT_CAP_BJ_FEB', 500000)
 
-    # 临时替换为9月的奖励计算函数
+    # 临时替换为9月的配置
     globals()['determine_rewards_jun_beijing_generic'] = determine_rewards_sep_beijing_generic
+    # 设置9月的5万元上限
+    config.PERFORMANCE_AMOUNT_CAP_BJ_FEB = 50000
 
     try:
         # 调用原有的数据处理逻辑
         result = process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
         return result
     finally:
-        # 恢复原有的奖励计算函数
+        # 恢复原有的配置和函数
         if original_determine_rewards:
             globals()['determine_rewards_jun_beijing_generic'] = original_determine_rewards
+        config.PERFORMANCE_AMOUNT_CAP_BJ_FEB = original_performance_cap

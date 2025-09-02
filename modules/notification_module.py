@@ -36,13 +36,19 @@ def get_awards_mapping(config_key):
             '卓越奖': '1200',
         }
 
-def generate_award_message(record, awards_mapping, city="BJ"):
+def generate_award_message(record, awards_mapping, city="BJ", config_key=None):
     service_housekeeper = record["管家(serviceHousekeeper)"]
     contract_number = record["合同编号(contractdocNum)"]
     award_messages = []
 
-    # 只有北京的精英管家才能获得奖励翻倍和显示徽章，上海的管家不参与奖励翻倍也不显示徽章
-    if ENABLE_BADGE_MANAGEMENT and (service_housekeeper in ELITE_HOUSEKEEPER) and city == "BJ":
+    # 检查是否启用徽章功能
+    badge_enabled = ENABLE_BADGE_MANAGEMENT
+    if config_key:
+        from modules.data_processing_module import should_enable_badge
+        badge_enabled = should_enable_badge(config_key, "elite")
+
+    # 只有启用徽章且是北京的精英管家才能获得奖励翻倍和显示徽章
+    if badge_enabled and (service_housekeeper in ELITE_HOUSEKEEPER) and city == "BJ":
         # 如果是北京的精英管家，添加徽章
         service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
 
@@ -156,7 +162,7 @@ def notify_awards_beijing_generic(performance_data_filename, status_filename, co
             time.sleep(3)
 
             if record['激活奖励状态'] == '1':
-                jiangli_msg = generate_award_message(record, awards_mapping, "BJ")
+                jiangli_msg = generate_award_message(record, awards_mapping, "BJ", config_key)
                 create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ, jiangli_msg)
 
             update_send_status(status_filename, contract_id, '发送成功')
