@@ -86,24 +86,55 @@ class TestBeijingSepDataProcessing:
     
     def test_personal_sequence_lucky_number_calculation(self):
         """测试个人顺序幸运数字计算的准确性"""
-        contract_data = self.create_mock_contract_data()
+        # 创建5个合同，都属于同一个管家张三，使用正确的中文字段名
+        contract_data = [
+            {
+                '合同ID(_id)': f'contract_{i:03d}',
+                '活动城市(province)': '北京',
+                '工单编号(serviceAppointmentNum)': f'SA{i:03d}',
+                'Status': '已完成',
+                '管家(serviceHousekeeper)': '张三',
+                '合同编号(contractdocNum)': f'C{i:05d}',
+                '合同金额(adjustRefundMoney)': 15000 + i * 1000,  # 不同金额
+                '支付金额(paidAmount)': 15000 + i * 1000,
+                '差额(difference)': 0,
+                'State': '已签约',
+                '创建时间(createTime)': f'2025-09-0{i} 10:30:00',
+                '服务商(orgName)': '测试服务商',
+                '签约时间(signedDate)': f'2025-09-0{i}',
+                'Doorsill': '是',
+                '款项来源类型(tradeIn)': '新客户',
+                '转化率(conversion)': '100%',
+                '平均客单价(average)': 15000 + i * 1000
+            }
+            for i in range(1, 6)  # 创建5个合同
+        ]
+
         existing_contract_ids = set()
         housekeeper_award_lists = {}
-        
-        # 模拟前4个合同已存在
-        existing_contract_ids = {'contract_001', 'contract_002', 'contract_003', 'contract_004'}
-        
-        # 处理第5个合同
-        processed_data = process_data_sep_beijing(contract_data[-1:], existing_contract_ids, housekeeper_award_lists)
-        
+
+        # 处理所有5个合同
+        processed_data = process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
+
+        # 验证处理了5个合同
+        assert len(processed_data) == 5, f"应该处理5个合同，实际处理了{len(processed_data)}个"
+
+        # 按合同ID排序，确保顺序正确
+        processed_data.sort(key=lambda x: x['合同ID(_id)'])
+
         # 验证第5个合同获得幸运奖励
-        assert len(processed_data) == 1, "应该处理1个合同"
-        record = processed_data[0]
-        
-        assert record['活动期内第几个合同'] == 5, "应该是第5个合同"
-        assert "幸运数字" in record['奖励类型'], "第5个合同应该获得幸运数字奖励"
-        assert "接好运" in record['奖励名称'], "应该获得接好运奖励"
-        assert record['激活奖励状态'] == 1, "应该激活奖励"
+        fifth_contract = processed_data[4]  # 索引4是第5个合同
+        assert fifth_contract['合同ID(_id)'] == 'contract_005', "第5个记录应该是contract_005"
+        assert fifth_contract['管家累计单数'] == 5, "第5个合同时管家应该有5个合同"
+        assert "幸运数字" in fifth_contract['奖励类型'], f"第5个合同应该获得幸运数字奖励，实际奖励类型：{fifth_contract['奖励类型']}"
+        assert "接好运" in fifth_contract['奖励名称'], f"应该获得接好运奖励，实际奖励名称：{fifth_contract['奖励名称']}"
+        assert fifth_contract['激活奖励状态'] == 1, "应该激活奖励"
+
+        # 验证第10个合同也会获得幸运奖励（如果我们有10个合同的话）
+        # 这里我们验证前4个合同没有获得幸运奖励
+        for i in range(4):
+            contract = processed_data[i]
+            assert "幸运数字" not in contract['奖励类型'], f"第{i+1}个合同不应该获得幸运数字奖励"
         
     def test_contract_amount_limit_5w(self):
         """测试5万元合同金额上限处理"""
