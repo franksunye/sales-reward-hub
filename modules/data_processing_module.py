@@ -395,7 +395,7 @@ def process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_a
 
         # 构建性能数据记录
         performance_entry = {
-            '活动编号': 'BJ-2025-06',
+            '活动编号': 'BJ-JUN',
             '合同ID(_id)': contract_id,
             '活动城市(province)': contract['活动城市(province)'],
             '工单编号(serviceAppointmentNum)': contract['工单编号(serviceAppointmentNum)'],
@@ -411,9 +411,12 @@ def process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_a
             '签约时间(signedDate)': contract['签约时间(signedDate)'],
             'Doorsill': contract['Doorsill'],
             '款项来源类型(tradeIn)': contract['款项来源类型(tradeIn)'],
+            '转化率(conversion)': contract['转化率(conversion)'],
+            '平均客单价(average)': contract['平均客单价(average)'],
             '活动期内第几个合同': contract_count_in_activity,
             '管家累计单数': housekeeper_contracts[housekeeper]['count'],
             '管家累计金额': housekeeper_contracts[housekeeper]['total_amount'] ,
+            '奖金池': housekeeper_contracts[housekeeper]['total_amount'],  # 奖金池等于累计金额
             '计入业绩金额': housekeeper_contracts[housekeeper]['performance_amount'],
             '激活奖励状态': active_status,
             '奖励类型': reward_types,
@@ -904,6 +907,11 @@ def process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_a
     try:
         # 调用原有的数据处理逻辑
         result = process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
+
+        # 修改活动编号为9月
+        for record in result:
+            record['活动编号'] = 'BJ-SEP'
+
         return result
     finally:
         # 恢复原有的配置和函数

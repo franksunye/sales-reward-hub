@@ -137,43 +137,42 @@ class TestBeijingSepDataProcessing:
         
     def test_tiered_rewards_10_contracts_threshold(self):
         """测试10个合同门槛的节节高奖励"""
-        # 模拟10个合同，累计金额8万元
-        existing_contract_ids = {f'contract_{i:03d}' for i in range(1, 10)}  # 前9个合同
-        
-        # 第10个合同
-        contract_data = [{
-            '合同ID(_id)': 'contract_010',
-            '活动城市(province)': '110000',
-            '工单编号(serviceAppointmentNum)': 'GD2024090010',
-            'Status': '已完成',
-            '管家(serviceHousekeeper)': '王五',
-            '合同编号(contractdocNum)': 'YHWX-BJ-2024090010',
-            '合同金额(adjustRefundMoney)': '8000',  # 使累计达到8万
-            '支付金额(paidAmount)': '8000',
-            '差额(difference)': '0',
-            'State': '已签约',
-            '创建时间(createTime)': '2025-09-10T10:30:00.000+08:00',
-            '服务商(orgName)': '北京英森防水工程有限公司',
-            '签约时间(signedDate)': '2025-09-10T14:20:00.000+08:00',
-            'Doorsill': '10000',
-            '款项来源类型(tradeIn)': '线上支付',
-            '转化率(conversion)': '0.85',
-            '平均客单价(average)': '18500'
-        }]
-        
-        # 模拟前9个合同的累计金额为72000
-        housekeeper_award_lists = {
-            '王五': {'count': 9, 'total_amount': 72000.0, 'performance_amount': 72000.0, 'awarded': []}
-        }
-        
+        # 创建10个合同，每个8000元，累计8万元
+        contract_data = []
+        for i in range(1, 11):
+            contract_data.append({
+                '合同ID(_id)': f'contract_{i:03d}',
+                '活动城市(province)': '110000',
+                '工单编号(serviceAppointmentNum)': f'GD202409{i:04d}',  # 不同工单编号
+                'Status': '已完成',
+                '管家(serviceHousekeeper)': '王五',
+                '合同编号(contractdocNum)': f'YHWX-BJ-202409{i:04d}',
+                '合同金额(adjustRefundMoney)': '8000',  # 每个8000元
+                '支付金额(paidAmount)': '8000',
+                '差额(difference)': '0',
+                'State': '已签约',
+                '创建时间(createTime)': f'2025-09-{i:02d}T10:30:00.000+08:00',
+                '服务商(orgName)': '北京英森防水工程有限公司',
+                '签约时间(signedDate)': f'2025-09-{i:02d}T14:20:00.000+08:00',
+                'Doorsill': '10000',
+                '款项来源类型(tradeIn)': '线上支付',
+                '转化率(conversion)': '0.85',
+                '平均客单价(average)': '18500'
+            })
+
+        # 没有已存在的合同，没有历史奖励
+        existing_contract_ids = set()
+        housekeeper_award_lists = {}
+
         processed_data = process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
-        record = processed_data[0]
-        
+
         # 验证第10个合同达到节节高门槛
-        assert record['管家累计单数'] == 10, "应该是第10个合同"
-        assert float(record['管家累计金额']) == 80000.0, "累计金额应该是8万"
-        assert "节节高" in record['奖励类型'], "第10个合同且8万元应该获得节节高奖励"
-        assert "达标奖" in record['奖励名称'], "应该获得达标奖"
+        last_record = processed_data[-1]  # 最后一个合同
+        assert last_record['活动期内第几个合同'] == 10, "应该是第10个合同"
+        assert last_record['管家累计单数'] == 10, "管家应该有10个合同"
+        assert float(last_record['管家累计金额']) == 80000.0, "累计金额应该是8万"
+        assert "节节高" in last_record['奖励类型'], "第10个合同且8万元应该获得节节高奖励"
+        assert "达标奖" in last_record['奖励名称'], "应该获得达标奖"
         
     def test_reward_amount_doubled(self):
         """测试奖励金额翻倍"""
