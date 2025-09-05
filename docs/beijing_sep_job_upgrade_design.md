@@ -15,18 +15,120 @@
 2. **幸运数字机制重构**: 改为基于个人签约顺序，第5、10、15个等（5的倍数）合同获得58元奖励
 3. **节节高门槛提升**: 10个合同后解锁，奖励金额翻倍
 4. **徽章机制禁用**: 取消精英管家和新人徽章及双倍激励
+5. **历史合同与新增合同区分处理**: 基于pcContractdocNum字段区分历史合同和新增合同，实现差异化处理
 
-### 1.2 技术原则
+### 1.2 历史合同与新增合同处理规则
+
+#### 1.2.1 数据源字段说明
+- **pcContractdocNum字段**: 合同历史标识字段
+  - 有数值：表示活动期内的历史合同
+  - 为空：表示活动期内的新增合同
+
+#### 1.2.2 处理规则差异
+| 合同类型 | 签约播报 | 计入管家累计单数 | 计入管家累计金额 | 计入业绩金额 | 奖励计算 |
+|----------|----------|------------------|------------------|--------------|----------|
+| 新增合同 | ✓ 播报 | ✓ 计入 | ✓ 计入 | ✓ 计入 | ✓ 参与 |
+| 历史合同 | ✗ 不播报 | ✗ 不计入 | ✗ 不计入 | ✓ 仅计入此字段 | ✗ 不参与 |
+
+#### 1.2.3 业务逻辑示例
+以您提供的数据为例：
+- **YHWX-BJ-DKS-2025080122**: 新增合同（pcContractdocNum为空）
+  - 需要播报
+  - 管家累计签约1单，累计签约金额7680元
+  - 计入业绩金额7680元
+  - 参与幸运数字和节节高奖励计算
+- **其他5个合同**: 历史合同（pcContractdocNum有值）
+  - 不播报
+  - 不计入管家累计单数和金额
+  - 仅计入业绩金额字段
+  - 不参与奖励计算
+
+### 1.3 技术原则
 - **复用优先**: 最大化复用现有代码和逻辑
 - **配置驱动**: 通过配置控制业务差异
 - **最小改动**: 不影响上海功能，保持向后兼容
 - **KISS原则**: 保持简单，避免过度设计
+- **数据完整性**: 确保历史合同和新增合同数据处理的准确性
 
 ## 2. 技术设计方案
 
-### 2.1 配置驱动设计
+### 2.1 历史合同处理设计
 
-#### 2.1.1 新增配置项 "BJ-2025-09"
+#### 2.1.1 数据结构扩展
+在现有数据处理流程中增加历史合同标识：
+
+```python
+# 合同数据结构扩展
+CONTRACT_DATA_HEADERS = [
+    # ... 现有字段 ...
+    'pcContractdocNum'  # 新增：历史合同标识字段
+]
+
+# 性能数据结构扩展
+PERFORMANCE_DATA_HEADERS = [
+    # ... 现有字段 ...
+    '是否历史合同',  # 新增：标识合同类型
+    '合同类型说明'   # 新增：合同类型描述
+]
+```
+
+#### 2.1.2 合同类型判断逻辑
+```python
+def is_historical_contract(contract_data: dict) -> bool:
+    """
+    判断是否为历史合同
+
+    Args:
+        contract_data: 合同数据字典
+
+    Returns:
+        bool: True表示历史合同，False表示新增合同
+    """
+    pc_contract_doc_num = contract_data.get('pcContractdocNum', '')
+    # pcContractdocNum有值表示历史合同，为空表示新增合同
+    return bool(pc_contract_doc_num and str(pc_contract_doc_num).strip())
+
+def get_contract_type_description(is_historical: bool) -> str:
+    """获取合同类型描述"""
+    return "活动期内历史合同" if is_historical else "活动期内新增合同"
+```
+
+#### 2.1.3 差异化处理逻辑
+```python
+def process_contract_by_type(contract_data: dict, is_historical: bool) -> dict:
+    """
+    根据合同类型进行差异化处理
+
+    Args:
+        contract_data: 合同数据
+        is_historical: 是否为历史合同
+
+    Returns:
+        dict: 处理后的合同数据
+    """
+    processed_data = contract_data.copy()
+
+    if is_historical:
+        # 历史合同处理逻辑
+        processed_data.update({
+            '是否发送通知': 'N',  # 不发送通知
+            '奖励类型': '',       # 不参与奖励
+            '奖励名称': '',       # 不参与奖励
+            '备注': '历史合同-不播报不计入累计'
+        })
+    else:
+        # 新增合同处理逻辑（按现有逻辑处理）
+        processed_data.update({
+            '是否发送通知': 'Y',  # 发送通知
+            '备注': '新增合同-正常处理'
+        })
+
+    return processed_data
+```
+
+### 2.2 配置驱动设计
+
+#### 2.2.1 新增配置项 "BJ-2025-09"
 ```python
 "BJ-2025-09": {
     "lucky_number": "5",  # 基于个人合同顺序的倍数
@@ -61,9 +163,96 @@
 }
 ```
 
-### 2.2 核心函数升级
+### 2.3 核心函数升级
 
-#### 2.2.1 幸运数字逻辑通用化
+#### 2.3.1 数据处理函数增强
+```python
+def process_data_sep_beijing_with_historical_support(
+    contract_data: list,
+    existing_contract_ids: set,
+    housekeeper_award_lists: dict
+) -> list:
+    """
+    北京9月数据处理函数（支持历史合同处理）
+
+    Args:
+        contract_data: 合同数据列表
+        existing_contract_ids: 已存在的合同ID集合
+        housekeeper_award_lists: 管家奖励列表
+
+    Returns:
+        list: 处理后的性能数据列表
+    """
+    processed_data = []
+
+    for contract in contract_data:
+        # 判断是否为历史合同
+        is_historical = is_historical_contract(contract)
+
+        # 根据合同类型进行差异化处理
+        if is_historical:
+            # 历史合同：仅计入业绩金额，不参与其他计算
+            processed_contract = process_historical_contract(contract)
+        else:
+            # 新增合同：按正常逻辑处理（参与所有计算）
+            processed_contract = process_new_contract(
+                contract, existing_contract_ids, housekeeper_award_lists
+            )
+
+        processed_data.append(processed_contract)
+
+    return processed_data
+
+def process_historical_contract(contract_data: dict) -> dict:
+    """
+    处理历史合同
+    - 不播报
+    - 不计入管家累计单数和金额
+    - 仅计入业绩金额
+    - 不参与奖励计算
+    """
+    return {
+        # ... 基础字段 ...
+        '活动期内第几个合同': 0,  # 不计入个人合同序号
+        '管家累计金额': 0,        # 不计入累计金额
+        '管家累计单数': 0,        # 不计入累计单数
+        '计入业绩金额': contract_data.get('adjustRefundMoney', 0),  # 仅计入业绩
+        '奖励类型': '',           # 不参与奖励
+        '奖励名称': '',           # 不参与奖励
+        '是否发送通知': 'N',      # 不发送通知
+        '是否历史合同': 'Y',      # 标记为历史合同
+        '合同类型说明': '活动期内历史合同',
+        '备注': '历史合同-仅计入业绩金额'
+    }
+
+def process_new_contract(
+    contract_data: dict,
+    existing_contract_ids: set,
+    housekeeper_award_lists: dict
+) -> dict:
+    """
+    处理新增合同（按现有逻辑）
+    - 正常播报
+    - 计入管家累计单数和金额
+    - 计入业绩金额
+    - 参与奖励计算
+    """
+    # 调用现有的数据处理逻辑
+    processed_contract = process_data_jun_beijing_with_config(
+        [contract_data], existing_contract_ids, housekeeper_award_lists,
+        config_key="BJ-2025-09"
+    )[0]
+
+    # 添加合同类型标识
+    processed_contract.update({
+        '是否历史合同': 'N',
+        '合同类型说明': '活动期内新增合同'
+    })
+
+    return processed_contract
+```
+
+#### 2.3.2 幸运数字逻辑通用化
 ```python
 def determine_lucky_number_reward_generic(
     contract_number: int,
@@ -133,21 +322,19 @@ def should_enable_badge(config_key: str, badge_type: str) -> bool:
     return False
 ```
 
-### 2.3 新增包装函数
+### 2.4 新增包装函数
 
-#### 2.3.1 数据处理函数
+#### 2.4.1 数据处理函数
 ```python
 def process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists):
     """
     北京9月数据处理函数（包装函数）
-    复用process_data_jun_beijing逻辑，使用新配置
+    支持历史合同和新增合同的差异化处理
     """
-    # 临时修改配置以使用新的奖励计算逻辑
-    return process_data_jun_beijing_with_config(
-        contract_data, 
-        existing_contract_ids, 
-        housekeeper_award_lists,
-        config_key="BJ-2025-09"
+    return process_data_sep_beijing_with_historical_support(
+        contract_data,
+        existing_contract_ids,
+        housekeeper_award_lists
     )
 ```
 
@@ -163,7 +350,7 @@ def notify_awards_sep_beijing(performance_data_filename, status_filename):
     )
 ```
 
-#### 2.3.3 主Job函数
+#### 2.4.3 主Job函数
 ```python
 def signing_and_sales_incentive_sep_beijing():
     """北京2025年9月签约激励Job"""
@@ -188,7 +375,7 @@ def signing_and_sales_incentive_sep_beijing():
     processed_data = process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
     logging.info('BEIJING 2025 9月, Data processed')
 
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
+    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '是否历史合同', '合同类型说明', '备注', '登记时间']
 
     write_performance_data(performance_data_filename, processed_data, performance_data_headers)
 
@@ -262,13 +449,79 @@ class TestRegressionSuite:
 class TestBeijingSepFeatures:
     """北京9月新功能测试"""
 
+    def test_historical_contract_identification(self):
+        """测试历史合同识别"""
+        # 测试pcContractdocNum有值的历史合同
+        historical_contract = {'pcContractdocNum': 'YHWX-BJ-DKS-2025080121'}
+        assert is_historical_contract(historical_contract) == True
+
+        # 测试pcContractdocNum为空的新增合同
+        new_contract = {'pcContractdocNum': ''}
+        assert is_historical_contract(new_contract) == False
+
+        # 测试pcContractdocNum不存在的新增合同
+        new_contract_no_field = {}
+        assert is_historical_contract(new_contract_no_field) == False
+
+    def test_historical_contract_processing(self):
+        """测试历史合同处理逻辑"""
+        historical_contract = {
+            'contractdocNum': 'YHWX-BJ-DKS-2025080121',
+            'adjustRefundMoney': 15000,
+            'pcContractdocNum': 'YHWX-BJ-DKS-2025080121'
+        }
+
+        processed = process_historical_contract(historical_contract)
+
+        # 验证历史合同处理结果
+        assert processed['活动期内第几个合同'] == 0
+        assert processed['管家累计金额'] == 0
+        assert processed['管家累计单数'] == 0
+        assert processed['计入业绩金额'] == 15000  # 仅计入业绩金额
+        assert processed['奖励类型'] == ''
+        assert processed['奖励名称'] == ''
+        assert processed['是否发送通知'] == 'N'
+        assert processed['是否历史合同'] == 'Y'
+
+    def test_new_contract_processing(self):
+        """测试新增合同处理逻辑"""
+        new_contract = {
+            'contractdocNum': 'YHWX-BJ-DKS-2025080122',
+            'adjustRefundMoney': 7680,
+            'pcContractdocNum': ''
+        }
+
+        # 新增合同应按正常逻辑处理
+        # 包括计入累计、参与奖励计算等
+
+    def test_mixed_contract_processing(self):
+        """测试混合合同数据处理"""
+        contract_data = [
+            # 历史合同
+            {'contractdocNum': 'YHWX-BJ-DKS-2025080121', 'adjustRefundMoney': 15000, 'pcContractdocNum': 'YHWX-BJ-DKS-2025080121'},
+            {'contractdocNum': 'YHWX-BJ-DKS-2025080123', 'adjustRefundMoney': 12000, 'pcContractdocNum': 'YHWX-BJ-DKS-2025080123'},
+            # 新增合同
+            {'contractdocNum': 'YHWX-BJ-DKS-2025080122', 'adjustRefundMoney': 7680, 'pcContractdocNum': ''}
+        ]
+
+        processed_data = process_data_sep_beijing(contract_data, set(), {})
+
+        # 验证只有新增合同参与累计计算
+        new_contracts = [d for d in processed_data if d['是否历史合同'] == 'N']
+        historical_contracts = [d for d in processed_data if d['是否历史合同'] == 'Y']
+
+        assert len(new_contracts) == 1
+        assert len(historical_contracts) == 2
+        assert new_contracts[0]['管家累计金额'] == 7680
+        assert new_contracts[0]['管家累计单数'] == 1
+
     def test_personal_sequence_lucky_number(self):
-        """测试基于个人顺序的幸运数字"""
-        # 测试第5个合同获得奖励
+        """测试基于个人顺序的幸运数字（仅新增合同参与）"""
+        # 测试第5个新增合同获得奖励
         reward_type, reward_name = determine_lucky_number_reward_generic(
             contract_number=123,
             current_contract_amount=8000,
-            housekeeper_contract_count=5,  # 第5个合同
+            housekeeper_contract_count=5,  # 第5个新增合同
             config_key="BJ-2025-09"
         )
         assert reward_type == "幸运数字"
@@ -283,9 +536,9 @@ class TestBeijingSepFeatures:
         # 15000元合同也获得58元
 
     def test_tiered_rewards_new_threshold(self):
-        """测试新的节节高门槛和奖励"""
-        # 9个合同不获得节节高
-        # 10个合同+8万元获得400元达标奖
+        """测试新的节节高门槛和奖励（仅基于新增合同）"""
+        # 9个新增合同不获得节节高
+        # 10个新增合同+8万元获得400元达标奖
         # 18万元获得800元优秀奖
         # 28万元获得1600元精英奖
 
@@ -567,6 +820,53 @@ if emergency_rollback:
 - [ ] 北京8月功能正常运行
 - [ ] 配置向后兼容
 
+## 8. 历史合同处理需求补充
+
+### 8.1 需求背景
+根据2025年1月3日的需求补充，数据源将增加`pcContractdocNum`字段用于区分历史合同和新增合同。
+
+### 8.2 数据源变更
+- **新增字段**: `pcContractdocNum`（合同历史标识）
+- **字段含义**:
+  - 有数值：活动期内的历史合同
+  - 为空：活动期内的新增合同
+
+### 8.3 业务规则示例
+以提供的数据为例：
+```
+YHWX-BJ-DKS-2025080122: 新增合同（pcContractdocNum为空）
+- 需要播报
+- 管家累计签约1单，累计签约金额7680元
+- 计入业绩金额7680元
+- 参与奖励计算
+
+其他5个合同: 历史合同（pcContractdocNum有值）
+- 不播报
+- 不计入管家累计单数和金额
+- 仅计入业绩金额字段
+- 不参与奖励计算
+```
+
+### 8.4 实施状态
+- **已完成**: 文档中1-7章节的所有需求已代码实现完成
+- **待实施**: 本章节（第8章）的历史合同处理需求尚未开始实施
+- **优先级**: 高优先级，需要在9月活动启动前完成
+
+### 8.5 技术实施要点
+1. **数据结构扩展**: 在合同数据头部增加`pcContractdocNum`字段
+2. **处理逻辑分离**: 历史合同和新增合同采用不同的处理流程
+3. **累计计算调整**: 只有新增合同参与管家累计单数和金额计算
+4. **奖励计算调整**: 只有新增合同参与幸运数字和节节高奖励计算
+5. **通知发送调整**: 只有新增合同发送签约播报通知
+
+### 8.6 测试验证重点
+1. **合同类型识别准确性**: 确保正确识别历史合同和新增合同
+2. **数据处理差异化**: 验证两种合同类型的处理逻辑完全不同
+3. **累计计算正确性**: 确保只有新增合同影响管家累计数据
+4. **奖励计算正确性**: 确保只有新增合同参与奖励计算
+5. **通知发送正确性**: 确保只有新增合同触发通知
+
 ---
 
 *本文档遵循TDD原则和KISS设计理念，确保升级的可靠性和可维护性。*
+*历史合同处理需求已于2025年1月3日补充，待实施。*

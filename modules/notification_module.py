@@ -41,20 +41,35 @@ def generate_award_message(record, awards_mapping, city="BJ", config_key=None):
     contract_number = record["合同编号(contractdocNum)"]
     award_messages = []
 
+    # logging.info(f"[DEBUG] generate_award_message called for {contract_number}")
+    # logging.info(f"[DEBUG] - service_housekeeper: {service_housekeeper}")
+    # logging.info(f"[DEBUG] - city: {city}")
+    # logging.info(f"[DEBUG] - config_key: {config_key}")
+    # logging.info(f"[DEBUG] - awards_mapping: {awards_mapping}")
+    # logging.info(f"[DEBUG] - 奖励类型: {record.get('奖励类型', 'N/A')}")
+    # logging.info(f"[DEBUG] - 奖励名称: {record.get('奖励名称', 'N/A')}")
+
     # 检查是否启用徽章功能
     badge_enabled = ENABLE_BADGE_MANAGEMENT
     if config_key:
         from modules.data_processing_module import should_enable_badge
         badge_enabled = should_enable_badge(config_key, "elite")
 
+    # logging.info(f"[DEBUG] - badge_enabled: {badge_enabled}")
+    # logging.info(f"[DEBUG] - ENABLE_BADGE_MANAGEMENT: {ENABLE_BADGE_MANAGEMENT}")
+
     # 只有启用徽章且是北京的精英管家才能获得奖励翻倍和显示徽章
     if badge_enabled and (service_housekeeper in ELITE_HOUSEKEEPER) and city == "BJ":
+        # logging.info(f"[DEBUG] Processing as elite housekeeper with badge")
         # 如果是北京的精英管家，添加徽章
         service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
 
         # 获取奖励类型和名称列表
         reward_types = record["奖励类型"].split(', ') if record["奖励类型"] else []
         reward_names = record["奖励名称"].split(', ') if record["奖励名称"] else []
+
+        # logging.info(f"[DEBUG] - reward_types: {reward_types}")
+        # logging.info(f"[DEBUG] - reward_names: {reward_names}")
 
         # 创建奖励类型到奖励名称的映射
         reward_type_map = {}
@@ -63,33 +78,53 @@ def generate_award_message(record, awards_mapping, city="BJ", config_key=None):
                 if i < len(reward_names):
                     reward_type_map[reward_names[i]] = reward_types[i]
 
+        # logging.info(f"[DEBUG] - reward_type_map: {reward_type_map}")
+
         for award in reward_names:
+            # logging.info(f"[DEBUG] Processing award: {award}")
             if award in awards_mapping:
                 award_info = awards_mapping[award]
                 # 检查奖励类型，只有节节高奖励才翻倍
                 reward_type = reward_type_map.get(award, "")
+                # logging.info(f"[DEBUG] - award_info: {award_info}, reward_type: {reward_type}")
 
                 if reward_type == "节节高":
                     # 节节高奖励翻倍
                     try:
                         award_info_double = str(int(award_info) * 2)
                         award_messages.append(f'达成 {award} 奖励条件，奖励金额 {award_info} 元，同时触发"精英连击双倍奖励"，奖励金额\U0001F680直升至 {award_info_double} 元！\U0001F9E7\U0001F9E7\U0001F9E7')
+                        # logging.info(f"[DEBUG] Added doubled award message for {award}")
                     except ValueError:
                         award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 \U0001F9E7\U0001F9E7\U0001F9E7')
+                        logging.info(f"[DEBUG] Added regular award message for {award} (ValueError)")
                 else:
                     # 幸运数字奖励不翻倍
                     award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 \U0001F9E7\U0001F9E7\U0001F9E7')
+                    logging.info(f"[DEBUG] Added regular award message for {award}")
+            else:
+                logging.warning(f"[DEBUG] Award {award} not found in awards_mapping")
     else:
+        logging.info(f"[DEBUG] Processing as regular housekeeper without badge")
         # 不启用徽章功能或非北京管家
         # 上海的管家不添加徽章，北京的普通管家也不添加徽章
-        for award in record["奖励名称"].split(', '):
+        reward_names = record["奖励名称"].split(', ') if record["奖励名称"] else []
+        # logging.info(f"[DEBUG] - reward_names: {reward_names}")
+
+        for award in reward_names:
+            logging.info(f"[DEBUG] Processing award: {award}")
             if award in awards_mapping:
                 award_info = awards_mapping[award]
                 award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 \U0001F9E7\U0001F9E7\U0001F9E7')
+                # logging.info(f"[DEBUG] Added award message for {award}: {award_info}元")
+            else:
+                logging.warning(f"[DEBUG] Award {award} not found in awards_mapping")
 
     # 获取订单类型，默认为平台单
     order_type = record.get("工单类型", "平台单")
-    return f'{service_housekeeper}签约合同（{order_type}）{contract_number}\n\n' + '\n'.join(award_messages)
+    final_message = f'{service_housekeeper}签约合同（{order_type}）{contract_number}\n\n' + '\n'.join(award_messages)
+
+    logging.info(f"[DEBUG] Final award message generated: {final_message}")
+    return final_message
 
 def preprocess_rate(rate):
     # 检查比率数据是否为空或不是有效的浮点数
@@ -126,28 +161,63 @@ def notify_awards_beijing_generic(performance_data_filename, status_filename, co
         config_key: 配置键，如 "BJ-2025-06", "BJ-2025-05"
         enable_rising_star_badge: 是否启用新星徽章（默认False，只有部分月份启用）
     """
+    # logging.info(f"[DEBUG] notify_awards_beijing_generic started with config_key: {config_key}")
+
     records = get_all_records_from_csv(performance_data_filename)
     send_status = load_send_status(status_filename)
     updated = False
 
     # 使用配置化的奖励映射
     awards_mapping = get_awards_mapping(config_key)
+    # logging.info(f"[DEBUG] Awards mapping loaded: {awards_mapping}")
+
+    total_records = len(records)
+    processed_count = 0
+    award_records_count = 0
+
+    # logging.info(f"[DEBUG] Total records to process: {total_records}")
 
     for record in records:
         contract_id = record['合同ID(_id)']
+        contract_num = record['合同编号(contractdocNum)']
+        housekeeper = record['管家(serviceHousekeeper)']
+
+        # logging.info(f"[DEBUG] Processing contract {contract_num} (ID: {contract_id}) for {housekeeper}")
+        # logging.info(f"[DEBUG] - 是否发送通知: {record.get('是否发送通知', 'N/A')}")
+        # logging.info(f"[DEBUG] - 激活奖励状态: {record.get('激活奖励状态', 'N/A')}")
+        # logging.info(f"[DEBUG] - 是否历史合同: {record.get('是否历史合同', 'N/A')}")
+        # logging.info(f"[DEBUG] - send_status: {send_status.get(contract_id, 'N/A')}")
 
         processed_accumulated_amount = preprocess_amount(record["管家累计金额"])
-        processed_enter_performance_amount = preprocess_amount(record["计入业绩金额"])
+        # 使用管家累计业绩金额字段，如果不存在则回退到计入业绩金额字段（向后兼容）
+        cumulative_performance_field = record.get("管家累计业绩金额", record.get("计入业绩金额", 0))
+        processed_enter_performance_amount = preprocess_amount(str(cumulative_performance_field))
         service_housekeeper = record["管家(serviceHousekeeper)"]
 
         # 添加是否启用徽章管理的判断，如果启用则在管家名称前添加对应的徽章
-        if ENABLE_BADGE_MANAGEMENT:
+        # 使用配置化的徽章控制
+        from modules.data_processing_module import should_enable_badge
+        elite_badge_enabled = should_enable_badge(config_key, "elite")
+        rising_star_badge_enabled = should_enable_badge(config_key, "rising_star")
+
+        if ENABLE_BADGE_MANAGEMENT and elite_badge_enabled:
             if service_housekeeper in ELITE_HOUSEKEEPER:
                 service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
-            elif enable_rising_star_badge and service_housekeeper in RISING_STAR_HOUSEKEEPER:
+        elif ENABLE_BADGE_MANAGEMENT and enable_rising_star_badge and rising_star_badge_enabled:
+            if service_housekeeper in RISING_STAR_HOUSEKEEPER:
                 service_housekeeper = f'{RISING_STAR_BADGE_NAME}{service_housekeeper}'
 
-        if record['是否发送通知'] == 'N' and send_status.get(contract_id) != '发送成功':
+        # 检查发送条件：未发送 + 未成功 + 非历史合同
+        send_condition = (record['是否发送通知'] == 'N' and
+                         send_status.get(contract_id) != '发送成功' and
+                         record.get('是否历史合同', 'N') == 'N')
+
+        # logging.info(f"[DEBUG] Send condition for {contract_num}: {send_condition}")
+
+        if send_condition:
+            processed_count += 1
+            # logging.info(f"[DEBUG] Processing notification for {contract_num}")
+
             next_msg = '恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 \U0001F389\U0001F389\U0001F389' if '无' in record["备注"] else f'{record["备注"]}'
             msg = f'''\U0001F9E8\U0001F9E8\U0001F9E8 签约喜报 \U0001F9E8\U0001F9E8\U0001F9E8
 恭喜 {service_housekeeper} 签约合同 {record["合同编号(contractdocNum)"]} 并完成线上收款\U0001F389\U0001F389\U0001F389
@@ -158,22 +228,64 @@ def notify_awards_beijing_generic(performance_data_filename, status_filename, co
 
 \U0001F44A {next_msg}。
 '''
-            create_task('send_wecom_message', WECOM_GROUP_NAME_BJ, msg)
-            time.sleep(3)
+            try:
+                group_task = create_task('send_wecom_message', WECOM_GROUP_NAME_BJ, msg)
+                # logging.info(f"[DEBUG] Group notification task created for {contract_num}: {group_task}")
+                time.sleep(1)
+            except Exception as e:
+                logging.error(f"[DEBUG] Failed to create group notification task for {contract_num}: {e}")
+                import traceback
+                logging.error(traceback.format_exc())
 
-            if record['激活奖励状态'] == '1':
-                jiangli_msg = generate_award_message(record, awards_mapping, "BJ", config_key)
-                create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ, jiangli_msg)
+            # 检查是否需要发送奖励消息
+            award_status = record.get('激活奖励状态', '0')
+            # logging.info(f"[DEBUG] Award status for {contract_num}: {award_status}")
 
-            update_send_status(status_filename, contract_id, '发送成功')
+            if award_status == '1':
+                award_records_count += 1
+                # logging.info(f"[DEBUG] Processing award message for {contract_num}")
+                # logging.info(f"[DEBUG] - 奖励类型: {record.get('奖励类型', 'N/A')}")
+                # logging.info(f"[DEBUG] - 奖励名称: {record.get('奖励名称', 'N/A')}")
+
+                try:
+                    jiangli_msg = generate_award_message(record, awards_mapping, "BJ", config_key)
+                    # logging.info(f"[DEBUG] Award message generated for {contract_num}: {jiangli_msg[:100]}...")
+
+                    award_task = create_task('send_wechat_message', CAMPAIGN_CONTACT_BJ, jiangli_msg)
+                    # logging.info(f"[DEBUG] Award notification task created for {contract_num}: {award_task}")
+
+                except Exception as e:
+                    logging.error(f"[DEBUG] Failed to create award notification for {contract_num}: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
+            else:
+                logging.info(f"[DEBUG] No award message needed for {contract_num} (award status: {award_status})")
+
+            try:
+                update_send_status(status_filename, contract_id, '发送成功')
+                logging.info(f"[DEBUG] Send status updated for {contract_num}")
+            except Exception as e:
+                logging.error(f"[DEBUG] Failed to update send status for {contract_num}: {e}")
 
             record['是否发送通知'] = 'Y'
             updated = True
             logging.info(f"Notification sent for contract INFO: {record['管家(serviceHousekeeper)']}, {record['合同ID(_id)']}")
+        else:
+            logging.info(f"[DEBUG] Skipping {contract_num} - conditions not met")
+
+    # logging.info(f"[DEBUG] Processing summary:")
+    # logging.info(f"[DEBUG] - Total records: {total_records}")
+    # logging.info(f"[DEBUG] - Processed notifications: {processed_count}")
+    # logging.info(f"[DEBUG] - Award records: {award_records_count}")
 
     if updated:
-        update_performance_data(performance_data_filename, records, list(records[0].keys()))
-        logging.info("PerformanceData.csv updated with notification status.")
+        try:
+            update_performance_data(performance_data_filename, records, list(records[0].keys()))
+            logging.info("PerformanceData.csv updated with notification status.")
+        except Exception as e:
+            logging.error(f"[DEBUG] Failed to update performance data: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
 
 # 包装函数：保持向后兼容
 def notify_awards_jun_beijing(performance_data_filename, status_filename):
@@ -333,14 +445,13 @@ def notify_awards_shanghai_generic(performance_data_filename, status_filename, c
 
 👊 {next_msg} 🎉🎉🎉。
 '''
-            create_task('send_wecom_message', '（上海）运营群', msg)
+            create_task('send_wecom_message', WECOM_GROUP_NAME_SH, msg)
 
             # 生成个人奖励通知任务
             if record['激活奖励状态'] == '1':
                 jiangli_msg = generate_award_message(record, awards_mapping, "SH")
                 # 使用配置中的活动管理人
-                from modules.config import CAMPAIGN_CONTACT_SH_SEP
-                create_task('send_wechat_message', CAMPAIGN_CONTACT_SH_SEP, jiangli_msg)
+                create_task('send_wechat_message', CAMPAIGN_CONTACT_SH, jiangli_msg)
 
             # 更新发送状态（保持与现有系统一致）
             update_send_status(status_filename, contract_id, '发送成功')

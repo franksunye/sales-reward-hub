@@ -207,9 +207,9 @@ TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/ContractData-SH-Sep.csv'
 PERFORMANCE_DATA_FILENAME_SH_SEP = 'state/PerformanceData-SH-Sep.csv'
 STATUS_FILENAME_SH_SEP = 'state/send_status_shanghai_sep.json'
 
-# 通知配置
-WECOM_GROUP_NAME_SH_SEP = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_SEP = '满浩浩'
+# # 通知配置
+# WECOM_GROUP_NAME_SH_SEP = '（上海）运营群'
+# CAMPAIGN_CONTACT_SH_SEP = '满浩浩'
 
 ## 上海的通用配置选项
 WECOM_GROUP_NAME_SH = '（上海）运营群'
@@ -232,7 +232,7 @@ WECOM_GROUP_NAME_BJ_AUG = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ_AUG = '王爽'
 
 ## 北京地区，2025年9月活动
-API_URL_BJ_SEP = METABASE_URL + "/api/card/1803/query"  # 新的API端点
+API_URL_BJ_SEP = METABASE_URL + "/api/card/1864/query"  # 新的API端点
 
 # 北京销售激励活动 JOB signing_and_sales_incentive_sep_beijing
 TEMP_CONTRACT_DATA_FILE_BJ_SEP = 'state/ContractData-BJ-Sep.csv'
@@ -240,21 +240,21 @@ PERFORMANCE_DATA_FILENAME_BJ_SEP = 'state/PerformanceData-BJ-Sep.csv'
 STATUS_FILENAME_BJ_SEP = 'state/send_status_bj_sep.json'
 
 # 通知配置
-WECOM_GROUP_NAME_BJ_SEP = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_SEP = '王爽'
+# WECOM_GROUP_NAME_BJ_SEP = '（北京）修链服务运营'
+# CAMPAIGN_CONTACT_BJ_SEP = '王爽'
 
 ## 北京的通用配置选项
 
-WECOM_GROUP_NAME_BJ = '（北京）修链服务运营'
+WECOM_GROUP_NAME_BJ = '北京运营中心系统通知群'
 CAMPAIGN_CONTACT_BJ = '王爽'
 
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO_BJ_FEB = 0.002  # 默认为0.2%,可根据需要调整
 
 # 单个项目合同金额上限
-SINGLE_PROJECT_CONTRACT_AMOUNT_LIMIT_BJ_FEB = 500000  # 单个项目合同金额上限
+SINGLE_PROJECT_CONTRACT_AMOUNT_LIMIT_BJ_FEB = 50000  # 单个项目合同金额上限
 # 业绩金额上限配置
-PERFORMANCE_AMOUNT_CAP_BJ_FEB = 500000  # 单个合同计入业绩金额上限
+PERFORMANCE_AMOUNT_CAP_BJ_FEB = 50000  # 单个合同计入业绩金额上限
 # 是否启用业绩金额上限
 ENABLE_PERFORMANCE_AMOUNT_CAP_BJ_FEB = True
 

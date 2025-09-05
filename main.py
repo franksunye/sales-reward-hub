@@ -44,7 +44,7 @@ def run_jobs_serially():
             logging.error(traceback.format_exc())
         # 北京9月份
         try:
-            # signing_and_sales_incentive_july_beijing()
+            signing_and_sales_incentive_sep_beijing()
             time.sleep(5)
         except Exception as e:
             logging.error(f"An error occurred while running signing_and_sales_incentive_july_beijing: {e}")
@@ -87,21 +87,20 @@ if __name__ == '__main__':
     scheduler_thread.daemon = True  # 设置为守护线程
 
     # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
-    # scheduler_thread.start()  # 测试期间禁用，避免发送真实消息
+    scheduler_thread.start()  # 测试期间禁用，避免发送真实消息
 
     # 单独测试任务
     # generate_daily_service_report()
-    # signing_and_sales_incentive_aug_beijing()
-    # signing_and_sales_incentive_aug_shanghai()
-    signing_and_sales_incentive_sep_shanghai()
+    # signing_and_sales_incentive_sep_shanghai()
+    # signing_and_sales_incentive_sep_beijing()
     # pending_orders_reminder_task()
 
-    # # 启动调度循环
-    # while True:
-    #     try:
-    #         schedule.run_pending()  # 这里也在运行schedule的任务
-    #         time.sleep(1)
-    #     except Exception as e:
-    #         logging.error(f"Job failed with exception: {e}")
-    #         logging.error(traceback.format_exc())
-    #         time.sleep(5)
+    # 启动调度循环
+    while True:
+        try:
+            schedule.run_pending()  # 这里也在运行schedule的任务
+            time.sleep(1)
+        except Exception as e:
+            logging.error(f"Job failed with exception: {e}")
+            logging.error(traceback.format_exc())
+            time.sleep(5)

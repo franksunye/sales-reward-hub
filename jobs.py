@@ -328,7 +328,7 @@ def signing_and_sales_incentive_sep_beijing():
     logging.info('BEIJING 2025 9月, Request sent')
 
     rows = response['data']['rows']
-    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
+    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)", "管家ID(serviceHousekeeperId)", "工单类型(sourceType)", "客户联系地址(contactsAddress)", "项目地址(projectAddress)", "pcContractdocNum"]
     save_to_csv_with_headers(rows, TEMP_CONTRACT_DATA_FILE_BJ_SEP, columns)
 
     logging.info(f'BEIJING 2025 9月, Data saved to {TEMP_CONTRACT_DATA_FILE_BJ_SEP}')
@@ -341,7 +341,7 @@ def signing_and_sales_incentive_sep_beijing():
     processed_data = process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
     logging.info('BEIJING 2025 9月, Data processed')
 
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
+    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','管家累计业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '是否历史合同', '合同类型说明', '备注', '登记时间']
 
     write_performance_data(PERFORMANCE_DATA_FILENAME_BJ_SEP, processed_data, performance_data_headers)
 
