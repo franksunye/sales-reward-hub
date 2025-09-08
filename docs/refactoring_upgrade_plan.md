@@ -227,33 +227,192 @@ from modules.notification_module import *     # 导入所有
 3. **完整验证**: 每次迁移都进行100%等价性验证
 4. **快速回滚**: 保留旧代码直到全部迁移完成
 
-## 阶段1：建立新骨架（重建核心架构）
+## 阶段1：建立新骨架（重建核心架构 + SQLite集成）
 
 ### 目标
-设计并实现统一的数据处理管道，为所有城市/月份提供标准化的处理流程。
+设计并实现统一的数据处理管道，**同时引入SQLite数据库**，彻底解决"中间计算持久化"问题。
+
+### 为什么现在是引入SQLite的最佳时机
+
+#### 1. 当前"中间计算"问题的严重性
+通过代码分析发现，当前系统的复杂性很大程度上来自"手工维护累计状态"：
+
+**问题1: 复杂的housekeeper_contracts字典维护**
+```python
+# 每个处理函数都要维护这样的复杂结构
+housekeeper_contracts[housekeeper] = {
+    'count': 0, 'total_amount': 0, 'performance_amount': 0, 'awarded': [],
+    'platform_count': 0, 'platform_amount': 0,      # 上海9月新增
+    'self_referral_count': 0, 'self_referral_amount': 0,  # 上海9月新增
+    'self_referral_projects': set(),  # 上海9月新增
+    'self_referral_rewards': 0        # 上海9月新增
+}
+```
+
+**问题2: 重复的去重逻辑**
+```python
+# 每个Job都要读取整个CSV文件
+existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
+if contract_id in existing_contract_ids:
+    continue
+```
+
+**问题3: 复杂的历史数据查询**
+```python
+# 北京9月的历史合同处理特别复杂
+housekeeper_award_lists = get_housekeeper_award_list(performance_data_filename)
+existing_housekeeper_stats = load_existing_housekeeper_stats_from_performance_file()
+```
+
+#### 2. SQLite的完美契合度
+- **重建时机**: 我们正在重建核心架构，改存储层成本最低
+- **复杂性消除**: 数据库天然擅长累计计算和去重查询
+- **新架构适配**: HousekeeperStats模型可直接映射为数据库表
 
 ### 核心设计原则
 1. **配置驱动**: 所有差异通过REWARD_CONFIGS控制
 2. **管道化**: 数据获取→处理→奖励计算→通知发送的标准流程
-3. **可扩展**: 新增城市/月份只需添加配置，无需修改代码
-4. **无副作用**: 纯函数设计，无全局状态修改
+3. **存储抽象**: 支持SQLite和CSV两种存储方式，保持灵活性
+4. **可扩展**: 新增城市/月份只需添加配置，无需修改代码
+5. **无副作用**: 纯函数设计，无全局状态修改
 
 ### 具体任务
 
-#### 1.1 设计统一数据模型
+#### 1.1 设计存储抽象层
+**新建**: `modules/core/storage.py`
+
+```python
+from abc import ABC, abstractmethod
+from typing import Set, List, Dict, Optional
+import sqlite3
+import csv
+
+class PerformanceDataStore(ABC):
+    """性能数据存储抽象接口"""
+
+    @abstractmethod
+    def contract_exists(self, contract_id: str, activity_code: str) -> bool:
+        """检查合同是否已存在"""
+        pass
+
+    @abstractmethod
+    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> Dict:
+        """获取管家累计统计数据"""
+        pass
+
+    @abstractmethod
+    def get_housekeeper_awards(self, housekeeper: str, activity_code: str) -> List[str]:
+        """获取管家历史奖励列表"""
+        pass
+
+    @abstractmethod
+    def save_performance_record(self, record: Dict) -> None:
+        """保存业绩记录"""
+        pass
+
+    @abstractmethod
+    def get_project_usage(self, project_id: str, activity_code: str) -> float:
+        """获取项目累计使用金额（北京工单上限用）"""
+        pass
+
+class SQLitePerformanceDataStore(PerformanceDataStore):
+    """SQLite实现 - 大幅简化累计计算"""
+
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self._init_database()
+
+    def contract_exists(self, contract_id: str, activity_code: str) -> bool:
+        """简化的去重查询"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM performance_data WHERE contract_id = ? AND activity_code = ?",
+                (contract_id, activity_code)
+            )
+            return cursor.fetchone() is not None
+
+    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> Dict:
+        """数据库聚合查询 - 替代复杂的内存计算"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT
+                    COUNT(*) as count,
+                    COALESCE(SUM(contract_amount), 0) as total_amount,
+                    COALESCE(SUM(performance_amount), 0) as performance_amount,
+                    COALESCE(SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END), 0) as platform_count,
+                    COALESCE(SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END), 0) as platform_amount,
+                    COALESCE(SUM(CASE WHEN order_type = 'self_referral' THEN 1 ELSE 0 END), 0) as self_referral_count,
+                    COALESCE(SUM(CASE WHEN order_type = 'self_referral' THEN contract_amount ELSE 0 END), 0) as self_referral_amount
+                FROM performance_data
+                WHERE housekeeper = ? AND activity_code = ?
+            """, (housekeeper, activity_code))
+
+            result = cursor.fetchone()
+            return {
+                'count': result[0],
+                'total_amount': result[1],
+                'performance_amount': result[2],
+                'platform_count': result[3],
+                'platform_amount': result[4],
+                'self_referral_count': result[5],
+                'self_referral_amount': result[6]
+            }
+
+class CSVPerformanceDataStore(PerformanceDataStore):
+    """CSV实现 - 向后兼容"""
+    # 保持现有的CSV逻辑，确保迁移安全
+```
+
+#### 1.2 设计数据库Schema
+**新建**: `modules/core/database_schema.sql`
+
+```sql
+-- 统一的业绩数据表，支持所有城市和月份
+CREATE TABLE performance_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_code TEXT NOT NULL,           -- 'BJ-JUN', 'BJ-SEP', 'SH-APR', 'SH-SEP'
+    contract_id TEXT NOT NULL,
+    housekeeper TEXT NOT NULL,
+    service_provider TEXT,
+    contract_amount REAL NOT NULL,
+    performance_amount REAL NOT NULL,
+    order_type TEXT DEFAULT 'platform',    -- 'platform' or 'self_referral'
+    project_id TEXT,                       -- 工单编号，用于北京的项目上限
+    reward_types TEXT,
+    reward_names TEXT,
+    is_historical BOOLEAN DEFAULT FALSE,   -- 北京9月历史合同标记
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- 扩展字段（JSON格式存储城市特有数据）
+    extensions TEXT,                       -- JSON格式存储额外字段
+
+    UNIQUE(activity_code, contract_id)
+);
+
+-- 索引优化查询性能
+CREATE INDEX idx_housekeeper_activity ON performance_data(housekeeper, activity_code);
+CREATE INDEX idx_contract_lookup ON performance_data(contract_id, activity_code);
+CREATE INDEX idx_project_activity ON performance_data(project_id, activity_code);
+CREATE INDEX idx_order_type ON performance_data(order_type, activity_code);
+```
+
+#### 1.3 设计统一数据模型
 **新建**: `modules/core/data_models.py`
 
 ```python
 @dataclass
 class HousekeeperStats:
-    """标准管家统计数据结构"""
+    """标准管家统计数据结构 - 直接从数据库查询获得"""
     count: int = 0
     total_amount: float = 0.0
     performance_amount: float = 0.0
-    awarded: list = field(default_factory=list)
+    awarded: List[str] = field(default_factory=list)
 
-    # 扩展字段（用于双轨统计等特殊需求）
-    extensions: dict = field(default_factory=dict)
+    # 双轨统计字段（上海9月）
+    platform_count: int = 0
+    platform_amount: float = 0.0
+    self_referral_count: int = 0
+    self_referral_amount: float = 0.0
 
 @dataclass
 class ProcessingConfig:
@@ -262,45 +421,67 @@ class ProcessingConfig:
     activity_code: str
     city: str
     housekeeper_key_format: str  # "管家" 或 "管家_服务商"
+    storage_type: str = "sqlite"  # "sqlite" 或 "csv"
     enable_dual_track: bool = False
     enable_historical_contracts: bool = False
 ```
 
-#### 1.2 创建统一处理管道
+#### 1.4 创建数据库驱动的处理管道
 **新建**: `modules/core/processing_pipeline.py`
 
 ```python
 class DataProcessingPipeline:
-    """统一数据处理管道"""
+    """数据库驱动的统一处理管道 - 大幅简化逻辑"""
 
-    def __init__(self, config: ProcessingConfig):
+    def __init__(self, config: ProcessingConfig, store: PerformanceDataStore):
         self.config = config
+        self.store = store
         self.reward_calculator = RewardCalculator(config.config_key)
         self.record_builder = RecordBuilder(config)
 
-    def process(self, contract_data, existing_ids, hk_awards):
-        """主处理流程"""
-        # 1. 初始化管家统计
-        housekeeper_stats = self._init_housekeeper_stats(hk_awards)
-
-        # 2. 处理每个合同
+    def process(self, contract_data):
+        """主处理流程 - 消除复杂的内存状态维护"""
         performance_records = []
+
         for contract in contract_data:
-            if self._should_skip_contract(contract, existing_ids):
+            contract_id = str(contract['合同ID(_id)'])
+
+            # 1. 数据库去重查询 - 替代复杂的CSV读取
+            if self.store.contract_exists(contract_id, self.config.activity_code):
                 continue
 
-            # 3. 更新管家统计
-            hk_key = self._build_housekeeper_key(contract)
-            self._update_housekeeper_stats(housekeeper_stats[hk_key], contract)
+            # 2. 数据库聚合查询 - 替代复杂的内存累计计算
+            housekeeper = self._build_housekeeper_key(contract)
+            hk_stats = self.store.get_housekeeper_stats(housekeeper, self.config.activity_code)
+            hk_awards = self.store.get_housekeeper_awards(housekeeper, self.config.activity_code)
+
+            # 3. 处理工单金额上限（北京特有）
+            if self.config.city == "BJ":
+                project_usage = self.store.get_project_usage(
+                    contract['工单编号(serviceAppointmentNum)'],
+                    self.config.activity_code
+                )
+                # 应用工单级别的金额上限逻辑
+                performance_amount = self._apply_project_limit(contract, project_usage)
+            else:
+                performance_amount = self._calculate_performance_amount(contract)
 
             # 4. 计算奖励
-            rewards = self.reward_calculator.calculate(contract, housekeeper_stats[hk_key])
+            rewards = self.reward_calculator.calculate(contract, hk_stats, hk_awards)
 
-            # 5. 构建记录
-            record = self.record_builder.build(contract, housekeeper_stats[hk_key], rewards)
+            # 5. 构建并保存记录
+            record = self.record_builder.build(contract, hk_stats, rewards, performance_amount)
+            self.store.save_performance_record(record)
             performance_records.append(record)
 
         return performance_records
+
+    def _build_housekeeper_key(self, contract):
+        """根据城市构建管家键"""
+        if self.config.housekeeper_key_format == "管家_服务商":
+            return f"{contract['管家(serviceHousekeeper)']}_{contract['服务商(orgName)']}"
+        else:
+            return contract['管家(serviceHousekeeper)']
 ```
 
 #### 1.3 创建配置驱动的奖励计算器
@@ -397,21 +578,91 @@ def execute_incentive_job(job_config: JobConfig):
     archive_file(job_config.temp_file)
 ```
 
+#### 1.5 SQLite优势验证
+**创建验证脚本**: `scripts/sqlite_benefits_demo.py`
+
+```python
+def demonstrate_sqlite_benefits():
+    """演示SQLite相比CSV的优势"""
+
+    # 1. 去重查询对比
+    print("=== 去重查询对比 ===")
+
+    # CSV方式（当前）
+    start_time = time.time()
+    existing_ids = collect_unique_contract_ids_from_file("performance_data.csv")  # 读取整个文件
+    csv_time = time.time() - start_time
+    print(f"CSV去重查询: {csv_time:.3f}秒")
+
+    # SQLite方式
+    start_time = time.time()
+    exists = sqlite_store.contract_exists("contract_123", "BJ-SEP")  # 索引查询
+    sqlite_time = time.time() - start_time
+    print(f"SQLite去重查询: {sqlite_time:.3f}秒 (提升 {csv_time/sqlite_time:.1f}倍)")
+
+    # 2. 累计统计对比
+    print("\n=== 累计统计对比 ===")
+
+    # CSV方式（当前）- 需要读取整个文件并在内存中计算
+    start_time = time.time()
+    hk_stats = calculate_housekeeper_stats_from_csv("张三", "BJ-SEP")
+    csv_time = time.time() - start_time
+    print(f"CSV累计统计: {csv_time:.3f}秒")
+
+    # SQLite方式 - 数据库聚合查询
+    start_time = time.time()
+    hk_stats = sqlite_store.get_housekeeper_stats("张三", "BJ-SEP")
+    sqlite_time = time.time() - start_time
+    print(f"SQLite累计统计: {sqlite_time:.3f}秒 (提升 {csv_time/sqlite_time:.1f}倍)")
+
+    # 3. 代码复杂度对比
+    print("\n=== 代码复杂度对比 ===")
+    print("CSV方式: 需要维护复杂的housekeeper_contracts字典 (50+行代码)")
+    print("SQLite方式: 一条SQL查询搞定 (1行代码)")
+```
+
+### SQLite集成的具体收益
+
+#### 1. 代码行数大幅减少
+- **当前**: 每个处理函数50+行的housekeeper_contracts维护逻辑
+- **SQLite后**: 1条SQL查询替代所有累计计算
+
+#### 2. 性能显著提升
+- **去重查询**: 从O(n)的CSV扫描变为O(1)的索引查询
+- **累计统计**: 从内存循环计算变为数据库聚合查询
+- **双轨统计**: 复杂的分类计数变为简单的GROUP BY
+
+#### 3. 数据一致性保障
+- **事务支持**: 避免CSV读写的竞争条件
+- **原子操作**: 要么全部成功要么全部失败
+- **并发安全**: 支持多进程同时访问
+
+#### 4. 扩展性大幅提升
+- **复杂查询**: 支持历史数据分析、报表生成
+- **索引优化**: 可针对查询模式优化性能
+- **数据备份**: 标准的数据库备份恢复机制
+
 ### 验收标准
-- [ ] **新骨架设计完成**
-  - [ ] 统一数据模型定义
-  - [ ] 处理管道实现
-  - [ ] 奖励计算器实现
-  - [ ] 通知生成器实现
-- [ ] **单元测试覆盖**
-  - [ ] 每个核心组件的单元测试
-  - [ ] 测试覆盖率≥90%
-- [ ] **集成测试通过**
-  - [ ] 端到端处理流程测试
-  - [ ] 配置驱动功能测试
-- [ ] **性能基准建立**
-  - [ ] 新骨架性能不低于现有实现
-  - [ ] 内存使用合理
+- [ ] **存储抽象层完成**
+  - [ ] SQLite和CSV两种实现
+  - [ ] 统一的接口设计
+  - [ ] 配置驱动的存储选择
+- [ ] **数据库Schema设计**
+  - [ ] 支持所有城市/月份的统一表结构
+  - [ ] 索引优化查询性能
+  - [ ] 扩展字段支持特殊需求
+- [ ] **处理管道重构**
+  - [ ] 消除复杂的内存状态维护
+  - [ ] 数据库驱动的累计计算
+  - [ ] 配置驱动的差异处理
+- [ ] **性能验证**
+  - [ ] SQLite查询性能优于CSV
+  - [ ] 内存使用大幅降低
+  - [ ] 代码复杂度显著简化
+- [ ] **向后兼容**
+  - [ ] 保留CSV支持用于测试
+  - [ ] 渐进迁移策略
+  - [ ] 快速回滚机制
 
 ## 阶段2：北京迁移（验证新骨架）
 
@@ -707,14 +958,14 @@ signing_and_sales_incentive_sep_shanghai = lambda: execute_monthly_incentive("SH
 
 ## 实施计划
 
-### 时间安排（基于新策略）
-- **阶段1 - 建立新骨架**: 2-3个工作日
-- **阶段2 - 北京迁移**: 2-3个工作日 (逐个月份迁移验证)
-- **阶段3 - 上海迁移**: 3-4个工作日 (处理双轨统计复杂性)
-- **阶段4 - 清理优化**: 1-2个工作日
-- **影子模式运行**: 1周 (新旧版本并行，验证等价性)
-- **灰度发布**: 1周 (部分活动试运行)
-- **全量上线**: 1周 (全部切换，监控稳定性)
+### 时间安排（基于SQLite集成策略）
+- **阶段1 - 建立新骨架+SQLite**: 3-4个工作日 (包含数据库设计和存储抽象层)
+- **阶段2 - 北京迁移**: 2-3个工作日 (验证SQLite优势，逐个月份迁移)
+- **阶段3 - 上海迁移**: 3-4个工作日 (SQLite简化双轨统计复杂性)
+- **阶段4 - 清理优化**: 1-2个工作日 (删除旧代码，性能优化)
+- **影子模式运行**: 1周 (SQLite与CSV并行，验证等价性和性能)
+- **灰度发布**: 1周 (部分活动使用SQLite)
+- **全量上线**: 1周 (全部切换到SQLite，监控稳定性)
 - **总计**: 4-5周
 
 ### 风险控制
@@ -733,22 +984,36 @@ signing_and_sales_incentive_sep_shanghai = lambda: execute_monthly_incentive("SH
 5. **边界测试**: 异常数据、边界条件全覆盖
 6. **压力测试**: 验证系统在高负载下的稳定性
 
-## 预期收益
+## 预期收益（包含SQLite优势）
 
-### 代码质量提升
+### 代码质量大幅提升
 - **消除全局副作用**: 提高代码可预测性和测试稳定性
+- **代码行数减少60%+**: SQLite消除复杂的累计计算逻辑
+  - 当前: 每个处理函数50+行的housekeeper_contracts维护
+  - SQLite后: 1条SQL查询替代所有累计计算
 - **减少代码重复**: 通知逻辑从3套合并为1套
 - **提高可维护性**: 模块职责清晰，依赖关系明确
 
-### 开发效率提升  
-- **新增城市/活动**: 复用统一骨架，开发效率提高50%+
-- **问题定位**: 模块化设计，问题定位更快速
-- **测试覆盖**: 统一接口，测试覆盖更全面
+### 性能显著提升
+- **查询性能**:
+  - 去重查询: 从O(n)的CSV扫描变为O(1)的索引查询
+  - 累计统计: 从内存循环计算变为数据库聚合查询
+  - 双轨统计: 复杂的分类计数变为简单的GROUP BY
+- **内存使用**: 不再需要将整个CSV加载到内存
+- **并发性能**: 数据库锁机制优于文件锁
 
-### 系统稳定性提升
-- **并发安全**: 消除全局状态修改
+### 开发效率大幅提升
+- **新增城市/活动**: 复用统一骨架，开发效率提高70%+
+- **复杂查询**: 数据库天然支持复杂的历史数据分析
+- **问题定位**: 模块化设计+数据库日志，问题定位更快速
+- **测试效率**: 内存SQLite支持快速测试
+
+### 系统稳定性和扩展性提升
+- **数据一致性**: 事务保证，避免CSV读写竞争条件
+- **并发安全**: 数据库锁机制，支持多进程访问
 - **配置驱动**: 所有差异通过配置控制
-- **向后兼容**: 保持现有接口不变
+- **扩展性**: 便于实现复杂查询、报表生成、数据分析
+- **备份恢复**: 标准的数据库备份恢复机制
 
 ## 功能等价性验证与安全上线保障
 
