@@ -174,6 +174,109 @@ from modules.notification_module import *     # 导入所有
 - 每个函数50-100行，大部分代码重复
 - 修改通用逻辑需要改8个地方
 
+## 高层架构设计
+
+### 系统上下文架构（C4 Level 1）
+
+```mermaid
+C4Context
+    title 销售激励系统上下文架构
+
+    Person(managers, "管家用户", "签约管家，接收奖励通知")
+    Person(operators, "运营人员", "监控系统运行，处理异常")
+
+    System(incentive_system, "销售激励系统", "自动化奖励计算和通知平台")
+
+    System_Ext(metabase, "Metabase API", "提供合同数据")
+    System_Ext(wechat, "企业微信", "发送通知消息")
+    System_Ext(sla_system, "SLA监控系统", "服务质量监控")
+
+    Rel(metabase, incentive_system, "提供合同数据", "HTTP/JSON")
+    Rel(incentive_system, managers, "发送奖励通知", "企业微信消息")
+    Rel(incentive_system, operators, "发送系统报告", "企业微信消息")
+    Rel(incentive_system, wechat, "调用消息API", "HTTP/JSON")
+    Rel(sla_system, incentive_system, "提供SLA数据", "HTTP/JSON")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
+```
+
+### 当前架构分析（C4 Level 2）
+
+```mermaid
+C4Container
+    title 当前系统容器架构 - 问题分析
+
+    System_Boundary(c1, "销售激励系统") {
+        Container(main_app, "主程序", "Python", "任务调度和程序入口")
+        Container(jobs, "任务定义", "Python", "8个重复的Job函数")
+        Container(data_processing, "数据处理模块", "Python", "城市特定的处理函数")
+        Container(notification, "通知模块", "Python", "三套不同的通知逻辑")
+        Container(config, "配置管理", "Python", "新旧配置并存")
+
+        ContainerDb(csv_storage, "CSV文件存储", "文件系统", "性能瓶颈，并发问题")
+        ContainerDb(sqlite_tasks, "SQLite任务库", "SQLite", "仅用于任务队列")
+    }
+
+    System_Ext(metabase, "Metabase API", "数据源")
+    System_Ext(wechat, "企业微信", "通知渠道")
+
+    Rel(metabase, main_app, "获取合同数据", "HTTP")
+    Rel(main_app, jobs, "调度执行", "函数调用")
+    Rel(jobs, data_processing, "数据处理", "函数调用")
+    Rel(data_processing, csv_storage, "读写CSV", "文件I/O")
+    Rel(jobs, notification, "发送通知", "函数调用")
+    Rel(notification, wechat, "发送消息", "HTTP")
+    Rel(main_app, sqlite_tasks, "任务队列", "SQL")
+
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+```
+
+**当前架构的主要问题**：
+1. **重复代码严重**: 8个Job函数大量重复逻辑
+2. **CSV存储瓶颈**: 每次处理需要读取整个文件
+3. **全局副作用**: 北京9月通过修改全局变量来复用6月函数
+4. **配置分散**: 新旧配置系统并存，管理混乱
+5. **通知逻辑分裂**: 三套不同的通知实现
+
+### 目标架构设计（C4 Level 2）
+
+```mermaid
+C4Container
+    title 目标系统容器架构 - 重构后
+
+    System_Boundary(c1, "销售激励系统 v2.0") {
+        Container(scheduler, "任务调度器", "Python", "统一的任务调度和管理")
+        Container(pipeline, "数据处理管道", "Python", "配置驱动的统一处理流程")
+        Container(reward_engine, "奖励计算引擎", "Python", "通用的奖励计算逻辑")
+        Container(notification_service, "通知服务", "Python", "统一的通知生成和发送")
+        Container(config_manager, "配置管理器", "Python", "集中化的配置管理")
+
+        ContainerDb(sqlite_db, "SQLite数据库", "SQLite", "高性能数据存储和查询")
+        ContainerDb(csv_archive, "CSV归档", "文件系统", "数据归档和备份")
+    }
+
+    System_Ext(metabase, "Metabase API", "数据源")
+    System_Ext(wechat, "企业微信", "通知渠道")
+
+    Rel(metabase, pipeline, "获取合同数据", "HTTP")
+    Rel(scheduler, pipeline, "触发处理", "函数调用")
+    Rel(pipeline, reward_engine, "计算奖励", "函数调用")
+    Rel(pipeline, sqlite_db, "存储查询", "SQL")
+    Rel(reward_engine, config_manager, "获取配置", "函数调用")
+    Rel(pipeline, notification_service, "发送通知", "函数调用")
+    Rel(notification_service, wechat, "发送消息", "HTTP")
+    Rel(pipeline, csv_archive, "数据归档", "文件I/O")
+
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+```
+
+**目标架构的核心优势**：
+1. **统一管道**: 所有城市/月份使用相同的处理流程
+2. **SQLite优化**: 高性能的数据存储和查询
+3. **配置驱动**: 所有差异通过配置控制
+4. **无副作用**: 纯函数设计，测试稳定
+5. **高扩展性**: 新增城市/活动只需添加配置
+
 ## 重构目标（基于深度分析）
 
 ### 核心目标
@@ -188,6 +291,154 @@ from modules.notification_module import *     # 导入所有
 - **函数数量减少50%**: 合并重复的处理和通知函数
 - **配置统一度100%**: 所有差异通过REWARD_CONFIGS控制
 - **测试稳定性提升**: 消除全局副作用导致的测试不稳定
+
+### 数据流架构对比
+
+```mermaid
+flowchart TD
+    subgraph "当前数据流 - 性能瓶颈"
+        A1[Metabase API] --> B1[临时CSV文件]
+        B1 --> C1[读取整个CSV文件]
+        C1 --> D1[内存中累计计算]
+        D1 --> E1[重复的去重逻辑]
+        E1 --> F1[写入业绩CSV]
+        F1 --> G1[通知发送]
+
+        style C1 fill:#ffcccc
+        style D1 fill:#ffcccc
+        style E1 fill:#ffcccc
+    end
+
+    subgraph "目标数据流 - 高性能"
+        A2[Metabase API] --> B2[数据处理管道]
+        B2 --> C2[SQLite索引查询]
+        C2 --> D2[数据库聚合计算]
+        D2 --> E2[配置驱动奖励计算]
+        E2 --> F2[统一通知生成]
+        F2 --> G2[任务队列发送]
+
+        style C2 fill:#ccffcc
+        style D2 fill:#ccffcc
+        style E2 fill:#ccffcc
+    end
+```
+
+**性能对比分析**：
+- **去重查询**: CSV O(n)扫描 → SQLite O(1)索引查询
+- **累计统计**: 内存循环计算 → 数据库聚合查询
+- **数据处理**: 重复读取文件 → 一次性管道处理
+- **并发安全**: 文件锁竞争 → 数据库事务保证
+
+### 核心对象模型设计
+
+```mermaid
+classDiagram
+    class ProcessingConfig {
+        +string config_key
+        +string activity_code
+        +string city
+        +string housekeeper_key_format
+        +bool enable_dual_track
+        +bool enable_historical_contracts
+    }
+
+    class HousekeeperStats {
+        +int count
+        +float total_amount
+        +float performance_amount
+        +List~string~ awarded
+        +int platform_count
+        +float platform_amount
+        +int self_referral_count
+        +float self_referral_amount
+    }
+
+    class DataProcessingPipeline {
+        +ProcessingConfig config
+        +PerformanceDataStore store
+        +RewardCalculator reward_calculator
+        +RecordBuilder record_builder
+        +process(contract_data) List~Dict~
+    }
+
+    class RewardCalculator {
+        +Dict config
+        +calculate(contract, hk_stats) List~Reward~
+        +calculate_lucky_reward()
+        +calculate_tiered_reward()
+        +calculate_self_referral_reward()
+    }
+
+    class NotificationGenerator {
+        +string config_key
+        +string city
+        +generate_group_message(record) string
+        +generate_award_message(record) string
+    }
+
+    class PerformanceDataStore {
+        <<interface>>
+        +contract_exists(contract_id, activity_code) bool
+        +get_housekeeper_stats(housekeeper, activity_code) HousekeeperStats
+        +save_performance_record(record) void
+    }
+
+    class SQLitePerformanceDataStore {
+        +string db_path
+        +contract_exists(contract_id, activity_code) bool
+        +get_housekeeper_stats(housekeeper, activity_code) HousekeeperStats
+        +save_performance_record(record) void
+    }
+
+    ProcessingConfig --> DataProcessingPipeline
+    HousekeeperStats --> DataProcessingPipeline
+    DataProcessingPipeline --> RewardCalculator
+    DataProcessingPipeline --> PerformanceDataStore
+    RewardCalculator --> ProcessingConfig
+    NotificationGenerator --> ProcessingConfig
+    PerformanceDataStore <|-- SQLitePerformanceDataStore
+```
+
+**对象职责说明**：
+- **ProcessingConfig**: 封装所有城市/月份的配置差异
+- **HousekeeperStats**: 统一的管家统计数据结构
+- **DataProcessingPipeline**: 核心处理管道，消除重复逻辑
+- **RewardCalculator**: 配置驱动的奖励计算引擎
+- **NotificationGenerator**: 统一的通知生成器
+- **PerformanceDataStore**: 存储抽象层，支持SQLite和CSV
+
+### 重构路径规划
+
+```mermaid
+gantt
+    title 重构实施路径图
+    dateFormat  YYYY-MM-DD
+    section 阶段1：新骨架
+    设计存储抽象层    :a1, 2025-01-08, 1d
+    创建SQLite Schema :a2, after a1, 1d
+    实现处理管道      :a3, after a2, 2d
+
+    section 阶段2：北京迁移
+    北京6月迁移       :b1, after a3, 1d
+    北京8月迁移       :b2, after b1, 1d
+    北京9月迁移       :b3, after b2, 2d
+
+    section 阶段3：上海迁移
+    上海4月迁移       :c1, after b3, 1d
+    上海8月迁移       :c2, after c1, 1d
+    上海9月迁移       :c3, after c2, 2d
+
+    section 阶段4：清理优化
+    旧代码清理        :d1, after c3, 1d
+    性能优化          :d2, after d1, 1d
+    文档完善          :d3, after d2, 1d
+```
+
+**关键里程碑**：
+- **M1**: 新骨架完成，SQLite集成验证
+- **M2**: 北京迁移完成，功能等价性验证
+- **M3**: 上海迁移完成，双轨统计支持
+- **M4**: 重构完成，性能提升验证
 
 ## 重构策略（重新设计）
 
