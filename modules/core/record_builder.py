@@ -41,13 +41,13 @@ class RecordBuilder:
             contract_sequence=contract_sequence,
             active_status=1 if rewards else 0,
             notification_sent=False,
-            remarks=self._build_remarks(contract_data, rewards)
+            remarks=self._build_remarks(contract_data, rewards, performance_amount)
         )
         
         logging.debug(f"Built record for contract {contract_data.contract_id}")
         return record
 
-    def _build_remarks(self, contract_data: ContractData, rewards: List[RewardInfo]) -> str:
+    def _build_remarks(self, contract_data: ContractData, rewards: List[RewardInfo], performance_amount: float) -> str:
         """构建备注信息"""
         remarks = []
         
@@ -127,11 +127,8 @@ class RecordBuilder:
 
     def _calculate_bonus_pool(self, record: PerformanceRecord) -> float:
         """计算奖金池"""
-        try:
-            from modules.config import BONUS_POOL_RATIO
-            return record.performance_amount * BONUS_POOL_RATIO
-        except ImportError:
-            return record.performance_amount * 0.002  # 默认0.2%
+        from .config_adapter import get_bonus_pool_ratio
+        return record.performance_amount * get_bonus_pool_ratio()
 
 
 class BatchRecordBuilder:

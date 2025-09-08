@@ -28,15 +28,8 @@ class RewardCalculator:
 
     def _load_config(self, config_key: str) -> Dict:
         """加载奖励配置"""
-        try:
-            from modules.config import REWARD_CONFIGS
-            config = REWARD_CONFIGS.get(config_key, {})
-            if not config:
-                logging.warning(f"No reward config found for {config_key}")
-            return config
-        except ImportError:
-            logging.error("Failed to import REWARD_CONFIGS")
-            return {}
+        from .config_adapter import ConfigAdapter
+        return ConfigAdapter.get_reward_config(config_key)
 
     def calculate(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
         """计算所有类型的奖励"""

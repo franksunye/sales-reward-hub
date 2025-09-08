@@ -62,20 +62,37 @@ class DataProcessingPipeline:
                 
                 # 4. 处理工单金额上限（北京特有）
                 performance_amount = self._calculate_performance_amount(contract_data)
+
+                # 5. 更新管家统计中的业绩金额（用于奖励计算）
+                # 注意：这里需要加上当前合同的业绩金额来模拟累计效果
+                updated_hk_stats = HousekeeperStats(
+                    housekeeper=hk_stats.housekeeper,
+                    activity_code=hk_stats.activity_code,
+                    contract_count=hk_stats.contract_count + 1,
+                    total_amount=hk_stats.total_amount + contract_data.contract_amount,
+                    performance_amount=hk_stats.performance_amount + performance_amount,
+                    awarded=hk_stats.awarded,
+                    platform_count=hk_stats.platform_count + (1 if contract_data.order_type.value == 'platform' else 0),
+                    platform_amount=hk_stats.platform_amount + (contract_data.contract_amount if contract_data.order_type.value == 'platform' else 0),
+                    self_referral_count=hk_stats.self_referral_count + (1 if contract_data.order_type.value == 'self_referral' else 0),
+                    self_referral_amount=hk_stats.self_referral_amount + (contract_data.contract_amount if contract_data.order_type.value == 'self_referral' else 0),
+                    historical_count=hk_stats.historical_count + (1 if contract_data.is_historical else 0),
+                    new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
+                )
+
+                # 6. 计算奖励（使用更新后的统计数据）
+                rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
                 
-                # 5. 计算奖励
-                rewards = self.reward_calculator.calculate(contract_data, hk_stats)
-                
-                # 6. 构建业绩记录
+                # 7. 构建业绩记录
                 record = self.record_builder.build(
                     contract_data=contract_data,
-                    housekeeper_stats=hk_stats,
+                    housekeeper_stats=updated_hk_stats,  # 使用更新后的统计数据
                     rewards=rewards,
                     performance_amount=performance_amount,
                     contract_sequence=processed_count + 1
                 )
                 
-                # 7. 保存记录
+                # 8. 保存记录
                 self.store.save_performance_record(record)
                 performance_records.append(record)
                 processed_count += 1
@@ -83,7 +100,9 @@ class DataProcessingPipeline:
                 logging.debug(f"Processed contract {contract_data.contract_id}")
                 
             except Exception as e:
+                import traceback
                 logging.error(f"Error processing contract {contract_dict.get('合同ID(_id)', 'unknown')}: {e}")
+                logging.error(f"Traceback: {traceback.format_exc()}")
                 continue
         
         logging.info(f"Processing completed: {processed_count} processed, {skipped_count} skipped")
@@ -108,8 +127,8 @@ class DataProcessingPipeline:
             )
             
             # 从配置中获取工单上限
-            from modules.config import REWARD_CONFIGS
-            config_data = REWARD_CONFIGS.get(self.config.config_key, {})
+            from .config_adapter import get_reward_config
+            config_data = get_reward_config(self.config.config_key)
             project_limit = config_data.get('performance_limits', {}).get('single_project_limit', 500000)
             
             # 计算剩余可用额度

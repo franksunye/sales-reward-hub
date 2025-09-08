@@ -51,6 +51,14 @@ from .record_builder import (
     create_batch_record_builder
 )
 
+# 配置适配器
+from .config_adapter import (
+    ConfigAdapter,
+    get_reward_config,
+    get_bonus_pool_ratio,
+    validate_all_configs
+)
+
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "Refactoring Team"
@@ -88,6 +96,12 @@ __all__ = [
     'BatchRecordBuilder',
     'create_record_builder',
     'create_batch_record_builder',
+
+    # 配置适配器
+    'ConfigAdapter',
+    'get_reward_config',
+    'get_bonus_pool_ratio',
+    'validate_all_configs',
 ]
 
 
