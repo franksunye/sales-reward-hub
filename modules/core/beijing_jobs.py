@@ -220,11 +220,16 @@ def _generate_csv_output(records: List[PerformanceRecord], config) -> str:
     
     # 转换记录为字典格式
     record_dicts = [record.to_dict() for record in records]
-    
+
     # 写入CSV文件
     with open(csv_file, 'w', newline='', encoding='utf-8') as f:
         if record_dicts:
-            writer = csv.DictWriter(f, fieldnames=record_dicts[0].keys())
+            # 收集所有可能的字段名
+            all_fieldnames = set()
+            for record_dict in record_dicts:
+                all_fieldnames.update(record_dict.keys())
+
+            writer = csv.DictWriter(f, fieldnames=sorted(all_fieldnames))
             writer.writeheader()
             writer.writerows(record_dicts)
     
