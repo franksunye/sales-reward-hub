@@ -126,21 +126,24 @@ def validate_production_environment():
     else:
         checks.append(f"✅ 日志路径检查通过: {log_file}")
     
-    # 检查内存限制
-    import psutil
-    available_memory = psutil.virtual_memory().available
-    required_memory = PRODUCTION_PERFORMANCE_CONFIG['max_memory_usage']
-    if available_memory < required_memory * 2:  # 至少需要2倍的可用内存
-        checks.append(f"⚠️ 可用内存不足: {available_memory / 1024 / 1024:.0f}MB < {required_memory * 2 / 1024 / 1024:.0f}MB")
-    else:
-        checks.append(f"✅ 内存检查通过: {available_memory / 1024 / 1024:.0f}MB 可用")
-    
-    # 检查磁盘空间
-    disk_usage = psutil.disk_usage(db_dir)
-    if disk_usage.free < 1024 * 1024 * 1024:  # 至少需要1GB空闲空间
-        checks.append(f"⚠️ 磁盘空间不足: {disk_usage.free / 1024 / 1024 / 1024:.1f}GB")
-    else:
-        checks.append(f"✅ 磁盘空间检查通过: {disk_usage.free / 1024 / 1024 / 1024:.1f}GB 可用")
+    # 检查内存限制（可选）
+    try:
+        import psutil
+        available_memory = psutil.virtual_memory().available
+        required_memory = PRODUCTION_PERFORMANCE_CONFIG['max_memory_usage']
+        if available_memory < required_memory * 2:  # 至少需要2倍的可用内存
+            checks.append(f"⚠️ 可用内存不足: {available_memory / 1024 / 1024:.0f}MB < {required_memory * 2 / 1024 / 1024:.0f}MB")
+        else:
+            checks.append(f"✅ 内存检查通过: {available_memory / 1024 / 1024:.0f}MB 可用")
+
+        # 检查磁盘空间
+        disk_usage = psutil.disk_usage(db_dir)
+        if disk_usage.free < 1024 * 1024 * 1024:  # 至少需要1GB空闲空间
+            checks.append(f"⚠️ 磁盘空间不足: {disk_usage.free / 1024 / 1024 / 1024:.1f}GB")
+        else:
+            checks.append(f"✅ 磁盘空间检查通过: {disk_usage.free / 1024 / 1024 / 1024:.1f}GB 可用")
+    except ImportError:
+        checks.append(f"⚠️ psutil未安装，跳过内存和磁盘检查")
     
     return checks
 
