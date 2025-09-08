@@ -54,24 +54,27 @@ class ConfigAdapter:
     def _get_default_config(cls, config_key: str) -> Dict:
         """获取默认配置（用于测试和开发）"""
         # 根据config_key推断基本配置
-        if "BJ" in config_key:
-            return cls._get_beijing_default_config()
+        if config_key == "BJ-2025-06":
+            return cls._get_beijing_june_config()
+        elif config_key == "BJ-2025-09":
+            return cls._get_beijing_september_config()
         elif "SH" in config_key:
             return cls._get_shanghai_default_config()
         else:
             return cls._get_generic_default_config()
     
     @classmethod
-    def _get_beijing_default_config(cls) -> Dict:
-        """北京默认配置"""
+    def _get_beijing_june_config(cls) -> Dict:
+        """北京6月配置"""
         return {
             "lucky_number": "8",
+            "lucky_strategy": "last_digit",  # 只检查末位数字
             "lucky_rewards": {
                 "base": {"name": "接好运", "threshold": 0},
                 "high": {"name": "接好运万元以上", "threshold": 10000}
             },
             "performance_limits": {
-                "single_project_limit": 500000,
+                "single_project_limit": 500000,  # 北京6月是50万上限
                 "enable_cap": True,
                 "single_contract_cap": 500000
             },
@@ -147,6 +150,37 @@ class ConfigAdapter:
                 "接好运万元以上": "66",
                 "达标奖": "200"
             }
+        }
+
+    @classmethod
+    def _get_beijing_september_config(cls) -> Dict:
+        """北京9月配置"""
+        return {
+            "lucky_number": "5",
+            "lucky_strategy": "personal_sequence",  # 个人序列5的倍数
+            "lucky_rewards": {
+                "base": {"name": "接好运", "threshold": 0},
+                "high": {"name": "接好运万元以上", "threshold": 10000}
+            },
+            "performance_limits": {
+                "single_project_limit": 50000,  # 北京9月是5万上限
+                "enable_cap": True,
+                "single_contract_cap": 50000
+            },
+            "tiered_rewards": {
+                "min_contracts": 10,  # 北京9月是10个合同门槛
+                "tiers": [
+                    {"name": "达标奖", "threshold": 80000},
+                    {"name": "优秀奖", "threshold": 120000}
+                ]
+            },
+            "awards_mapping": {
+                "接好运": "36",
+                "接好运万元以上": "66",
+                "达标奖": "200",
+                "优秀奖": "400"
+            },
+            "enable_historical_contracts": True  # 支持历史合同
         }
     
     @classmethod

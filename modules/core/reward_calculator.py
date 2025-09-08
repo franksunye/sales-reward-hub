@@ -145,15 +145,18 @@ class RewardCalculator:
     def _contains_lucky_number(self, contract_id: str, lucky_number: str) -> bool:
         """检查合同编号是否包含幸运数字"""
         # 支持不同的幸运数字检查策略
-        lucky_strategy = self.config.get("lucky_strategy", "contains")
-        
-        if lucky_strategy == "contains":
+        lucky_strategy = self.config.get("lucky_strategy", "last_digit")
+
+        if lucky_strategy == "last_digit":
+            # 只检查末位数字（北京6月）
+            return contract_id.endswith(lucky_number)
+        elif lucky_strategy == "contains":
             return lucky_number in contract_id
         elif lucky_strategy == "personal_sequence":
             # 个人顺序幸运数字（北京9月特有）
             return self._check_personal_sequence_lucky(contract_id, lucky_number)
         else:
-            return lucky_number in contract_id
+            return contract_id.endswith(lucky_number)  # 默认检查末位
 
     def _check_personal_sequence_lucky(self, contract_id: str, lucky_number: str) -> bool:
         """检查个人顺序幸运数字"""
