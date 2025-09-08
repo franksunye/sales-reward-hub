@@ -1,0 +1,279 @@
+"""
+销售激励系统重构 - 北京Job函数迁移
+版本: v1.0
+创建日期: 2025-01-08
+
+重构后的北京Job函数，使用新的核心架构。
+替代现有的重复Job函数，消除全局副作用。
+"""
+
+import logging
+import os
+import sys
+from typing import List, Dict, Optional
+
+# 确保能导入现有模块
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from modules.core import create_standard_pipeline
+from modules.core.data_models import PerformanceRecord
+
+
+def signing_and_sales_incentive_jun_beijing_v2() -> List[PerformanceRecord]:
+    """
+    重构后的北京6月Job函数
+    
+    替代原有的signing_and_sales_incentive_jun_beijing函数
+    使用新的核心架构，消除重复代码和全局副作用
+    """
+    logging.info("开始执行北京6月销售激励任务（重构版）")
+    
+    try:
+        # 1. 创建标准处理管道
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-06",
+            activity_code="BJ-JUN",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_project_limit=True,  # 北京启用工单金额上限
+            db_path="performance_data.db"
+        )
+        
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+        
+        # 2. 获取合同数据（保持现有API调用方式）
+        contract_data = _get_contract_data_from_metabase()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+        
+        # 3. 处理数据
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+        
+        # 4. 生成CSV文件（保持现有输出格式）
+        csv_file = _generate_csv_output(processed_records, config)
+        logging.info(f"生成CSV文件: {csv_file}")
+        
+        # 5. 发送通知（保持现有通知逻辑）
+        _send_notifications(processed_records, config)
+        logging.info("通知发送完成")
+        
+        # 6. 获取处理摘要
+        summary = pipeline.get_processing_summary()
+        logging.info(f"处理摘要: {summary}")
+        
+        return processed_records
+        
+    except Exception as e:
+        logging.error(f"北京6月任务执行失败: {e}")
+        import traceback
+        logging.error(f"详细错误: {traceback.format_exc()}")
+        raise
+
+
+def signing_and_sales_incentive_aug_beijing_v2() -> List[PerformanceRecord]:
+    """
+    重构后的北京8月Job函数
+    
+    替代原有的signing_and_sales_incentive_aug_beijing函数
+    使用正确的配置，不再复用6月函数
+    """
+    logging.info("开始执行北京8月销售激励任务（重构版）")
+    
+    try:
+        # 使用正确的8月配置
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-08",  # 使用正确的8月配置
+            activity_code="BJ-AUG",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_project_limit=True,
+            db_path="performance_data.db"
+        )
+        
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+        
+        # 获取合同数据
+        contract_data = _get_contract_data_from_metabase()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+        
+        # 处理数据
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+        
+        # 生成输出和发送通知
+        csv_file = _generate_csv_output(processed_records, config)
+        _send_notifications(processed_records, config)
+        
+        return processed_records
+        
+    except Exception as e:
+        logging.error(f"北京8月任务执行失败: {e}")
+        raise
+
+
+def signing_and_sales_incentive_sep_beijing_v2() -> List[PerformanceRecord]:
+    """
+    重构后的北京9月Job函数
+    
+    替代原有的signing_and_sales_incentive_sep_beijing函数
+    消除全局副作用，支持历史合同处理
+    """
+    logging.info("开始执行北京9月销售激励任务（重构版）")
+    
+    try:
+        # 使用正确的9月配置，支持历史合同
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-09",  # 直接使用正确配置
+            activity_code="BJ-SEP",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_project_limit=True,
+            enable_historical_contracts=True,  # 支持历史合同处理
+            db_path="performance_data.db"
+        )
+        
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+        
+        # 获取合同数据（包含历史合同）
+        contract_data = _get_contract_data_with_historical()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据（包含历史合同）")
+        
+        # 处理数据 - 无需全局副作用
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+        
+        # 生成输出和发送通知
+        csv_file = _generate_csv_output(processed_records, config)
+        _send_notifications(processed_records, config)
+        
+        return processed_records
+        
+    except Exception as e:
+        logging.error(f"北京9月任务执行失败: {e}")
+        raise
+
+
+# 辅助函数 - 保持与现有系统的兼容性
+
+def _get_contract_data_from_metabase() -> List[Dict]:
+    """获取合同数据（模拟现有API调用）"""
+    # 这里应该调用现有的Metabase API
+    # 为了演示，返回示例数据
+    logging.info("从Metabase获取合同数据...")
+    
+    # TODO: 替换为实际的API调用
+    # from modules.request_module import get_data_from_metabase
+    # return get_data_from_metabase(api_url, headers)
+    
+    # 示例数据
+    return [
+        {
+            '合同ID(_id)': '2025010812345678',
+            '管家(serviceHousekeeper)': '张三',
+            '服务商(orgName)': '北京优质服务商',
+            '合同金额(adjustRefundMoney)': 15000,
+            '支付金额(paidAmount)': 10000,
+            '工单编号(serviceAppointmentNum)': 'WO-2025-001',
+            '款项来源类型(tradeIn)': 0,
+            '活动城市(province)': '北京',
+            'Status': '已签约',
+            '创建时间(createTime)': '2025-01-08 10:00:00'
+        }
+    ]
+
+
+def _get_contract_data_with_historical() -> List[Dict]:
+    """获取合同数据（包含历史合同）"""
+    logging.info("从Metabase获取合同数据（包含历史合同）...")
+    
+    # 获取基础数据
+    contract_data = _get_contract_data_from_metabase()
+    
+    # 添加历史合同标记
+    for contract in contract_data:
+        # 如果有历史合同编号字段，则标记为历史合同
+        if contract.get('pcContractdocNum'):
+            contract['is_historical'] = True
+        else:
+            contract['is_historical'] = False
+    
+    return contract_data
+
+
+def _generate_csv_output(records: List[PerformanceRecord], config) -> str:
+    """生成CSV输出文件"""
+    import csv
+    from datetime import datetime
+    
+    # 生成文件名
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    csv_file = f"performance_data_{config.activity_code}_{timestamp}.csv"
+    
+    if not records:
+        logging.warning("没有记录需要输出")
+        return csv_file
+    
+    # 转换记录为字典格式
+    record_dicts = [record.to_dict() for record in records]
+    
+    # 写入CSV文件
+    with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+        if record_dicts:
+            writer = csv.DictWriter(f, fieldnames=record_dicts[0].keys())
+            writer.writeheader()
+            writer.writerows(record_dicts)
+    
+    logging.info(f"CSV文件生成完成: {csv_file}, {len(records)} 条记录")
+    return csv_file
+
+
+def _send_notifications(records: List[PerformanceRecord], config):
+    """发送通知"""
+    # 这里应该调用现有的通知发送逻辑
+    # TODO: 集成现有的通知模块
+    # from modules.notification_module import send_group_notifications
+    # send_group_notifications(records, config)
+    
+    # 统计需要发送通知的记录
+    notification_records = [r for r in records if r.rewards]
+    logging.info(f"需要发送通知的记录: {len(notification_records)} 条")
+    
+    # 模拟通知发送
+    for record in notification_records:
+        reward_names = [r.reward_name for r in record.rewards]
+        logging.info(f"发送通知: {record.contract_data.housekeeper} 获得奖励 {reward_names}")
+
+
+# 兼容性函数 - 保持与现有调用方式的兼容
+
+def signing_and_sales_incentive_jun_beijing():
+    """兼容性包装函数 - 北京6月"""
+    return signing_and_sales_incentive_jun_beijing_v2()
+
+
+def signing_and_sales_incentive_aug_beijing():
+    """兼容性包装函数 - 北京8月"""
+    return signing_and_sales_incentive_aug_beijing_v2()
+
+
+def signing_and_sales_incentive_sep_beijing():
+    """兼容性包装函数 - 北京9月"""
+    return signing_and_sales_incentive_sep_beijing_v2()
+
+
+if __name__ == "__main__":
+    # 测试北京Job函数
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    print("测试北京6月Job函数...")
+    records_jun = signing_and_sales_incentive_jun_beijing_v2()
+    print(f"北京6月处理完成: {len(records_jun)} 条记录")
+    
+    print("\n测试北京9月Job函数...")
+    records_sep = signing_and_sales_incentive_sep_beijing_v2()
+    print(f"北京9月处理完成: {len(records_sep)} 条记录")

@@ -70,6 +70,12 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 if os.path.exists(schema_path):
                     with open(schema_path, 'r', encoding='utf-8') as f:
                         schema_sql = f.read()
+                    # 修改SQL语句，使用IF NOT EXISTS
+                    schema_sql = schema_sql.replace('CREATE TABLE performance_data', 'CREATE TABLE IF NOT EXISTS performance_data')
+                    schema_sql = schema_sql.replace('CREATE VIEW housekeeper_stats', 'CREATE VIEW IF NOT EXISTS housekeeper_stats')
+                    schema_sql = schema_sql.replace('CREATE VIEW project_stats', 'CREATE VIEW IF NOT EXISTS project_stats')
+                    schema_sql = schema_sql.replace('CREATE VIEW activity_stats', 'CREATE VIEW IF NOT EXISTS activity_stats')
+                    schema_sql = schema_sql.replace('CREATE TABLE schema_version', 'CREATE TABLE IF NOT EXISTS schema_version')
                     conn.executescript(schema_sql)
                     logging.info(f"Database initialized with schema from {schema_path}")
                 else:

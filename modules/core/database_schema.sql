@@ -44,11 +44,11 @@ CREATE TABLE performance_data (
 );
 
 -- 性能优化索引
-CREATE INDEX idx_housekeeper_activity ON performance_data(housekeeper, activity_code);
-CREATE INDEX idx_contract_lookup ON performance_data(contract_id, activity_code);
-CREATE INDEX idx_project_activity ON performance_data(project_id, activity_code);
-CREATE INDEX idx_order_type ON performance_data(order_type, activity_code);
-CREATE INDEX idx_created_at ON performance_data(created_at);
+CREATE INDEX IF NOT EXISTS idx_housekeeper_activity ON performance_data(housekeeper, activity_code);
+CREATE INDEX IF NOT EXISTS idx_contract_lookup ON performance_data(contract_id, activity_code);
+CREATE INDEX IF NOT EXISTS idx_project_activity ON performance_data(project_id, activity_code);
+CREATE INDEX IF NOT EXISTS idx_order_type ON performance_data(order_type, activity_code);
+CREATE INDEX IF NOT EXISTS idx_created_at ON performance_data(created_at);
 
 -- 管家累计统计视图（替代复杂的内存计算）
 CREATE VIEW housekeeper_stats AS
@@ -103,5 +103,5 @@ CREATE TABLE schema_version (
 );
 
 -- 插入初始版本信息
-INSERT INTO schema_version (version, description) 
+INSERT OR IGNORE INTO schema_version (version, description)
 VALUES ('1.0.0', 'Initial schema for refactored incentive system');

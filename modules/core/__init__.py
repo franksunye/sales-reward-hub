@@ -131,9 +131,10 @@ def create_standard_pipeline(config_key: str, activity_code: str, city: str, **k
     )
     
     # 创建存储实例
+    storage_kwargs = {k: v for k, v in kwargs.items() if k not in ['housekeeper_key_format', 'storage_type', 'enable_dual_track', 'enable_historical_contracts', 'enable_project_limit']}
     store = create_data_store(
         storage_type=config.storage_type,
-        **kwargs
+        **storage_kwargs
     )
     
     # 创建处理管道
