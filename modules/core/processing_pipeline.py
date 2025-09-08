@@ -80,7 +80,17 @@ class DataProcessingPipeline:
                     new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
                 )
 
-                # 6. 计算奖励（使用更新后的统计数据）
+                # 6. 处理自引单项目地址去重（上海特有）
+                if (self.config.enable_dual_track and
+                    contract_data.order_type.value == 'self_referral'):
+                    project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
+                    if project_address and self._is_project_address_duplicate(
+                        housekeeper_key, project_address, self.config.activity_code):
+                        logging.debug(f"跳过重复项目地址: {project_address}")
+                        skipped_count += 1
+                        continue
+
+                # 7. 计算奖励（使用更新后的统计数据）
                 rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
                 
                 # 7. 构建业绩记录
@@ -170,6 +180,32 @@ class DataProcessingPipeline:
             })
         
         return summary
+
+    def _is_project_address_duplicate(self, housekeeper: str, project_address: str, activity_code: str) -> bool:
+        """检查项目地址是否重复（上海自引单特有逻辑）"""
+        try:
+            # 查询数据库中是否已存在相同管家和项目地址的记录
+            all_records = self.store.get_all_records(activity_code)
+
+            for record in all_records:
+                if (record.get('housekeeper') == housekeeper and
+                    record.get('order_type') == 'self_referral'):
+                    # 从扩展字段中获取项目地址
+                    extensions = record.get('extensions', '{}')
+                    if extensions:
+                        try:
+                            import json
+                            ext_data = json.loads(extensions)
+                            existing_address = ext_data.get('项目地址(projectAddress)', '')
+                            if existing_address == project_address:
+                                return True
+                        except json.JSONDecodeError:
+                            continue
+
+            return False
+        except Exception as e:
+            logging.error(f"检查项目地址重复时出错: {e}")
+            return False
 
 
 class PipelineValidator:

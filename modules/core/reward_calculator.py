@@ -47,7 +47,9 @@ class RewardCalculator:
                 rewards.append(tiered_reward)
             
             # 3. 自引单奖励（如果启用）
-            if self.config.get("enable_self_referral") and contract_data.order_type == OrderType.SELF_REFERRAL:
+            self_referral_config = self.config.get("self_referral_rewards", {})
+            if (self_referral_config.get("enable", False) and
+                contract_data.order_type == OrderType.SELF_REFERRAL):
                 self_referral_reward = self._calculate_self_referral_reward(contract_data, housekeeper_stats)
                 if self_referral_reward:
                     rewards.append(self_referral_reward)
@@ -119,20 +121,21 @@ class RewardCalculator:
     def _calculate_self_referral_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
         """计算自引单奖励"""
         self_referral_config = self.config.get("self_referral_rewards")
-        if not self_referral_config:
+        if not self_referral_config or not self_referral_config.get("enable", False):
             return None
-        
+
         # 检查项目地址去重逻辑（上海特有）
         project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
         if not project_address:
             return None
-        
-        # 这里需要实现项目地址去重逻辑
-        # 在实际实现中，应该查询数据库检查该项目地址是否已经被该管家使用过
-        
+
+        # 项目地址去重逻辑
+        # 注意：这里简化处理，实际应该查询数据库检查该项目地址是否已经被该管家使用过
+        # 在处理管道中会有更完整的去重逻辑
+
         reward_type = self_referral_config.get("reward_type", "自引单")
         reward_name = self_referral_config.get("reward_name", "红包")
-        
+
         return RewardInfo(
             reward_type=reward_type,
             reward_name=reward_name,

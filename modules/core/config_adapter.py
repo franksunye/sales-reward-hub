@@ -113,12 +113,16 @@ class ConfigAdapter:
                 "接好运": "36",
                 "接好运万元以上": "66",
                 "达标奖": "200",
-                "优秀奖": "400"
+                "优秀奖": "400",
+                "红包": "50"  # 自引单奖励
             },
             "enable_self_referral": True,
             "self_referral_rewards": {
+                "enable": True,
                 "reward_type": "自引单",
-                "reward_name": "红包"
+                "reward_name": "红包",
+                "reward_amount": 50,
+                "deduplication_field": "projectAddress"
             },
             "enable_rising_star_badge": False  # 上海技师不参与徽章系统
         }

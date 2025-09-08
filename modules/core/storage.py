@@ -203,7 +203,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 """, (
                     record.activity_code,
                     record.contract_data.contract_id,
-                    record.contract_data.housekeeper,
+                    record.housekeeper_stats.housekeeper,  # 使用管家键而不是原始管家名
                     record.contract_data.service_provider,
                     record.contract_data.contract_amount,
                     record.performance_amount,
