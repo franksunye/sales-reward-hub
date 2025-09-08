@@ -4,309 +4,714 @@
 
 本文档详细描述了对当前签约激励系统的重构升级方案。当前系统经过大量迭代后，代码结构复杂，存在全局副作用、通知逻辑重复、配置散乱等问题。本方案采用渐进式重构策略，分三个Sprint完成，确保每步可回滚、可测试。
 
-## 当前问题分析
+## 深度问题分析（基于完整代码研读）
 
-### 1. 全局副作用问题
-**位置**: `modules/data_processing_module.py:892-914`
+### 1. 北京月份演进的"伪复用"问题
 
-**问题**: 北京9月数据处理通过动态替换全局函数和修改全局配置实现
+#### 1.1 北京6月→8月→9月的复用陷阱
+**核心问题**: 为了复用6月的`process_data_jun_beijing`函数，后续月份采用了"包装+篡改"的方式
+
+**北京8月的实现**:
 ```python
-# 问题代码示例
+# jobs.py:39 - 8月直接复用6月函数，但配置不同
+processed_data = process_data_jun_beijing(contract_data, existing_contract_ids, housekeeper_award_lists)
+# 使用6月的配置 "BJ-2025-06"，但实际是8月活动
+```
+
+**北京9月的复杂包装**:
+```python
+# data_processing_module.py:1575-1582 - 全局篡改方式
 globals()['determine_rewards_jun_beijing_generic'] = determine_rewards_sep_beijing_generic
-config.PERFORMANCE_AMOUNT_CAP_BJ_FEB = 50000
+config.PERFORMANCE_AMOUNT_CAP_BJ_FEB = 50000  # 临时改为5万
 try:
-    result = process_data_jun_beijing(...)
+    result = process_data_jun_beijing(...)  # 复用6月函数
+    for record in result:
+        record['活动编号'] = 'BJ-SEP'  # 事后修改活动编号
 finally:
-    # 恢复原有配置
-    globals()['determine_rewards_jun_beijing_generic'] = original_determine_rewards
-    config.PERFORMANCE_AMOUNT_CAP_BJ_FEB = original_performance_cap
+    # 恢复全局状态
 ```
 
-**风险**: 
-- 全局副作用导致竞争条件
-- 代码可读性差，难以理解和维护
-- 与测试框架耦合，影响测试稳定性
+**问题根源**:
+- 6月函数硬编码了太多假设（50万上限、"BJ-JUN"活动编号等）
+- 为了复用而不是重构，导致9月逻辑极其复杂
+- 全局副作用使得并发测试不可靠
 
-### 2. 数据结构不统一
-**问题**: 不同城市/月份维护不同的管家统计结构
-- 北京: `housekeeper_key = "管家"`
-- 上海: `housekeeper_key = "管家_服务商"`
-- 上海9月: 额外增加双轨字段 `platform_*` 和 `self_referral_*`
-
-**影响**: 虽然奖励计算已通用化，但数据层面难以复用
-
-### 3. 通知逻辑重复
-**问题**: 存在三套通知逻辑
-- `notify_awards_beijing_generic()` (118-177行)
-- `notify_awards_shanghai_generate_message_march()` (197-245行) 
-- `notify_awards_shanghai_generic()` (288-352行)
-
-**影响**: 代码重复，维护成本高，容易出现不一致
-
-### 4. 任务编排耦合
-**问题**: `jobs.py` 使用通配符导入，数据处理与通知耦合紧密
+#### 1.2 北京9月的历史合同处理复杂性
+**新增复杂度**: 9月引入了历史合同处理，导致包装函数内部又有分支:
 ```python
-from modules.* import *  # 可读性差，依赖不明确
+# data_processing_module.py:1565-1572
+def process_data_sep_beijing(contract_data, existing_contract_ids, housekeeper_award_lists):
+    has_historical_field = any('pcContractdocNum' in contract for contract in contract_data)
+    if has_historical_field:
+        return process_data_sep_beijing_with_historical_support(...)  # 新逻辑
+    else:
+        # 全局篡改 + 复用6月逻辑
 ```
 
-## 重构目标
+**结果**: 一个函数内部有两套完全不同的处理路径，维护噩梦
 
-1. **消除全局副作用**: 所有配置通过参数传递，不修改全局状态
-2. **统一数据结构**: 建立标准的管家统计数据结构
-3. **合并通知逻辑**: 一套通用通知器，支持城市差异化配置
-4. **解耦任务编排**: 明确模块依赖，简化任务流程
-5. **保持向后兼容**: 确保现有测试通过，行为完全一致
+### 2. 上海月份演进的"复制粘贴"问题
 
-## 重构策略
+#### 2.1 上海4月→8月→9月的重复演进
+**上海8月复用4月**:
+```python
+# jobs.py:80 - 8月复用4月函数
+processed_data = process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_award_lists)
+# 注释说"奖励规则与4月保持一致"，但实际是8月活动
+```
 
-采用**渐进式重构**策略，分三个Sprint执行：
-1. **Sprint 1**: 北京链路清晰化，去除全局副作用
-2. **Sprint 2**: 通知统一，模板化最小化  
-3. **Sprint 3**: 上海链路对齐，统一记录构建器
+**上海9月全新实现**:
+```python
+# 完全独立的 process_data_shanghai_sep 函数
+# 650-656行: 扩展了双轨统计字段
+housekeeper_contracts[housekeeper_key] = {
+    'count': 0, 'total_amount': 0, 'performance_amount': 0, 'awarded': housekeeper_award,
+    'platform_count': 0, 'platform_amount': 0,      # 新增平台单统计
+    'self_referral_count': 0, 'self_referral_amount': 0,  # 新增自引单统计
+    'self_referral_projects': set(),  # 新增项目地址去重
+    'self_referral_rewards': 0        # 新增自引单奖励计数
+}
+```
 
-每个Sprint都保证：
-- 测试可通过
-- 行为等价
-- 可独立回滚
+**问题**:
+- 4月和9月的管家统计结构完全不兼容
+- 无法共享任何数据处理逻辑
+- 每次新增功能都要重写整个函数
 
-## Sprint 1: 北京链路清晰化
+#### 2.2 上海的housekeeper_key不一致
+**关键差异**: 上海使用`"管家_服务商"`作为key，北京使用`"管家"`
+```python
+# 上海4月/9月: data_processing_module.py:464
+unique_housekeeper_key = f"{housekeeper}_{service_provider}"
+
+# 北京6月/8月/9月: data_processing_module.py:326
+housekeeper = contract['管家(serviceHousekeeper)']  # 直接使用管家名
+```
+
+**影响**: 导致奖励计算函数虽然通用，但数据结构层面无法统一
+
+### 3. 通知模块的"三套马车"问题
+
+#### 3.1 北京通知的演进路径
+**已合并**: 北京通知已经通过`notify_awards_beijing_generic`实现了统一
+```python
+# notification_module.py:291-307 - 薄包装函数
+def notify_awards_jun_beijing(performance_data_filename, status_filename):
+    return notify_awards_beijing_generic(..., "BJ-2025-06", enable_rising_star_badge=True)
+
+def notify_awards_sep_beijing(performance_data_filename, status_filename):
+    return notify_awards_beijing_generic(..., "BJ-2025-09", enable_rising_star_badge=False)
+```
+
+#### 3.2 上海通知的分裂状态
+**三套不同逻辑**:
+1. **上海3月旧版**: `notify_awards_shanghai_generate_message_march` (309-356行)
+2. **上海9月新版**: `notify_awards_shanghai_generic` (400-463行)
+3. **上海8月**: 复用3月旧版逻辑
+
+**关键差异**:
+- 消息模板不同（转化率显示、双轨统计等）
+- 字段处理逻辑不同
+- 配置获取方式不同
+
+### 4. 配置系统的"新旧并存"问题
+
+#### 4.1 新配置系统 vs 旧全局变量
+**新系统**: `REWARD_CONFIGS` 统一配置（config.py:9-162）
+**旧系统**: 散落的全局变量仍在使用
+```python
+# 旧变量仍在使用
+PERFORMANCE_AMOUNT_CAP_BJ_FEB = 500000  # line:257
+ENABLE_PERFORMANCE_AMOUNT_CAP_BJ_FEB = True  # line:259
+SINGLE_PROJECT_CONTRACT_AMOUNT_LIMIT_BJ_FEB = 500000  # line:255
+```
+
+**问题**: 北京9月通过临时修改旧变量来影响6月函数的行为
+
+#### 4.2 配置键命名不一致
+**北京**: "BJ-2025-06", "BJ-2025-09"
+**上海**: "SH-2025-04", "SH-2025-09"
+**问题**: 8月份活动复用了其他月份的配置，配置键与实际月份不匹配
+
+### 5. 数据字段的"渐进膨胀"问题
+
+#### 5.1 CSV字段的不断增加
+**北京6月**: 29个字段
+**北京9月**: 32个字段（新增3个历史合同相关字段）
+**上海9月**: 37个字段（新增8个双轨统计字段）
+
+#### 5.2 字段处理逻辑分散
+**问题**: 每个月份的字段构建逻辑都硬编码在各自的函数中
+- 北京6月: data_processing_module.py:391-421 (30行字典构建)
+- 上海4月: data_processing_module.py:506-536 (30行字典构建)
+- 上海9月: data_processing_module.py:737-778 (40行字典构建)
+
+**影响**:
+- 无法复用字段构建逻辑
+- 新增字段需要修改多个地方
+- 字段顺序和命名容易不一致
+
+### 6. 任务编排的"通配符导入"问题
+
+#### 6.1 依赖关系不明确
+```python
+# jobs.py:4-7
+from modules.request_module import send_request_with_managed_session
+from modules.data_processing_module import *  # 导入所有
+from modules.data_utils import *              # 导入所有
+from modules.notification_module import *     # 导入所有
+```
+
+**问题**:
+- 无法静态分析依赖关系
+- IDE无法提供准确的代码补全
+- 容易出现命名冲突
+
+#### 6.2 Job函数的"复制粘贴"演进
+**模式**: 每个新月份都复制上个月份的Job函数，然后修改部分参数
+**结果**:
+- 8个几乎相同的Job函数（北京3个+上海3个+其他2个）
+- 每个函数50-100行，大部分代码重复
+- 修改通用逻辑需要改8个地方
+
+## 重构目标（基于深度分析）
+
+### 核心目标
+1. **彻底消除"伪复用"**: 停止通过全局篡改来复用不兼容的函数
+2. **建立真正的通用骨架**: 数据处理、奖励计算、通知发送的标准化流程
+3. **统一数据模型**: 管家统计结构、字段构建逻辑、配置驱动方式
+4. **消除复制粘贴演进**: Job函数、通知逻辑、字段构建的模板化
+5. **配置系统现代化**: 完全迁移到REWARD_CONFIGS，废弃旧全局变量
+
+### 具体量化目标
+- **代码行数减少40%**: 从当前~2000行核心逻辑减少到~1200行
+- **函数数量减少50%**: 合并重复的处理和通知函数
+- **配置统一度100%**: 所有差异通过REWARD_CONFIGS控制
+- **测试稳定性提升**: 消除全局副作用导致的测试不稳定
+
+## 重构策略（重新设计）
+
+### 策略调整原因
+经过深度代码分析发现，原计划的"渐进式重构"存在问题：
+1. **北京9月的复杂性**: 不仅有全局副作用，还有历史合同处理的双重逻辑
+2. **上海的数据结构差异**: 双轨统计与标准统计无法简单合并
+3. **通知逻辑的深度差异**: 不仅是模板差异，还有字段处理逻辑差异
+
+### 新策略：**"重建+迁移"**
+采用**重建核心骨架，逐步迁移**的策略：
+
+#### 阶段1：建立新骨架（2-3天）
+- 设计统一的数据处理管道
+- 建立标准的管家统计模型
+- 创建配置驱动的奖励计算器
+- 实现通用的通知生成器
+
+#### 阶段2：北京迁移（2-3天）
+- 将北京6月/8月/9月迁移到新骨架
+- 验证功能等价性
+- 删除旧的北京处理函数
+
+#### 阶段3：上海迁移（3-4天）
+- 将上海4月/8月/9月迁移到新骨架
+- 处理双轨统计的特殊需求
+- 验证功能等价性
+
+#### 阶段4：清理优化（1-2天）
+- 删除所有旧代码
+- 优化Job函数
+- 完善文档和测试
+
+### 风险控制策略
+1. **并行开发**: 新骨架与现有系统并行，不影响生产
+2. **逐个迁移**: 每次只迁移一个城市/月份，降低风险
+3. **完整验证**: 每次迁移都进行100%等价性验证
+4. **快速回滚**: 保留旧代码直到全部迁移完成
+
+## 阶段1：建立新骨架（重建核心架构）
 
 ### 目标
-将北京6月/9月的数据处理统一为一个函数，完全从`REWARD_CONFIGS`读取配置，消除全局副作用。
+设计并实现统一的数据处理管道，为所有城市/月份提供标准化的处理流程。
+
+### 核心设计原则
+1. **配置驱动**: 所有差异通过REWARD_CONFIGS控制
+2. **管道化**: 数据获取→处理→奖励计算→通知发送的标准流程
+3. **可扩展**: 新增城市/月份只需添加配置，无需修改代码
+4. **无副作用**: 纯函数设计，无全局状态修改
 
 ### 具体任务
 
-#### 1.1 创建奖励计算模块
-**新建**: `modules/rewards.py`
+#### 1.1 设计统一数据模型
+**新建**: `modules/core/data_models.py`
 
-**内容**: 从`data_processing_module.py`迁移以下函数
-- `determine_lucky_number_reward_generic()`
-- `determine_rewards_generic()`  
-- `should_enable_badge()`
-- `get_self_referral_config()`
-- `determine_self_referral_rewards()`
-
-**目的**: 将奖励算法与数据处理流程解耦
-
-#### 1.2 创建北京数据处理模块
-**新建**: `modules/processing/beijing.py`
-
-**核心函数**: 
 ```python
-def process_data_beijing(contract_data, existing_ids, hk_awards, config_key, activity_code):
-    """
-    北京数据处理统一入口
-    
-    Args:
-        contract_data: 合同数据列表
-        existing_ids: 已存在的合同ID集合
-        hk_awards: 管家历史奖励列表
-        config_key: 配置键 (如 "BJ-2025-06", "BJ-2025-09")
-        activity_code: 活动编号 (如 "BJ-JUN", "BJ-SEP")
-    
-    Returns:
-        list: 处理后的业绩数据列表
-    """
-    # 从REWARD_CONFIGS读取配置，不使用全局变量
-    limits = config.REWARD_CONFIGS[config_key]["performance_limits"]
-    cap = limits.get("single_contract_cap", 999999)
-    
-    # 统一housekeeper_key为"管家(serviceHousekeeper)"
-    # 直接写入activity_code，不后续修改
-    # 调用rewards.determine_rewards_generic()计算奖励
-    
-    return performance_data
+@dataclass
+class HousekeeperStats:
+    """标准管家统计数据结构"""
+    count: int = 0
+    total_amount: float = 0.0
+    performance_amount: float = 0.0
+    awarded: list = field(default_factory=list)
+
+    # 扩展字段（用于双轨统计等特殊需求）
+    extensions: dict = field(default_factory=dict)
+
+@dataclass
+class ProcessingConfig:
+    """处理配置数据结构"""
+    config_key: str
+    activity_code: str
+    city: str
+    housekeeper_key_format: str  # "管家" 或 "管家_服务商"
+    enable_dual_track: bool = False
+    enable_historical_contracts: bool = False
 ```
 
-#### 1.3 修改Jobs调用
-**修改**: `jobs.py`中的北京相关函数
+#### 1.2 创建统一处理管道
+**新建**: `modules/core/processing_pipeline.py`
 
-**变更前**:
 ```python
-def signing_and_sales_incentive_sep_beijing():
-    # 使用包装函数，存在全局副作用
-    processed_data = process_data_sep_beijing(...)
+class DataProcessingPipeline:
+    """统一数据处理管道"""
+
+    def __init__(self, config: ProcessingConfig):
+        self.config = config
+        self.reward_calculator = RewardCalculator(config.config_key)
+        self.record_builder = RecordBuilder(config)
+
+    def process(self, contract_data, existing_ids, hk_awards):
+        """主处理流程"""
+        # 1. 初始化管家统计
+        housekeeper_stats = self._init_housekeeper_stats(hk_awards)
+
+        # 2. 处理每个合同
+        performance_records = []
+        for contract in contract_data:
+            if self._should_skip_contract(contract, existing_ids):
+                continue
+
+            # 3. 更新管家统计
+            hk_key = self._build_housekeeper_key(contract)
+            self._update_housekeeper_stats(housekeeper_stats[hk_key], contract)
+
+            # 4. 计算奖励
+            rewards = self.reward_calculator.calculate(contract, housekeeper_stats[hk_key])
+
+            # 5. 构建记录
+            record = self.record_builder.build(contract, housekeeper_stats[hk_key], rewards)
+            performance_records.append(record)
+
+        return performance_records
 ```
 
-**变更后**:
+#### 1.3 创建配置驱动的奖励计算器
+**新建**: `modules/core/reward_calculator.py`
+
 ```python
-def signing_and_sales_incentive_sep_beijing():
-    # 直接调用统一函数，传递配置参数
-    processed_data = process_data_beijing(
-        contract_data, existing_ids, hk_awards, 
-        config_key="BJ-2025-09", 
-        activity_code="BJ-SEP"
-    )
+class RewardCalculator:
+    """配置驱动的奖励计算器"""
+
+    def __init__(self, config_key: str):
+        self.config = REWARD_CONFIGS[config_key]
+
+    def calculate(self, contract, housekeeper_stats):
+        """计算所有类型的奖励"""
+        rewards = []
+
+        # 幸运数字奖励
+        lucky_reward = self._calculate_lucky_reward(contract, housekeeper_stats)
+        if lucky_reward:
+            rewards.append(lucky_reward)
+
+        # 节节高奖励
+        tiered_reward = self._calculate_tiered_reward(housekeeper_stats)
+        if tiered_reward:
+            rewards.append(tiered_reward)
+
+        # 自引单奖励（如果启用）
+        if self.config.get("enable_self_referral"):
+            self_referral_reward = self._calculate_self_referral_reward(contract, housekeeper_stats)
+            if self_referral_reward:
+                rewards.append(self_referral_reward)
+
+        return rewards
 ```
 
-#### 1.4 删除问题代码
-**删除**: `modules/data_processing_module.py:892-914`的全局改写逻辑
+#### 1.4 创建通用通知生成器
+**新建**: `modules/core/notification_generator.py`
+
+```python
+class NotificationGenerator:
+    """通用通知生成器"""
+
+    def __init__(self, config_key: str, city: str):
+        self.config_key = config_key
+        self.city = city
+        self.awards_mapping = get_awards_mapping(config_key)
+
+    def generate_group_message(self, record):
+        """生成群通知消息"""
+        template = self._get_group_message_template()
+        return template.format(**self._prepare_template_data(record))
+
+    def generate_award_message(self, record):
+        """生成个人奖励消息"""
+        return generate_award_message(record, self.awards_mapping, self.city, self.config_key)
+
+    def _get_group_message_template(self):
+        """根据城市获取消息模板"""
+        if self.city == "BJ":
+            return BEIJING_GROUP_MESSAGE_TEMPLATE
+        elif self.city == "SH":
+            return SHANGHAI_GROUP_MESSAGE_TEMPLATE
+        else:
+            raise ValueError(f"Unsupported city: {self.city}")
+```
+
+#### 1.5 创建标准Job模板
+**新建**: `modules/core/job_template.py`
+
+```python
+def execute_incentive_job(job_config: JobConfig):
+    """标准激励Job执行模板"""
+
+    # 1. 获取数据
+    contract_data = fetch_contract_data(job_config.api_url)
+    save_to_csv_with_headers(contract_data, job_config.temp_file, job_config.columns)
+
+    # 2. 加载上下文
+    existing_ids = collect_unique_contract_ids_from_file(job_config.performance_file)
+    hk_awards = get_housekeeper_award_list(job_config.performance_file)
+
+    # 3. 数据处理
+    pipeline = DataProcessingPipeline(job_config.processing_config)
+    processed_data = pipeline.process(contract_data, existing_ids, hk_awards)
+
+    # 4. 保存结果
+    write_performance_data(job_config.performance_file, processed_data, job_config.headers)
+
+    # 5. 发送通知
+    notifier = NotificationGenerator(job_config.config_key, job_config.city)
+    send_notifications(processed_data, job_config.status_file, notifier)
+
+    # 6. 归档
+    archive_file(job_config.temp_file)
+```
 
 ### 验收标准
-- [ ] 删除全局副作用代码
-- [ ] 北京相关测试全部通过
-  - `tests/test_beijing_sep_features.py`
-  - `tests/test_beijing_sep_integration.py`
-- [ ] **等价性验证通过**
-  - [ ] 使用相同测试数据，新旧版本输出CSV 100%一致
-  - [ ] 关键字段逐行比较：合同ID、管家、累计金额、奖励类型等
-  - [ ] 通知消息格式和内容完全一致
-  - [ ] 业务逻辑计算结果一致（奖励计算、累计统计等）
-- [ ] **性能验证通过**
-  - [ ] 处理时间不超过原版本110%
-  - [ ] 内存使用不超过原版本120%
+- [ ] **新骨架设计完成**
+  - [ ] 统一数据模型定义
+  - [ ] 处理管道实现
+  - [ ] 奖励计算器实现
+  - [ ] 通知生成器实现
+- [ ] **单元测试覆盖**
+  - [ ] 每个核心组件的单元测试
+  - [ ] 测试覆盖率≥90%
+- [ ] **集成测试通过**
+  - [ ] 端到端处理流程测试
+  - [ ] 配置驱动功能测试
+- [ ] **性能基准建立**
+  - [ ] 新骨架性能不低于现有实现
+  - [ ] 内存使用合理
 
-## Sprint 2: 通知统一
+## 阶段2：北京迁移（验证新骨架）
 
 ### 目标
-创建一套通用通知入口，支持城市差异化配置，合并现有的三套通知逻辑。
+将北京6月/8月/9月的所有逻辑迁移到新骨架，验证新架构的可行性和等价性。
+
+### 迁移策略
+采用**逐个月份迁移**的方式，每次迁移一个月份并完成验证后再进行下一个。
 
 ### 具体任务
 
-#### 2.1 创建通用通知函数
-**新建**: `notify_awards_generic()`
-
-**接口设计**:
+#### 2.1 北京6月迁移（最简单，作为验证基准）
+**配置准备**:
 ```python
-def notify_awards_generic(perf_csv, status_json, config_key, group_name, campaign_contact, city):
-    """
-    通用奖励通知函数
-    
-    Args:
-        perf_csv: 业绩数据CSV文件路径
-        status_json: 发送状态JSON文件路径  
-        config_key: 配置键
-        group_name: 企微群名称
-        campaign_contact: 活动联系人
-        city: 城市标识 ("BJ"/"SH")
-    """
-    records = get_all_records_from_csv(perf_csv)
-    for record in records:
-        if record['是否发送通知'] == 'N':
-            # 生成群消息
-            msg = build_group_message(record, config_key, city)
-            create_task('send_wecom_message', group_name, msg)
-            
-            # 生成个人奖励消息
-            if record['激活奖励状态'] == '1':
-                award_msg = generate_award_message(record, get_awards_mapping(config_key), city, config_key)
-                create_task('send_wechat_message', campaign_contact, award_msg)
-            
-            # 更新状态
-            update_send_status(status_json, record['合同ID(_id)'], '发送成功')
-            record['是否发送通知'] = 'Y'
-    
-    # 保存更新后的CSV
-    update_performance_data(perf_csv, records, list(records[0].keys()))
+# 在新骨架中定义北京6月配置
+BJ_JUN_CONFIG = ProcessingConfig(
+    config_key="BJ-2025-06",
+    activity_code="BJ-JUN",
+    city="BJ",
+    housekeeper_key_format="管家",
+    enable_dual_track=False,
+    enable_historical_contracts=False
+)
 ```
 
-#### 2.2 创建消息构建函数
-**新建**: `build_group_message(record, config_key, city)`
+**迁移步骤**:
+1. 使用新的`DataProcessingPipeline`处理北京6月数据
+2. 对比新旧版本的输出结果
+3. 验证通知消息格式一致性
+4. 性能基准测试
 
-**功能**: 根据城市和配置生成差异化的群消息模板
-- 北京: 显示业绩金额信息
-- 上海: 显示转化率信息  
-- 上海9月: 额外显示双轨统计信息
-
-#### 2.3 保留薄包装函数
-保留现有的包装函数以维持向后兼容:
+#### 2.2 北京8月迁移（验证配置复用）
+**关键验证点**: 8月复用6月配置的逻辑是否正确
 ```python
-def notify_awards_sep_beijing(perf_csv, status_json):
-    return notify_awards_generic(
-        perf_csv, status_json, "BJ-2025-09", 
-        WECOM_GROUP_NAME_BJ, CAMPAIGN_CONTACT_BJ, "BJ"
-    )
-
-def notify_awards_sep_shanghai(perf_csv, status_json):
-    return notify_awards_generic(
-        perf_csv, status_json, "SH-2025-09",
-        WECOM_GROUP_NAME_SH, CAMPAIGN_CONTACT_SH, "SH"
-    )
+BJ_AUG_CONFIG = ProcessingConfig(
+    config_key="BJ-2025-06",  # 复用6月配置
+    activity_code="BJ-AUG",   # 但活动编号不同
+    city="BJ",
+    housekeeper_key_format="管家"
+)
 ```
 
-#### 2.4 清理Jobs导入
-**修改**: `jobs.py`
-- 移除通配符导入 `from modules.* import *`
-- 改为显式导入需要的函数
+**验证重点**:
+- 配置复用是否导致数据错误
+- 活动编号是否正确写入
+- 奖励计算是否与原实现一致
+
+#### 2.3 北京9月迁移（最复杂，验证特殊处理）
+**复杂性处理**:
+1. **历史合同支持**: 在新骨架中实现历史合同处理逻辑
+2. **配置差异**: 5万上限、个人顺序幸运数字、禁用徽章
+3. **双重逻辑**: 支持有/无历史合同字段的两种数据格式
+
+```python
+BJ_SEP_CONFIG = ProcessingConfig(
+    config_key="BJ-2025-09",
+    activity_code="BJ-SEP",
+    city="BJ",
+    housekeeper_key_format="管家",
+    enable_historical_contracts=True  # 特殊标记
+)
+```
+
+**关键改进**: 消除全局副作用
+- 不再修改`globals()`
+- 不再临时改写`config.PERFORMANCE_AMOUNT_CAP_BJ_FEB`
+- 所有配置从`REWARD_CONFIGS["BJ-2025-09"]`读取
+
+#### 2.4 北京Job函数统一
+**目标**: 将3个北京Job函数合并为1个通用函数
+```python
+def signing_and_sales_incentive_beijing(month: str):
+    """统一的北京激励Job函数"""
+    config_map = {
+        "jun": BJ_JUN_CONFIG,
+        "aug": BJ_AUG_CONFIG,
+        "sep": BJ_SEP_CONFIG
+    }
+
+    job_config = JobConfig(
+        processing_config=config_map[month],
+        api_url=get_api_url("BJ", month),
+        performance_file=get_performance_file("BJ", month),
+        # ... 其他配置
+    )
+
+    return execute_incentive_job(job_config)
+```
 
 ### 验收标准
-- [ ] 合并三套通知逻辑为一套
-- [ ] 上海通知相关测试通过
-  - `tests/test_shanghai_sep_notification.py`
-- [ ] **通知等价性验证通过**
-  - [ ] 群通知消息格式100%一致
-  - [ ] 个人奖励消息内容100%一致
-  - [ ] 徽章显示逻辑正确
-  - [ ] 特殊字符和emoji处理一致
-- [ ] **并行验证通过**
-  - [ ] 新旧版本并行运行1周，结果100%一致
-  - [ ] 通知发送成功率≥99%
+- [ ] **北京6月迁移完成**
+  - [ ] 数据输出100%等价
+  - [ ] 通知消息100%等价
+  - [ ] 性能不降级
+- [ ] **北京8月迁移完成**
+  - [ ] 配置复用逻辑正确
+  - [ ] 活动编号正确
+  - [ ] 等价性验证通过
+- [ ] **北京9月迁移完成**
+  - [ ] 历史合同处理正确
+  - [ ] 消除全局副作用
+  - [ ] 双重逻辑支持
+  - [ ] 等价性验证通过
+- [ ] **Job函数统一**
+  - [ ] 3个Job函数合并为1个
+  - [ ] 代码行数减少60%+
+  - [ ] 所有北京测试通过
+- [ ] **旧代码清理**
+  - [ ] 删除`process_data_jun_beijing`
+  - [ ] 删除`process_data_sep_beijing`
+  - [ ] 删除全局副作用代码
 
-## Sprint 3: 上海链路对齐
+## 阶段3：上海迁移（处理复杂差异）
 
 ### 目标
-将上海4月/9月切换到统一骨架，创建通用的记录构建器。
+将上海4月/8月/9月迁移到新骨架，重点处理双轨统计和housekeeper_key差异。
+
+### 迁移挑战
+1. **housekeeper_key差异**: 上海使用"管家_服务商"，北京使用"管家"
+2. **双轨统计**: 上海9月的平台单/自引单分类统计
+3. **字段差异**: 上海有8个额外的统计字段
+4. **通知模板差异**: 转化率显示、双轨信息展示
 
 ### 具体任务
 
-#### 3.1 创建上海数据处理模块
-**新建**: `modules/processing/shanghai.py`
-
-**核心函数**:
+#### 3.1 上海4月迁移（基准验证）
+**配置设计**:
 ```python
-def process_data_shanghai(contract_data, existing_ids, hk_awards, config_key, activity_code, dual_track=False):
-    """
-    上海数据处理统一入口
-    
-    Args:
-        dual_track: 是否启用双轨处理 (上海9月为True)
-    """
-    # dual_track=True时，维护platform/self_referral两套统计
-    # dual_track=False时，使用标准统计逻辑
-    # housekeeper_key使用"管家_服务商"格式
+SH_APR_CONFIG = ProcessingConfig(
+    config_key="SH-2025-04",
+    activity_code="SH-APR",
+    city="SH",
+    housekeeper_key_format="管家_服务商",  # 关键差异
+    enable_dual_track=False
+)
 ```
 
-#### 3.2 创建记录构建器
-**新建**: `modules/record_builder.py`
+**关键验证**:
+- housekeeper_key格式是否正确处理
+- 转化率字段是否正确计算
+- 通知消息模板是否匹配
 
-**功能**: 统一记录构建逻辑，支持扩展字段
+#### 3.2 上海8月迁移（复用验证）
+**配置复用**:
 ```python
-def build_performance_record_base(contract, hk_data, activity_code, ...):
-    """构建基础业绩记录 (北京/上海通用字段)"""
-    
-def extend_shanghai_sep_fields(base_record, hk_data, ...):
-    """扩展上海9月特有字段"""
+SH_AUG_CONFIG = ProcessingConfig(
+    config_key="SH-2025-04",  # 复用4月配置
+    activity_code="SH-AUG",   # 但活动编号不同
+    city="SH",
+    housekeeper_key_format="管家_服务商"
+)
 ```
 
-#### 3.3 统一管家数据结构
-定义标准的管家统计数据结构:
-```python
-# 必须字段 (rewards.determine_rewards_generic所需)
-required_fields = ['count', 'total_amount', 'performance_amount', 'awarded']
+#### 3.3 上海9月迁移（双轨统计）
+**最复杂的迁移**: 需要处理双轨统计逻辑
 
-# 扩展字段 (用于分类统计)
-extended_fields = ['platform_count', 'platform_amount', 'self_referral_count', 'self_referral_amount']
+**扩展数据模型**:
+```python
+@dataclass
+class ShanghaiHousekeeperStats(HousekeeperStats):
+    """上海9月扩展的管家统计"""
+    platform_count: int = 0
+    platform_amount: float = 0.0
+    self_referral_count: int = 0
+    self_referral_amount: float = 0.0
+    self_referral_projects: set = field(default_factory=set)
+    self_referral_rewards: int = 0
+```
+
+**双轨处理逻辑**:
+```python
+class ShanghaiDualTrackProcessor:
+    """上海双轨统计处理器"""
+
+    def process_contract(self, contract, housekeeper_stats):
+        source_type = contract.get('款项来源类型(tradeIn)', 0)
+
+        if source_type == 1:  # 自引单
+            self._process_self_referral(contract, housekeeper_stats)
+        else:  # 平台单
+            self._process_platform_order(contract, housekeeper_stats)
+```
+
+**字段扩展**:
+```python
+class ShanghaiRecordBuilder(RecordBuilder):
+    """上海记录构建器，支持双轨字段"""
+
+    def build(self, contract, housekeeper_stats, rewards):
+        base_record = super().build(contract, housekeeper_stats, rewards)
+
+        if self.config.enable_dual_track:
+            # 添加8个双轨统计字段
+            base_record.update({
+                '工单类型': '自引单' if contract.get('款项来源类型(tradeIn)') == 1 else '平台单',
+                '平台单累计数量': housekeeper_stats.platform_count,
+                '平台单累计金额': housekeeper_stats.platform_amount,
+                # ... 其他6个字段
+            })
+
+        return base_record
+```
+
+#### 3.4 上海通知统一
+**合并三套通知逻辑**:
+1. `notify_awards_shanghai_generate_message_march` (旧版)
+2. `notify_awards_shanghai_generic` (新版)
+3. 8月复用的逻辑
+
+**统一为**:
+```python
+class ShanghaiNotificationGenerator(NotificationGenerator):
+    """上海通知生成器"""
+
+    def generate_group_message(self, record):
+        template = self._get_shanghai_template()
+        data = self._prepare_shanghai_data(record)
+
+        # 处理双轨统计显示
+        if self._has_dual_track_fields(record):
+            data.update(self._prepare_dual_track_data(record))
+
+        return template.format(**data)
 ```
 
 ### 验收标准
-- [ ] 上海4月/9月使用统一处理骨架
-- [ ] 所有上海相关测试通过
-- [ ] **全量等价性验证通过**
-  - [ ] 所有城市/活动的数据输出100%一致
-  - [ ] 双轨统计逻辑验证通过（上海9月）
-  - [ ] 自引单奖励计算验证通过
-  - [ ] 历史数据兼容性验证通过
-- [ ] **系统集成验证通过**
-  - [ ] 端到端测试全部通过
-  - [ ] 性能基准测试通过
-  - [ ] 记录构建逻辑统一，代码复用度提高50%+
+- [ ] **上海4月迁移完成**
+  - [ ] housekeeper_key格式正确
+  - [ ] 转化率计算正确
+  - [ ] 通知消息等价
+- [ ] **上海8月迁移完成**
+  - [ ] 配置复用正确
+  - [ ] 等价性验证通过
+- [ ] **上海9月迁移完成**
+  - [ ] 双轨统计逻辑正确
+  - [ ] 8个扩展字段正确
+  - [ ] 自引单奖励计算正确
+  - [ ] 通知消息包含双轨信息
+- [ ] **通知逻辑统一**
+  - [ ] 三套通知逻辑合并为一套
+  - [ ] 消息格式100%等价
+- [ ] **全量验证通过**
+  - [ ] 所有上海测试通过
+  - [ ] 端到端集成测试通过
+
+## 阶段4：清理优化（完善收尾）
+
+### 目标
+删除所有旧代码，优化Job函数，完善文档和测试。
+
+### 具体任务
+
+#### 4.1 旧代码清理
+**删除文件/函数**:
+- `process_data_jun_beijing`
+- `process_data_shanghai_apr`
+- `process_data_shanghai_sep`
+- `process_data_sep_beijing_with_historical_support`
+- 所有全局副作用相关代码
+
+#### 4.2 Job函数优化
+**统一所有Job函数**:
+```python
+def execute_monthly_incentive(city: str, month: str):
+    """统一的月度激励执行函数"""
+    config = get_monthly_config(city, month)
+    return execute_incentive_job(config)
+
+# 替换所有具体的Job函数
+signing_and_sales_incentive_jun_beijing = lambda: execute_monthly_incentive("BJ", "jun")
+signing_and_sales_incentive_sep_shanghai = lambda: execute_monthly_incentive("SH", "sep")
+```
+
+#### 4.3 配置系统清理
+**删除旧配置变量**:
+- `PERFORMANCE_AMOUNT_CAP_BJ_FEB`
+- `ENABLE_PERFORMANCE_AMOUNT_CAP_BJ_FEB`
+- `SINGLE_PROJECT_CONTRACT_AMOUNT_LIMIT_BJ_FEB`
+
+**统一到REWARD_CONFIGS**
+
+#### 4.4 测试完善
+- 新增新骨架的单元测试
+- 更新集成测试
+- 添加性能回归测试
+
+### 验收标准
+- [ ] **代码行数减少40%+**
+- [ ] **函数数量减少50%+**
+- [ ] **所有测试通过**
+- [ ] **性能不降级**
+- [ ] **文档更新完成**
 
 ## 实施计划
 
-### 时间安排
-- **Sprint 1**: 3-4个工作日 (包含1天等价性验证)
-- **Sprint 2**: 3-4个工作日 (包含1天并行验证)
-- **Sprint 3**: 4-5个工作日 (包含2天全量验证)
+### 时间安排（基于新策略）
+- **阶段1 - 建立新骨架**: 2-3个工作日
+- **阶段2 - 北京迁移**: 2-3个工作日 (逐个月份迁移验证)
+- **阶段3 - 上海迁移**: 3-4个工作日 (处理双轨统计复杂性)
+- **阶段4 - 清理优化**: 1-2个工作日
 - **影子模式运行**: 1周 (新旧版本并行，验证等价性)
 - **灰度发布**: 1周 (部分活动试运行)
 - **全量上线**: 1周 (全部切换，监控稳定性)
