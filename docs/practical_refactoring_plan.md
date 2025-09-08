@@ -169,33 +169,277 @@ housekeeper_award_lists = get_housekeeper_award_list(filename)
 ```
 **问题**: 性能差、代码重复、内存占用高
 
+## 高层架构设计（C4模型）
+
+### 1. 系统上下文图（C1 - System Context）
+
+```mermaid
+graph TB
+    User[运营人员] --> System[签约激励系统]
+    System --> Metabase[Metabase数据源]
+    System --> WeChat[企微通知]
+    System --> WeCom[微信个人通知]
+    System --> FileSystem[文件系统]
+    System --> Database[(SQLite数据库)]
+
+    User -.-> |查看报表| Metabase
+    User -.-> |接收通知| WeChat
+    User -.-> |接收奖励消息| WeCom
+```
+
+### 2. 容器图（C2 - Container）
+
+```mermaid
+graph TB
+    subgraph "签约激励系统"
+        JobScheduler[任务调度器<br/>Python]
+        ProcessingEngine[数据处理引擎<br/>Python]
+        NotificationEngine[通知引擎<br/>Python]
+        ConfigManager[配置管理器<br/>Python]
+        Database[(SQLite数据库)]
+        FileStorage[文件存储<br/>CSV/Archive]
+    end
+
+    External[外部系统] --> JobScheduler
+    JobScheduler --> ProcessingEngine
+    ProcessingEngine --> Database
+    ProcessingEngine --> NotificationEngine
+    ProcessingEngine --> ConfigManager
+    NotificationEngine --> WeChat[企微API]
+    NotificationEngine --> WeCom[微信API]
+    ProcessingEngine --> FileStorage
+
+    Metabase[Metabase API] --> ProcessingEngine
+```
+
+### 3. 组件图（C3 - Component）
+
+```mermaid
+graph TB
+    subgraph "数据处理引擎"
+        Pipeline[ProcessingPipeline<br/>处理管道]
+        DataStore[PerformanceDataStore<br/>存储抽象层]
+        RewardCalc[RewardCalculator<br/>奖励计算器]
+        RecordBuilder[RecordBuilder<br/>记录构建器]
+    end
+
+    subgraph "存储层"
+        SQLiteStore[SQLiteDataStore<br/>SQLite实现]
+        CSVStore[CSVDataStore<br/>CSV实现]
+        Database[(SQLite数据库)]
+        Files[CSV文件]
+    end
+
+    subgraph "配置层"
+        ConfigManager[ConfigManager<br/>配置管理]
+        RewardConfigs[REWARD_CONFIGS<br/>奖励配置]
+    end
+
+    Pipeline --> DataStore
+    Pipeline --> RewardCalc
+    Pipeline --> RecordBuilder
+    DataStore --> SQLiteStore
+    DataStore --> CSVStore
+    SQLiteStore --> Database
+    CSVStore --> Files
+    RewardCalc --> ConfigManager
+    ConfigManager --> RewardConfigs
+```
+
+### 4. 核心对象模型
+
+#### 4.1 领域对象设计
+
+```python
+# 核心领域对象
+@dataclass
+class Contract:
+    """合同领域对象"""
+    id: str
+    amount: float
+    housekeeper: str
+    service_provider: str
+    activity_code: str
+    order_type: OrderType  # PLATFORM, SELF_REFERRAL
+    signed_date: datetime
+    project_address: str
+
+    def is_historical(self) -> bool:
+        """判断是否为历史合同"""
+        return hasattr(self, 'pc_contract_num') and self.pc_contract_num
+
+@dataclass
+class HousekeeperStats:
+    """管家统计领域对象"""
+    housekeeper: str
+    activity_code: str
+    count: int = 0
+    total_amount: float = 0.0
+    performance_amount: float = 0.0
+    awarded_rewards: List[str] = field(default_factory=list)
+
+    # 双轨统计扩展
+    platform_stats: Optional[TrackStats] = None
+    self_referral_stats: Optional[TrackStats] = None
+
+@dataclass
+class TrackStats:
+    """轨道统计对象（平台单/自引单）"""
+    count: int = 0
+    amount: float = 0.0
+    projects: Set[str] = field(default_factory=set)
+
+@dataclass
+class Reward:
+    """奖励领域对象"""
+    type: str
+    name: str
+    amount: float
+    reason: str
+
+@dataclass
+class ProcessingConfig:
+    """处理配置对象"""
+    config_key: str
+    activity_code: str
+    city: CityCode
+    housekeeper_key_format: HousekeeperKeyFormat
+    storage_type: StorageType = StorageType.SQLITE
+    enable_dual_track: bool = False
+    enable_historical_contracts: bool = False
+```
+
+#### 4.2 枚举类型定义
+
+```python
+from enum import Enum
+
+class CityCode(Enum):
+    BEIJING = "BJ"
+    SHANGHAI = "SH"
+
+class OrderType(Enum):
+    PLATFORM = "platform"
+    SELF_REFERRAL = "self_referral"
+
+class HousekeeperKeyFormat(Enum):
+    HOUSEKEEPER_ONLY = "housekeeper"  # 北京：管家
+    HOUSEKEEPER_PROVIDER = "housekeeper_provider"  # 上海：管家_服务商
+
+class StorageType(Enum):
+    SQLITE = "sqlite"
+    CSV = "csv"
+```
+
 ## 解决方案：重建+SQLite
 
-### 核心设计
-1. **存储抽象层**: 支持SQLite和CSV两种实现
-2. **数据库驱动**: 用SQL查询替代复杂的内存计算
-3. **配置驱动**: 所有差异通过REWARD_CONFIGS控制
-4. **管道化**: 标准化的数据处理流程
-5. **彻底消除"伪复用"**: 停止通过全局篡改来复用不兼容的函数
+### 核心设计原则
+1. **领域驱动设计**: 明确的领域对象和业务概念
+2. **存储抽象层**: 支持SQLite和CSV两种实现
+3. **数据库驱动**: 用SQL查询替代复杂的内存计算
+4. **配置驱动**: 所有差异通过REWARD_CONFIGS控制
+5. **管道化**: 标准化的数据处理流程
+6. **彻底消除"伪复用"**: 停止通过全局篡改来复用不兼容的函数
 
 ## 阶段1：建立新骨架+SQLite（3-4天）
 
-### 1.1 创建存储抽象层
+### 1.1 实现领域对象模型
+**新建**: `modules/core/domain_models.py`
+
+```python
+from dataclasses import dataclass, field
+from typing import List, Set, Optional
+from enum import Enum
+from datetime import datetime
+
+class CityCode(Enum):
+    BEIJING = "BJ"
+    SHANGHAI = "SH"
+
+class OrderType(Enum):
+    PLATFORM = "platform"
+    SELF_REFERRAL = "self_referral"
+
+@dataclass
+class Contract:
+    """合同领域对象 - 统一所有城市的合同表示"""
+    id: str
+    amount: float
+    housekeeper: str
+    service_provider: str
+    activity_code: str
+    order_type: OrderType
+    signed_date: datetime
+    project_address: str
+
+    def is_historical(self) -> bool:
+        """北京9月历史合同判断"""
+        return hasattr(self, 'pc_contract_num') and self.pc_contract_num
+
+    def get_housekeeper_key(self, format_type: str) -> str:
+        """根据城市生成管家键"""
+        if format_type == "housekeeper_provider":
+            return f"{self.housekeeper}_{self.service_provider}"
+        return self.housekeeper
+
+@dataclass
+class HousekeeperStats:
+    """管家统计领域对象 - 替代复杂的字典结构"""
+    housekeeper: str
+    activity_code: str
+    count: int = 0
+    total_amount: float = 0.0
+    performance_amount: float = 0.0
+    awarded_rewards: List[str] = field(default_factory=list)
+
+    # 双轨统计扩展（上海9月）
+    platform_count: int = 0
+    platform_amount: float = 0.0
+    self_referral_count: int = 0
+    self_referral_amount: float = 0.0
+    self_referral_projects: Set[str] = field(default_factory=set)
+
+@dataclass
+class ProcessingConfig:
+    """处理配置对象 - 替代硬编码的配置"""
+    config_key: str
+    activity_code: str
+    city: CityCode
+    housekeeper_key_format: str
+    storage_type: str = "sqlite"
+    enable_dual_track: bool = False
+    enable_historical_contracts: bool = False
+```
+
+### 1.2 创建存储抽象层
 **新建**: `modules/core/storage.py`
 
 ```python
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from .domain_models import Contract, HousekeeperStats
+
 class PerformanceDataStore(ABC):
+    """存储抽象层 - 支持多种存储实现"""
+
     @abstractmethod
     def contract_exists(self, contract_id: str, activity_code: str) -> bool:
         """检查合同是否已存在"""
         pass
-    
+
     @abstractmethod
-    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> Dict:
+    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """获取管家累计统计 - 替代复杂的内存计算"""
         pass
 
+    @abstractmethod
+    def save_contract(self, contract: Contract, rewards: List[Reward]) -> None:
+        """保存合同和奖励信息"""
+        pass
+
 class SQLitePerformanceDataStore(PerformanceDataStore):
+    """SQLite实现 - 大幅简化累计计算"""
+
     def contract_exists(self, contract_id: str, activity_code: str) -> bool:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
@@ -203,18 +447,36 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 (contract_id, activity_code)
             )
             return cursor.fetchone() is not None
-    
-    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> Dict:
+
+    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
+        """一条SQL替代50+行累计计算代码"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as count,
                     SUM(contract_amount) as total_amount,
-                    SUM(performance_amount) as performance_amount
-                FROM performance_data 
+                    SUM(performance_amount) as performance_amount,
+                    -- 双轨统计
+                    SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END) as platform_count,
+                    SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END) as platform_amount,
+                    SUM(CASE WHEN order_type = 'self_referral' THEN 1 ELSE 0 END) as self_referral_count,
+                    SUM(CASE WHEN order_type = 'self_referral' THEN contract_amount ELSE 0 END) as self_referral_amount
+                FROM performance_data
                 WHERE housekeeper = ? AND activity_code = ?
             """, (housekeeper, activity_code))
-            # 一条SQL替代50+行累计计算代码
+
+            result = cursor.fetchone()
+            return HousekeeperStats(
+                housekeeper=housekeeper,
+                activity_code=activity_code,
+                count=result[0],
+                total_amount=result[1],
+                performance_amount=result[2],
+                platform_count=result[3],
+                platform_amount=result[4],
+                self_referral_count=result[5],
+                self_referral_amount=result[6]
+            )
 ```
 
 ### 1.2 设计数据库Schema
@@ -242,66 +504,297 @@ CREATE INDEX idx_housekeeper_activity ON performance_data(housekeeper, activity_
 CREATE INDEX idx_contract_lookup ON performance_data(contract_id, activity_code);
 ```
 
-### 1.3 创建处理管道
+### 1.4 创建处理管道
 **新建**: `modules/core/processing_pipeline.py`
 
 ```python
+from typing import List
+from .domain_models import Contract, ProcessingConfig, HousekeeperStats
+from .storage import PerformanceDataStore
+from .reward_calculator import RewardCalculator
+from .contract_mapper import ContractMapper
+
 class DataProcessingPipeline:
+    """统一数据处理管道 - 替代8个重复的Job函数"""
+
     def __init__(self, config: ProcessingConfig, store: PerformanceDataStore):
         self.config = config
         self.store = store
         self.reward_calculator = RewardCalculator(config.config_key)
-    
-    def process(self, contract_data):
-        """大幅简化的处理流程"""
-        performance_records = []
-        
-        for contract in contract_data:
-            contract_id = str(contract['合同ID(_id)'])
-            
-            # 1. 数据库去重 - 替代CSV文件扫描
-            if self.store.contract_exists(contract_id, self.config.activity_code):
+        self.contract_mapper = ContractMapper(config.city)
+
+    def process(self, raw_contract_data: List[dict]) -> List[dict]:
+        """统一处理流程 - 消除城市间的重复逻辑"""
+        processed_records = []
+
+        for raw_contract in raw_contract_data:
+            # 1. 原始数据映射为领域对象
+            contract = self.contract_mapper.map_to_domain(raw_contract, self.config.activity_code)
+
+            # 2. 数据库去重查询 - 替代CSV文件扫描
+            if self.store.contract_exists(contract.id, contract.activity_code):
                 continue
-            
-            # 2. 数据库聚合查询 - 替代复杂内存计算
-            housekeeper = self._build_housekeeper_key(contract)
-            hk_stats = self.store.get_housekeeper_stats(housekeeper, self.config.activity_code)
-            
-            # 3. 计算奖励
+
+            # 3. 数据库聚合查询 - 替代复杂内存计算
+            housekeeper_key = contract.get_housekeeper_key(self.config.housekeeper_key_format)
+            hk_stats = self.store.get_housekeeper_stats(housekeeper_key, contract.activity_code)
+
+            # 4. 奖励计算 - 配置驱动
             rewards = self.reward_calculator.calculate(contract, hk_stats)
-            
-            # 4. 保存记录
-            record = self._build_record(contract, hk_stats, rewards)
-            self.store.save_performance_record(record)
-            performance_records.append(record)
-        
-        return performance_records
+
+            # 5. 保存到存储层
+            self.store.save_contract(contract, rewards)
+
+            # 6. 构建输出记录
+            record = self._build_output_record(contract, hk_stats, rewards)
+            processed_records.append(record)
+
+        return processed_records
+
+    def _build_output_record(self, contract: Contract, stats: HousekeeperStats, rewards: List[Reward]) -> dict:
+        """构建输出记录 - 统一字段格式"""
+        base_record = {
+            '活动编号': contract.activity_code,
+            '合同ID(_id)': contract.id,
+            '管家(serviceHousekeeper)': contract.housekeeper,
+            '合同金额(adjustRefundMoney)': contract.amount,
+            '管家累计单数': stats.count + 1,  # +1 因为包含当前合同
+            '管家累计金额': stats.total_amount + contract.amount,
+            '奖励类型': ', '.join([r.type for r in rewards]),
+            '奖励名称': ', '.join([r.name for r in rewards]),
+            '激活奖励状态': 1 if rewards else 0
+        }
+
+        # 城市特定字段扩展
+        if self.config.enable_dual_track:
+            base_record.update({
+                '工单类型': '自引单' if contract.order_type == OrderType.SELF_REFERRAL else '平台单',
+                '平台单累计数量': stats.platform_count,
+                '平台单累计金额': stats.platform_amount,
+                '自引单累计数量': stats.self_referral_count,
+                '自引单累计金额': stats.self_referral_amount
+            })
+
+        return base_record
+```
+
+### 1.5 创建奖励计算器
+**新建**: `modules/core/reward_calculator.py`
+
+```python
+from typing import List
+from .domain_models import Contract, HousekeeperStats, Reward
+from modules.config import REWARD_CONFIGS
+
+class RewardCalculator:
+    """配置驱动的奖励计算器 - 替代硬编码的奖励逻辑"""
+
+    def __init__(self, config_key: str):
+        self.config = REWARD_CONFIGS[config_key]
+        self.config_key = config_key
+
+    def calculate(self, contract: Contract, hk_stats: HousekeeperStats) -> List[Reward]:
+        """计算所有类型的奖励"""
+        rewards = []
+
+        # 幸运数字奖励
+        lucky_reward = self._calculate_lucky_reward(contract, hk_stats)
+        if lucky_reward:
+            rewards.append(lucky_reward)
+
+        # 节节高奖励
+        tiered_reward = self._calculate_tiered_reward(hk_stats)
+        if tiered_reward:
+            rewards.append(tiered_reward)
+
+        # 自引单奖励（上海9月）
+        if self.config.get("self_referral_rewards", {}).get("enable", False):
+            self_referral_reward = self._calculate_self_referral_reward(contract, hk_stats)
+            if self_referral_reward:
+                rewards.append(self_referral_reward)
+
+        return rewards
+
+    def _calculate_lucky_reward(self, contract: Contract, hk_stats: HousekeeperStats) -> Optional[Reward]:
+        """幸运数字奖励计算 - 支持合同尾号和个人顺序两种模式"""
+        lucky_config = self.config.get("lucky_rewards", {})
+        if not lucky_config:
+            return None
+
+        lucky_number = self.config.get("lucky_number", "")
+        if not lucky_number:
+            return None
+
+        mode = self.config.get("lucky_number_mode", "contract_tail")
+
+        if mode == "personal_sequence":
+            # 北京9月：个人签约顺序模式
+            personal_sequence = hk_stats.count + 1
+            if personal_sequence % int(lucky_number) == 0:
+                return Reward(
+                    type="幸运数字",
+                    name=lucky_config["base"]["name"],
+                    amount=float(self.config["awards_mapping"][lucky_config["base"]["name"]]),
+                    reason=f"个人第{personal_sequence}个合同"
+                )
+        else:
+            # 传统模式：合同编号尾号
+            if contract.id.endswith(lucky_number):
+                reward_key = "high" if contract.amount >= lucky_config["high"]["threshold"] else "base"
+                reward_name = lucky_config[reward_key]["name"]
+                return Reward(
+                    type="幸运数字",
+                    name=reward_name,
+                    amount=float(self.config["awards_mapping"][reward_name]),
+                    reason=f"合同编号尾号{lucky_number}"
+                )
+
+        return None
+```
+
+### 1.6 架构对比：重构前 vs 重构后
+
+#### 重构前的问题架构
+```mermaid
+graph TB
+    subgraph "当前问题架构"
+        Job1[北京6月Job] --> Process1[process_data_jun_beijing]
+        Job2[北京8月Job] --> Process1
+        Job3[北京9月Job] --> Wrapper[process_data_sep_beijing包装]
+        Wrapper --> |全局篡改| Process1
+        Wrapper --> |历史合同| Process2[process_data_sep_beijing_with_historical_support]
+
+        Job4[上海4月Job] --> Process3[process_data_shanghai_apr]
+        Job5[上海8月Job] --> Process3
+        Job6[上海9月Job] --> Process4[process_data_shanghai_sep]
+
+        Process1 --> |硬编码| Config1[全局变量]
+        Process3 --> |硬编码| Config1
+        Process4 --> |硬编码| Config2[REWARD_CONFIGS]
+
+        Process1 --> |复杂内存计算| Memory[housekeeper_contracts字典]
+        Process3 --> |复杂内存计算| Memory
+        Process4 --> |复杂内存计算| Memory2[扩展字典+双轨统计]
+
+        Memory --> CSV[CSV文件读写]
+        Memory2 --> CSV
+    end
+
+    style Wrapper fill:#ffcccc
+    style Memory fill:#ffcccc
+    style Memory2 fill:#ffcccc
+    style Config1 fill:#ffcccc
+```
+
+#### 重构后的目标架构
+```mermaid
+graph TB
+    subgraph "目标统一架构"
+        JobTemplate[统一Job模板] --> Pipeline[DataProcessingPipeline]
+        Pipeline --> Store[PerformanceDataStore抽象层]
+        Pipeline --> Calculator[RewardCalculator]
+        Pipeline --> Mapper[ContractMapper]
+
+        Store --> SQLite[SQLiteDataStore]
+        Store --> CSV[CSVDataStore]
+        SQLite --> DB[(SQLite数据库)]
+        CSV --> Files[CSV文件]
+
+        Calculator --> Config[REWARD_CONFIGS统一配置]
+        Mapper --> DomainModel[Contract领域对象]
+
+        Pipeline --> Stats[HousekeeperStats领域对象]
+        Stats --> |SQL聚合查询| DB
+    end
+
+    style Pipeline fill:#ccffcc
+    style Store fill:#ccffcc
+    style Config fill:#ccffcc
+    style DomainModel fill:#ccffcc
 ```
 
 ### 验收标准
-- [ ] 存储抽象层完成，支持SQLite和CSV
-- [ ] 数据库Schema设计完成
-- [ ] 处理管道实现完成
-- [ ] 单元测试覆盖率≥90%
+- [ ] **领域对象模型完成**
+  - [ ] Contract、HousekeeperStats等核心对象
+  - [ ] 枚举类型定义
+  - [ ] 对象行为方法实现
+- [ ] **存储抽象层完成**
+  - [ ] 抽象接口设计
+  - [ ] SQLite和CSV两种实现
+  - [ ] 配置驱动的存储选择
+- [ ] **处理管道实现**
+  - [ ] 统一的处理流程
+  - [ ] 领域对象映射
+  - [ ] 配置驱动的差异处理
+- [ ] **架构验证**
+  - [ ] 组件间依赖关系清晰
+  - [ ] 单一职责原则
+  - [ ] 开闭原则（扩展性）
+- [ ] **单元测试覆盖率≥90%**
 
 ## 阶段2：北京迁移（2-3天）
 
 ### 2.1 北京6月迁移（基准验证）
+
+#### 配置对象化
 ```python
-# 配置
+# 新的配置对象 - 替代硬编码
 BJ_JUN_CONFIG = ProcessingConfig(
     config_key="BJ-2025-06",
     activity_code="BJ-JUN",
-    city="BJ",
-    housekeeper_key_format="管家",
-    storage_type="sqlite"
+    city=CityCode.BEIJING,
+    housekeeper_key_format="housekeeper",
+    storage_type="sqlite",
+    enable_dual_track=False,
+    enable_historical_contracts=False
 )
+```
 
-# 新的Job函数
+#### 架构迁移对比
+```mermaid
+graph LR
+    subgraph "迁移前"
+        OldJob[signing_and_sales_incentive_jun_beijing] --> OldProcess[process_data_jun_beijing]
+        OldProcess --> |硬编码| OldConfig[全局变量]
+        OldProcess --> |复杂计算| OldMemory[housekeeper_contracts字典]
+        OldMemory --> OldCSV[CSV读写]
+    end
+
+    subgraph "迁移后"
+        NewJob[signing_and_sales_incentive_jun_beijing] --> Pipeline[DataProcessingPipeline]
+        Pipeline --> Store[SQLiteDataStore]
+        Pipeline --> Calculator[RewardCalculator]
+        Calculator --> NewConfig[REWARD_CONFIGS]
+        Store --> DB[(SQLite数据库)]
+    end
+
+    OldJob -.->|重构| NewJob
+    style Pipeline fill:#ccffcc
+    style Store fill:#ccffcc
+```
+
+#### 新的Job函数实现
+```python
 def signing_and_sales_incentive_jun_beijing():
-    pipeline = DataProcessingPipeline(BJ_JUN_CONFIG, SQLitePerformanceDataStore())
-    processed_data = pipeline.process(contract_data)
-    # 消除全局副作用，消除复杂累计计算
+    """重构后的北京6月Job - 使用统一架构"""
+    # 1. 配置对象化
+    config = BJ_JUN_CONFIG
+    store = SQLitePerformanceDataStore("performance.db")
+
+    # 2. 统一处理管道
+    pipeline = DataProcessingPipeline(config, store)
+
+    # 3. 获取原始数据
+    raw_data = fetch_contract_data_from_metabase(config.api_url)
+
+    # 4. 处理数据 - 消除全局副作用和复杂计算
+    processed_data = pipeline.process(raw_data)
+
+    # 5. 通知发送
+    notification_engine = NotificationEngine(config)
+    notification_engine.send_notifications(processed_data)
+
+    return processed_data
 ```
 
 ### 2.2 北京9月迁移（消除全局副作用）
