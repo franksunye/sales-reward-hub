@@ -58,6 +58,12 @@ class ConfigAdapter:
             return cls._get_beijing_june_config()
         elif config_key == "BJ-2025-09":
             return cls._get_beijing_september_config()
+        elif config_key == "SH-2025-04":
+            return cls._get_shanghai_april_config()
+        elif config_key == "SH-2025-08":
+            return cls._get_shanghai_august_config()
+        elif config_key == "SH-2025-09":
+            return cls._get_shanghai_september_config()
         elif "SH" in config_key:
             return cls._get_shanghai_default_config()
         else:
@@ -100,11 +106,8 @@ class ConfigAdapter:
     def _get_shanghai_default_config(cls) -> Dict:
         """上海默认配置"""
         return {
-            "lucky_number": "8",
-            "lucky_rewards": {
-                "base": {"name": "接好运", "threshold": 0},
-                "high": {"name": "接好运万元以上", "threshold": 10000}
-            },
+            "lucky_number": "",  # 上海没有幸运数字
+            "lucky_rewards": {},  # 上海没有幸运数字奖励
             "tiered_rewards": {
                 "min_contracts": 6,
                 "tiers": [
@@ -129,7 +132,37 @@ class ConfigAdapter:
             },
             "enable_rising_star_badge": False  # 上海技师不参与徽章系统
         }
-    
+
+    @classmethod
+    def _get_shanghai_april_config(cls) -> Dict:
+        """上海4月配置"""
+        config = cls._get_shanghai_default_config().copy()
+        config.update({
+            "enable_dual_track": False,  # 4月还没有双轨统计
+            "enable_self_referral": False  # 4月还没有自引单奖励
+        })
+        return config
+
+    @classmethod
+    def _get_shanghai_august_config(cls) -> Dict:
+        """上海8月配置"""
+        config = cls._get_shanghai_default_config().copy()
+        config.update({
+            "enable_dual_track": False,  # 8月还没有双轨统计
+            "enable_self_referral": False  # 8月还没有自引单奖励
+        })
+        return config
+
+    @classmethod
+    def _get_shanghai_september_config(cls) -> Dict:
+        """上海9月配置（双轨统计）"""
+        config = cls._get_shanghai_default_config().copy()
+        config.update({
+            "enable_dual_track": True,  # 9月开始双轨统计
+            "enable_self_referral": True  # 9月开始自引单奖励
+        })
+        return config
+
     @classmethod
     def _get_generic_default_config(cls) -> Dict:
         """通用默认配置"""
