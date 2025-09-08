@@ -50,7 +50,6 @@ class DataProcessingPipeline:
                 
                 # 2. 数据库去重查询 - 替代复杂的CSV读取
                 if self.store.contract_exists(contract_data.contract_id, self.config.activity_code):
-                    logging.debug(f"Skipping existing contract: {contract_data.contract_id}")
                     skipped_count += 1
                     continue
                 
