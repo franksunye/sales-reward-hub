@@ -66,12 +66,12 @@ class RewardCalculator:
         lucky_config = self.config.get("lucky_rewards")
         if not lucky_config:
             return None
-        
+
         lucky_number = self.config.get("lucky_number", "8")
         contract_amount = contract_data.contract_amount
-        
-        # 检查合同编号是否包含幸运数字
-        if not self._contains_lucky_number(contract_data.contract_id, lucky_number):
+
+        # 检查是否符合幸运数字条件
+        if not self._is_lucky_contract(contract_data, housekeeper_stats, lucky_number):
             return None
         
         # 根据合同金额确定奖励类型
@@ -142,32 +142,32 @@ class RewardCalculator:
             description=f"自引单项目地址: {project_address}"
         )
 
-    def _contains_lucky_number(self, contract_id: str, lucky_number: str) -> bool:
-        """检查合同编号是否包含幸运数字"""
-        # 支持不同的幸运数字检查策略
-        lucky_strategy = self.config.get("lucky_strategy", "last_digit")
+    def _is_lucky_contract(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats, lucky_number: str) -> bool:
+        """检查是否是幸运合同"""
+        # 支持不同的幸运数字检查策略（兼容两种字段名）
+        lucky_strategy = self.config.get("lucky_strategy") or self.config.get("lucky_number_mode", "last_digit")
 
         if lucky_strategy == "last_digit":
             # 只检查末位数字（北京6月）
-            return contract_id.endswith(lucky_number)
+            return contract_data.contract_id.endswith(lucky_number)
         elif lucky_strategy == "contains":
-            return lucky_number in contract_id
+            return lucky_number in contract_data.contract_id
         elif lucky_strategy == "personal_sequence":
             # 个人顺序幸运数字（北京9月特有）
-            return self._check_personal_sequence_lucky(contract_id, lucky_number)
+            return self._check_personal_sequence_lucky(housekeeper_stats, lucky_number)
         else:
-            return contract_id.endswith(lucky_number)  # 默认检查末位
+            return contract_data.contract_id.endswith(lucky_number)  # 默认检查末位
 
-    def _check_personal_sequence_lucky(self, contract_id: str, lucky_number: str) -> bool:
-        """检查个人顺序幸运数字"""
-        # 提取合同编号中的数字序列
-        numbers = re.findall(r'\d+', contract_id)
-        if not numbers:
+    def _check_personal_sequence_lucky(self, housekeeper_stats: HousekeeperStats, lucky_number: str) -> bool:
+        """检查个人序列幸运数字（北京9月特有）"""
+        # 北京9月的个人序列幸运数字逻辑
+        # 管家的第5个、第10个、第15个...合同有幸运奖励
+        # lucky_number应该是"5"，表示5的倍数
+        try:
+            lucky_interval = int(lucky_number)
+            return housekeeper_stats.contract_count % lucky_interval == 0
+        except (ValueError, ZeroDivisionError):
             return False
-        
-        # 检查最后一个数字序列是否包含幸运数字
-        last_number = numbers[-1]
-        return lucky_number in last_number
 
     def get_reward_amount(self, reward_name: str) -> Optional[float]:
         """获取奖励金额"""
