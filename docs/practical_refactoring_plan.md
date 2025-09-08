@@ -246,89 +246,249 @@ graph TB
     ConfigManager --> RewardConfigs
 ```
 
-### 4. 核心对象模型
+### 4. 核心对象设计（C4 - Code Level）
 
-#### 4.1 领域对象设计
+#### 4.1 领域对象关系图
 
-```python
-# 核心领域对象
-@dataclass
-class Contract:
-    """合同领域对象"""
-    id: str
-    amount: float
-    housekeeper: str
-    service_provider: str
-    activity_code: str
-    order_type: OrderType  # PLATFORM, SELF_REFERRAL
-    signed_date: datetime
-    project_address: str
+```mermaid
+classDiagram
+    class Contract {
+        +String id
+        +Float amount
+        +String housekeeper
+        +String service_provider
+        +String activity_code
+        +OrderType order_type
+        +DateTime signed_date
+        +String project_address
+        +is_historical() bool
+        +get_housekeeper_key(format_type) String
+        +calculate_performance_amount() Float
+    }
 
-    def is_historical(self) -> bool:
-        """判断是否为历史合同"""
-        return hasattr(self, 'pc_contract_num') and self.pc_contract_num
+    class HousekeeperStats {
+        +String housekeeper
+        +String activity_code
+        +Int count
+        +Float total_amount
+        +Float performance_amount
+        +List~String~ awarded_rewards
+        +Int platform_count
+        +Float platform_amount
+        +Int self_referral_count
+        +Float self_referral_amount
+        +Set~String~ self_referral_projects
+        +update_with_contract(contract) void
+        +get_track_stats(order_type) TrackStats
+    }
 
-@dataclass
-class HousekeeperStats:
-    """管家统计领域对象"""
-    housekeeper: str
-    activity_code: str
-    count: int = 0
-    total_amount: float = 0.0
-    performance_amount: float = 0.0
-    awarded_rewards: List[str] = field(default_factory=list)
+    class Reward {
+        +String type
+        +String name
+        +Float amount
+        +String reason
+        +String badge_emoji
+        +is_badge_reward() bool
+        +format_message() String
+    }
 
-    # 双轨统计扩展
-    platform_stats: Optional[TrackStats] = None
-    self_referral_stats: Optional[TrackStats] = None
+    class ProcessingConfig {
+        +String config_key
+        +String activity_code
+        +CityCode city
+        +String housekeeper_key_format
+        +StorageType storage_type
+        +Bool enable_dual_track
+        +Bool enable_historical_contracts
+        +get_reward_config() Dict
+        +get_limits() Dict
+    }
 
-@dataclass
-class TrackStats:
-    """轨道统计对象（平台单/自引单）"""
-    count: int = 0
-    amount: float = 0.0
-    projects: Set[str] = field(default_factory=set)
+    class OrderType {
+        <<enumeration>>
+        PLATFORM
+        SELF_REFERRAL
+    }
 
-@dataclass
-class Reward:
-    """奖励领域对象"""
-    type: str
-    name: str
-    amount: float
-    reason: str
+    class CityCode {
+        <<enumeration>>
+        BEIJING
+        SHANGHAI
+    }
 
-@dataclass
-class ProcessingConfig:
-    """处理配置对象"""
-    config_key: str
-    activity_code: str
-    city: CityCode
-    housekeeper_key_format: HousekeeperKeyFormat
-    storage_type: StorageType = StorageType.SQLITE
-    enable_dual_track: bool = False
-    enable_historical_contracts: bool = False
+    class StorageType {
+        <<enumeration>>
+        SQLITE
+        CSV
+    }
+
+    Contract --> OrderType
+    Contract --> CityCode
+    ProcessingConfig --> CityCode
+    ProcessingConfig --> StorageType
+    HousekeeperStats --> Contract : "aggregates"
+    Reward --> Contract : "calculated from"
 ```
 
-#### 4.2 枚举类型定义
+#### 4.2 对象协作图
 
-```python
-from enum import Enum
+```mermaid
+sequenceDiagram
+    participant Pipeline as DataProcessingPipeline
+    participant Mapper as ContractMapper
+    participant Contract as Contract
+    participant Store as PerformanceDataStore
+    participant Stats as HousekeeperStats
+    participant Calculator as RewardCalculator
+    participant Reward as Reward
 
-class CityCode(Enum):
-    BEIJING = "BJ"
-    SHANGHAI = "SH"
+    Pipeline->>Mapper: map_to_domain(raw_data)
+    Mapper->>Contract: new Contract()
+    Contract-->>Pipeline: contract
 
-class OrderType(Enum):
-    PLATFORM = "platform"
-    SELF_REFERRAL = "self_referral"
+    Pipeline->>Store: contract_exists(id, activity_code)
+    Store-->>Pipeline: false
 
-class HousekeeperKeyFormat(Enum):
-    HOUSEKEEPER_ONLY = "housekeeper"  # 北京：管家
-    HOUSEKEEPER_PROVIDER = "housekeeper_provider"  # 上海：管家_服务商
+    Pipeline->>Contract: get_housekeeper_key(format)
+    Contract-->>Pipeline: housekeeper_key
 
-class StorageType(Enum):
-    SQLITE = "sqlite"
-    CSV = "csv"
+    Pipeline->>Store: get_housekeeper_stats(key, activity)
+    Store-->>Stats: new HousekeeperStats()
+    Stats-->>Pipeline: stats
+
+    Pipeline->>Calculator: calculate(contract, stats)
+    Calculator->>Reward: new Reward()
+    Reward-->>Calculator: reward
+    Calculator-->>Pipeline: rewards[]
+
+    Pipeline->>Store: save_contract(contract, rewards)
+    Store->>Stats: update_with_contract(contract)
+```
+
+#### 4.3 存储抽象层设计
+
+```mermaid
+classDiagram
+    class PerformanceDataStore {
+        <<interface>>
+        +contract_exists(id, activity_code) bool
+        +get_housekeeper_stats(housekeeper, activity_code) HousekeeperStats
+        +save_contract(contract, rewards) void
+        +get_project_usage(project_id, activity_code) float
+        +get_historical_awards(housekeeper, activity_code) List~String~
+    }
+
+    class SQLitePerformanceDataStore {
+        -String db_path
+        -Connection connection
+        +contract_exists(id, activity_code) bool
+        +get_housekeeper_stats(housekeeper, activity_code) HousekeeperStats
+        +save_contract(contract, rewards) void
+        +execute_aggregation_query(sql, params) Dict
+        +init_database() void
+        +create_indexes() void
+    }
+
+    class CSVPerformanceDataStore {
+        -String csv_path
+        -Dict cache
+        +contract_exists(id, activity_code) bool
+        +get_housekeeper_stats(housekeeper, activity_code) HousekeeperStats
+        +save_contract(contract, rewards) void
+        +load_csv_data() List~Dict~
+        +write_csv_data(data) void
+    }
+
+    class DatabaseSchema {
+        +performance_data table
+        +contracts table
+        +rewards table
+        +housekeeper_stats view
+    }
+
+    PerformanceDataStore <|-- SQLitePerformanceDataStore
+    PerformanceDataStore <|-- CSVPerformanceDataStore
+    SQLitePerformanceDataStore --> DatabaseSchema
+    SQLitePerformanceDataStore --> HousekeeperStats
+    CSVPerformanceDataStore --> HousekeeperStats
+```
+
+#### 4.4 奖励计算器设计
+
+```mermaid
+classDiagram
+    class RewardCalculator {
+        -String config_key
+        -Dict config
+        -Dict awards_mapping
+        +calculate(contract, stats) List~Reward~
+        +calculate_lucky_reward(contract, stats) Reward
+        +calculate_tiered_reward(stats) Reward
+        +calculate_self_referral_reward(contract, stats) Reward
+        +should_enable_badge(config_key) bool
+    }
+
+    class LuckyNumberCalculator {
+        +calculate_by_contract_tail(contract, lucky_number) Reward
+        +calculate_by_personal_sequence(stats, lucky_number) Reward
+        +get_reward_level(amount, thresholds) String
+    }
+
+    class TieredRewardCalculator {
+        +calculate_progressive_reward(count, tiers) Reward
+        +get_tier_for_count(count, tiers) Dict
+        +apply_badge_multiplier(reward, has_badge) Reward
+    }
+
+    class SelfReferralCalculator {
+        +calculate_project_reward(contract, stats) Reward
+        +is_new_project(project, existing_projects) bool
+        +get_referral_config(config_key) Dict
+    }
+
+    RewardCalculator --> LuckyNumberCalculator
+    RewardCalculator --> TieredRewardCalculator
+    RewardCalculator --> SelfReferralCalculator
+    RewardCalculator --> Reward
+    RewardCalculator --> Contract
+    RewardCalculator --> HousekeeperStats
+```
+
+#### 4.5 配置驱动设计
+
+```mermaid
+classDiagram
+    class ConfigManager {
+        +get_processing_config(city, month) ProcessingConfig
+        +get_reward_config(config_key) Dict
+        +get_notification_config(city) Dict
+        +validate_config(config) bool
+    }
+
+    class RewardConfigs {
+        +BJ_2025_06 Dict
+        +BJ_2025_09 Dict
+        +SH_2025_04 Dict
+        +SH_2025_09 Dict
+        +get_config(key) Dict
+        +get_awards_mapping(key) Dict
+        +get_performance_limits(key) Dict
+    }
+
+    class NotificationConfigs {
+        +WECOM_GROUP_NAMES Dict
+        +CAMPAIGN_CONTACTS Dict
+        +MESSAGE_TEMPLATES Dict
+        +get_group_name(city) String
+        +get_contact(city) String
+        +get_template(city, type) String
+    }
+
+    ConfigManager --> RewardConfigs
+    ConfigManager --> NotificationConfigs
+    ConfigManager --> ProcessingConfig
+    RewardCalculator --> ConfigManager
+    DataProcessingPipeline --> ConfigManager
 ```
 
 ## 解决方案：重建+SQLite
@@ -343,12 +503,12 @@ class StorageType(Enum):
 
 ## 阶段1：建立新骨架+SQLite（3-4天）
 
-### 1.1 实现领域对象模型
+### 1.1 实现核心领域对象
 **新建**: `modules/core/domain_models.py`
 
 ```python
 from dataclasses import dataclass, field
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict
 from enum import Enum
 from datetime import datetime
 
@@ -359,6 +519,10 @@ class CityCode(Enum):
 class OrderType(Enum):
     PLATFORM = "platform"
     SELF_REFERRAL = "self_referral"
+
+class StorageType(Enum):
+    SQLITE = "sqlite"
+    CSV = "csv"
 
 @dataclass
 class Contract:
@@ -371,16 +535,28 @@ class Contract:
     order_type: OrderType
     signed_date: datetime
     project_address: str
+    pc_contract_num: Optional[str] = None  # 历史合同编号
 
     def is_historical(self) -> bool:
         """北京9月历史合同判断"""
-        return hasattr(self, 'pc_contract_num') and self.pc_contract_num
+        return self.pc_contract_num is not None
 
     def get_housekeeper_key(self, format_type: str) -> str:
-        """根据城市生成管家键"""
+        """根据城市生成管家键 - 解决北京/上海差异"""
         if format_type == "housekeeper_provider":
             return f"{self.housekeeper}_{self.service_provider}"
         return self.housekeeper
+
+    def calculate_performance_amount(self, limits: Dict) -> float:
+        """计算计入业绩金额 - 应用各种上限规则"""
+        performance_amount = self.amount
+
+        # 应用单合同上限
+        if limits.get("enable_cap", False):
+            cap = limits.get("single_contract_cap", float('inf'))
+            performance_amount = min(performance_amount, cap)
+
+        return performance_amount
 
 @dataclass
 class HousekeeperStats:
@@ -399,6 +575,49 @@ class HousekeeperStats:
     self_referral_amount: float = 0.0
     self_referral_projects: Set[str] = field(default_factory=set)
 
+    def update_with_contract(self, contract: Contract) -> None:
+        """用新合同更新统计数据"""
+        self.count += 1
+        self.total_amount += contract.amount
+        self.performance_amount += contract.calculate_performance_amount({})
+
+        # 双轨统计更新
+        if contract.order_type == OrderType.PLATFORM:
+            self.platform_count += 1
+            self.platform_amount += contract.amount
+        elif contract.order_type == OrderType.SELF_REFERRAL:
+            self.self_referral_count += 1
+            self.self_referral_amount += contract.amount
+            self.self_referral_projects.add(contract.project_address)
+
+    def get_track_stats(self, order_type: OrderType) -> Dict:
+        """获取指定轨道的统计数据"""
+        if order_type == OrderType.PLATFORM:
+            return {"count": self.platform_count, "amount": self.platform_amount}
+        elif order_type == OrderType.SELF_REFERRAL:
+            return {"count": self.self_referral_count, "amount": self.self_referral_amount}
+        return {"count": self.count, "amount": self.total_amount}
+
+@dataclass
+class Reward:
+    """奖励领域对象"""
+    type: str
+    name: str
+    amount: float
+    reason: str
+    badge_emoji: str = ""
+
+    def is_badge_reward(self) -> bool:
+        """判断是否为徽章奖励"""
+        return "徽章" in self.name or "新星" in self.name
+
+    def format_message(self) -> str:
+        """格式化奖励消息"""
+        message = f"{self.name}: {self.amount}元"
+        if self.badge_emoji:
+            message = f"{self.badge_emoji} {message}"
+        return message
+
 @dataclass
 class ProcessingConfig:
     """处理配置对象 - 替代硬编码的配置"""
@@ -406,9 +625,18 @@ class ProcessingConfig:
     activity_code: str
     city: CityCode
     housekeeper_key_format: str
-    storage_type: str = "sqlite"
+    storage_type: StorageType = StorageType.SQLITE
     enable_dual_track: bool = False
     enable_historical_contracts: bool = False
+
+    def get_reward_config(self) -> Dict:
+        """获取奖励配置"""
+        from modules.config import REWARD_CONFIGS
+        return REWARD_CONFIGS.get(self.config_key, {})
+
+    def get_limits(self) -> Dict:
+        """获取金额限制配置"""
+        return self.get_reward_config().get("performance_limits", {})
 ```
 
 ### 1.2 创建存储抽象层
@@ -713,24 +941,115 @@ graph TB
     style DomainModel fill:#ccffcc
 ```
 
+### 1.7 系统对象协作总览
+
+```mermaid
+graph TB
+    subgraph "领域层 (Domain Layer)"
+        Contract[Contract<br/>合同对象]
+        Stats[HousekeeperStats<br/>管家统计对象]
+        Reward[Reward<br/>奖励对象]
+        Config[ProcessingConfig<br/>配置对象]
+    end
+
+    subgraph "应用层 (Application Layer)"
+        Pipeline[DataProcessingPipeline<br/>处理管道]
+        Calculator[RewardCalculator<br/>奖励计算器]
+        Mapper[ContractMapper<br/>合同映射器]
+        NotificationEngine[NotificationEngine<br/>通知引擎]
+    end
+
+    subgraph "基础设施层 (Infrastructure Layer)"
+        Store[PerformanceDataStore<br/>存储抽象]
+        SQLiteStore[SQLiteDataStore<br/>SQLite实现]
+        CSVStore[CSVDataStore<br/>CSV实现]
+        Database[(SQLite数据库)]
+        Files[CSV文件]
+    end
+
+    subgraph "配置层 (Configuration Layer)"
+        RewardConfigs[REWARD_CONFIGS<br/>奖励配置]
+        NotificationConfigs[通知配置]
+    end
+
+    Pipeline --> Contract
+    Pipeline --> Stats
+    Pipeline --> Calculator
+    Pipeline --> Mapper
+    Pipeline --> Store
+
+    Calculator --> Reward
+    Calculator --> RewardConfigs
+
+    Mapper --> Contract
+
+    Store --> SQLiteStore
+    Store --> CSVStore
+    SQLiteStore --> Database
+    CSVStore --> Files
+
+    Config --> RewardConfigs
+    NotificationEngine --> NotificationConfigs
+
+    Contract -.-> Stats : "aggregates to"
+    Stats -.-> Reward : "triggers"
+
+    style Contract fill:#e1f5fe
+    style Stats fill:#e1f5fe
+    style Reward fill:#e1f5fe
+    style Config fill:#e1f5fe
+    style Pipeline fill:#f3e5f5
+    style Calculator fill:#f3e5f5
+    style Store fill:#e8f5e8
+    style Database fill:#fff3e0
+```
+
+### 1.8 对象设计原则验证
+
+#### 单一职责原则 (SRP)
+- **Contract**: 只负责合同数据和相关业务逻辑
+- **HousekeeperStats**: 只负责管家统计数据的聚合
+- **Reward**: 只负责奖励信息的表示和格式化
+- **RewardCalculator**: 只负责奖励计算逻辑
+
+#### 开闭原则 (OCP)
+- **PerformanceDataStore**: 抽象接口，可扩展新的存储实现
+- **RewardCalculator**: 可扩展新的奖励类型而不修改现有代码
+- **ProcessingConfig**: 可添加新的配置项而不影响现有功能
+
+#### 依赖倒置原则 (DIP)
+- **DataProcessingPipeline**: 依赖抽象的PerformanceDataStore，不依赖具体实现
+- **RewardCalculator**: 依赖配置接口，不依赖具体配置实现
+
+#### 接口隔离原则 (ISP)
+- **PerformanceDataStore**: 接口方法职责单一，客户端只依赖需要的方法
+- **Contract**: 提供特定的业务方法，不强迫客户端依赖不需要的功能
+
 ### 验收标准
 - [ ] **领域对象模型完成**
-  - [ ] Contract、HousekeeperStats等核心对象
-  - [ ] 枚举类型定义
-  - [ ] 对象行为方法实现
+  - [ ] Contract、HousekeeperStats、Reward等核心对象
+  - [ ] 枚举类型定义（CityCode、OrderType、StorageType）
+  - [ ] 对象行为方法实现（业务逻辑封装）
+  - [ ] 对象关系图和协作图绘制完成
 - [ ] **存储抽象层完成**
-  - [ ] 抽象接口设计
-  - [ ] SQLite和CSV两种实现
-  - [ ] 配置驱动的存储选择
+  - [ ] PerformanceDataStore抽象接口设计
+  - [ ] SQLite和CSV两种具体实现
+  - [ ] 配置驱动的存储选择机制
+  - [ ] 存储层类图设计完成
 - [ ] **处理管道实现**
-  - [ ] 统一的处理流程
-  - [ ] 领域对象映射
-  - [ ] 配置驱动的差异处理
-- [ ] **架构验证**
-  - [ ] 组件间依赖关系清晰
-  - [ ] 单一职责原则
-  - [ ] 开闭原则（扩展性）
+  - [ ] DataProcessingPipeline统一处理流程
+  - [ ] ContractMapper领域对象映射
+  - [ ] 配置驱动的差异处理机制
+  - [ ] 对象协作序列图验证
+- [ ] **架构设计验证**
+  - [ ] 组件间依赖关系清晰（依赖图）
+  - [ ] SOLID原则遵循验证
+  - [ ] 扩展性设计验证（新城市/新功能）
+  - [ ] 系统对象协作总览图完成
 - [ ] **单元测试覆盖率≥90%**
+  - [ ] 每个领域对象的单元测试
+  - [ ] 每个应用服务的单元测试
+  - [ ] 存储层的集成测试
 
 ## 阶段2：北京迁移（2-3天）
 
