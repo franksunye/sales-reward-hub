@@ -156,78 +156,78 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
 # 辅助函数 - 保持与现有系统的兼容性
 
 def _get_shanghai_contract_data() -> List[Dict]:
-    """获取上海合同数据（模拟现有API调用）"""
+    """获取上海合同数据（连接真实Metabase API）"""
     logging.info("从Metabase获取上海合同数据...")
-    
-    # TODO: 替换为实际的API调用
-    # from modules.request_module import get_data_from_metabase
-    # return get_data_from_metabase(api_url, headers)
-    
-    # 示例数据
-    return [
-        {
-            '合同ID(_id)': '2025010812345701',
-            '管家(serviceHousekeeper)': '王五',
-            '服务商(orgName)': '上海精品服务',
-            '合同金额(adjustRefundMoney)': 18000,
-            '支付金额(paidAmount)': 15000,
-            '款项来源类型(tradeIn)': 0,  # 平台单
-            '活动城市(province)': '上海',
-            'Status': '已签约',
-            '创建时间(createTime)': '2025-01-08 10:00:00'
-        }
-    ]
+
+    try:
+        # 导入真实的API模块
+        from modules.request_module import send_request_with_managed_session
+        from modules.config import API_URL_SH_SEP
+
+        # 调用真实的Metabase API
+        response = send_request_with_managed_session(API_URL_SH_SEP)
+
+        if response is None:
+            logging.error("Metabase API调用失败")
+            return []
+
+        # 解析API响应
+        if 'data' in response and 'rows' in response['data']:
+            rows = response['data']['rows']
+            columns = response['data']['cols']
+
+            # 构建字段名映射 - 使用实际的字段名
+            column_names = [col['name'] for col in columns]
+
+            # 转换为字典格式，并映射到标准字段名
+            contract_data = []
+            for row in rows:
+                raw_dict = dict(zip(column_names, row))
+
+                # 映射到标准字段名
+                contract_dict = {
+                    '合同ID(_id)': raw_dict.get('_id', ''),
+                    '活动城市(province)': raw_dict.get('province', ''),
+                    '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
+                    'Status': raw_dict.get('status', ''),
+                    '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
+                    '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
+                    '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
+                    '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
+                    '差额(difference)': raw_dict.get('difference', 0),
+                    'State': raw_dict.get('state', ''),
+                    '创建时间(createTime)': raw_dict.get('createTime', ''),
+                    '服务商(orgName)': raw_dict.get('orgName', ''),
+                    '签约时间(signedDate)': raw_dict.get('signedDate', ''),
+                    'Doorsill': raw_dict.get('Doorsill', 0),
+                    '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
+                    '转化率(conversion)': raw_dict.get('conversion', ''),
+                    '平均客单价(average)': raw_dict.get('average', ''),
+                    '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
+                    '工单类型(sourceType)': raw_dict.get('sourceType', ''),
+                    '客户联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
+                    '项目地址(projectAddress)': raw_dict.get('projectAddress', '')
+                }
+                contract_data.append(contract_dict)
+
+            logging.info(f"从Metabase获取到 {len(contract_data)} 条合同数据")
+            return contract_data
+        else:
+            logging.warning("Metabase API响应格式异常")
+            return []
+
+    except Exception as e:
+        logging.error(f"获取Metabase数据失败: {e}")
+        # 在真实环境测试中，如果API失败应该抛出异常而不是返回空数据
+        raise
 
 
 def _get_shanghai_contract_data_with_dual_track() -> List[Dict]:
     """获取上海合同数据（支持双轨统计）"""
     logging.info("从Metabase获取上海合同数据（支持双轨统计）...")
-    
-    # 示例数据，包含平台单和自引单
-    return [
-        {
-            '合同ID(_id)': '2025010812345701',
-            '管家(serviceHousekeeper)': '王五',
-            '服务商(orgName)': '上海精品服务',
-            '合同金额(adjustRefundMoney)': 18000,
-            '支付金额(paidAmount)': 15000,
-            '款项来源类型(tradeIn)': 0,  # 平台单
-            '管家ID(serviceHousekeeperId)': 'HK001',
-            '客户联系地址(contactsAddress)': '上海市浦东新区',
-            '项目地址(projectAddress)': '上海市浦东新区张江高科技园区A座',
-            '活动城市(province)': '上海',
-            'Status': '已签约',
-            '创建时间(createTime)': '2025-01-08 10:00:00'
-        },
-        {
-            '合同ID(_id)': '2025010812345702',
-            '管家(serviceHousekeeper)': '王五',
-            '服务商(orgName)': '上海精品服务',
-            '合同金额(adjustRefundMoney)': 22000,
-            '支付金额(paidAmount)': 18000,
-            '款项来源类型(tradeIn)': 1,  # 自引单
-            '管家ID(serviceHousekeeperId)': 'HK001',
-            '客户联系地址(contactsAddress)': '上海市徐汇区',
-            '项目地址(projectAddress)': '上海市徐汇区淮海中路B座',
-            '活动城市(province)': '上海',
-            'Status': '已签约',
-            '创建时间(createTime)': '2025-01-08 11:00:00'
-        },
-        {
-            '合同ID(_id)': '2025010812345703',
-            '管家(serviceHousekeeper)': '赵六',
-            '服务商(orgName)': '上海优质服务',
-            '合同金额(adjustRefundMoney)': 25000,
-            '支付金额(paidAmount)': 20000,
-            '款项来源类型(tradeIn)': 1,  # 自引单
-            '管家ID(serviceHousekeeperId)': 'HK002',
-            '客户联系地址(contactsAddress)': '上海市静安区',
-            '项目地址(projectAddress)': '上海市静安区南京西路C座',
-            '活动城市(province)': '上海',
-            'Status': '已签约',
-            '创建时间(createTime)': '2025-01-08 12:00:00'
-        }
-    ]
+
+    # 上海9月的双轨统计使用相同的API，但需要特殊的数据处理
+    return _get_shanghai_contract_data()
 
 
 def _generate_csv_output(records: List[PerformanceRecord], config) -> str:
