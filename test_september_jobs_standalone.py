@@ -60,19 +60,22 @@ def test_beijing_september():
         if records:
             print(f"\n📋 前3条记录预览:")
             for i, record in enumerate(records[:3]):
-                print(f"  {i+1}. 合同号: {record.contract_number}, "
-                      f"奖励: {record.reward_amount}, "
-                      f"类型: {record.reward_type}")
-        
+                reward_types = ','.join([r.reward_type for r in record.rewards])
+                reward_names = ','.join([r.reward_name for r in record.rewards])
+                print(f"  {i+1}. 合同ID: {record.contract_data.contract_id}, "
+                      f"管家: {record.contract_data.housekeeper}, "
+                      f"奖励类型: {reward_types}")
+
         # 统计信息
-        total_reward = sum(record.reward_amount for record in records)
-        print(f"\n💰 总奖励金额: {total_reward:,.2f}")
-        
+        total_performance = sum(record.performance_amount for record in records)
+        print(f"\n💰 总业绩金额: {total_performance:,.2f}")
+
         # 按奖励类型统计
         reward_types = {}
         for record in records:
-            reward_types[record.reward_type] = reward_types.get(record.reward_type, 0) + 1
-        
+            for reward in record.rewards:
+                reward_types[reward.reward_type] = reward_types.get(reward.reward_type, 0) + 1
+
         print(f"📈 奖励类型分布:")
         for reward_type, count in reward_types.items():
             print(f"  - {reward_type}: {count} 条")
@@ -112,27 +115,36 @@ def test_shanghai_september():
         if records:
             print(f"\n📋 前3条记录预览:")
             for i, record in enumerate(records[:3]):
-                print(f"  {i+1}. 合同号: {record.contract_number}, "
-                      f"奖励: {record.reward_amount}, "
-                      f"类型: {record.reward_type}")
-        
+                reward_types = ','.join([r.reward_type for r in record.rewards])
+                reward_names = ','.join([r.reward_name for r in record.rewards])
+                print(f"  {i+1}. 合同ID: {record.contract_data.contract_id}, "
+                      f"管家: {record.contract_data.housekeeper}, "
+                      f"奖励类型: {reward_types}")
+
         # 统计信息
-        total_reward = sum(record.reward_amount for record in records)
-        print(f"\n💰 总奖励金额: {total_reward:,.2f}")
-        
+        total_performance = sum(record.performance_amount for record in records)
+        print(f"\n💰 总业绩金额: {total_performance:,.2f}")
+
         # 按奖励类型统计
         reward_types = {}
         for record in records:
-            reward_types[record.reward_type] = reward_types.get(record.reward_type, 0) + 1
-        
+            for reward in record.rewards:
+                reward_types[reward.reward_type] = reward_types.get(reward.reward_type, 0) + 1
+
         print(f"📈 奖励类型分布:")
         for reward_type, count in reward_types.items():
             print(f"  - {reward_type}: {count} 条")
         
         # 上海9月特殊统计（双轨统计）
-        platform_orders = [r for r in records if '平台单' in r.reward_type]
-        self_referral_orders = [r for r in records if '自引单' in r.reward_type]
-        
+        platform_orders = []
+        self_referral_orders = []
+        for record in records:
+            for reward in record.rewards:
+                if '平台单' in reward.reward_type:
+                    platform_orders.append(record)
+                elif '自引单' in reward.reward_type:
+                    self_referral_orders.append(record)
+
         print(f"\n🔄 双轨统计:")
         print(f"  - 平台单: {len(platform_orders)} 条")
         print(f"  - 自引单: {len(self_referral_orders)} 条")
