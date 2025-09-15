@@ -32,14 +32,38 @@ class RecordBuilder:
         """构建业绩记录"""
         
         # 创建基础记录
+        # 历史合同的激活状态始终为0
+        active_status = 0 if contract_data.is_historical else (1 if rewards else 0)
+
+        # 历史合同需要特殊处理累计统计字段
+        if contract_data.is_historical:
+            # 历史合同：累计统计字段设为0，与旧系统保持一致
+            historical_stats = HousekeeperStats(
+                housekeeper=housekeeper_stats.housekeeper,
+                activity_code=housekeeper_stats.activity_code,
+                contract_count=0,  # 历史合同不计入累计单数
+                total_amount=0,    # 历史合同不计入累计金额
+                performance_amount=housekeeper_stats.performance_amount,  # 业绩金额保持不变
+                awarded=housekeeper_stats.awarded,
+                platform_count=housekeeper_stats.platform_count,
+                platform_amount=housekeeper_stats.platform_amount,
+                self_referral_count=housekeeper_stats.self_referral_count,
+                self_referral_amount=housekeeper_stats.self_referral_amount,
+                historical_count=housekeeper_stats.historical_count,
+                new_count=housekeeper_stats.new_count
+            )
+            final_stats = historical_stats
+        else:
+            final_stats = housekeeper_stats
+
         record = PerformanceRecord(
             activity_code=self.config.activity_code,
             contract_data=contract_data,
-            housekeeper_stats=housekeeper_stats,
+            housekeeper_stats=final_stats,
             rewards=rewards,
             performance_amount=performance_amount,
             contract_sequence=contract_sequence,
-            active_status=1 if rewards else 0,
+            active_status=active_status,
             notification_sent=False,
             remarks=self._build_remarks(contract_data, rewards, performance_amount)
         )
@@ -63,7 +87,11 @@ class RecordBuilder:
         
         # 添加历史合同备注
         if contract_data.is_historical:
-            remarks.append("历史合同")
+            # 历史合同使用固定格式，与旧系统保持一致
+            if rewards:
+                # 如果有奖励信息，先清空（历史合同不应该有奖励）
+                remarks = []
+            remarks.append("历史合同-仅计入业绩金额")
         
         # 添加工单上限备注（北京特有）
         if self.config.enable_project_limit and contract_data.project_id:

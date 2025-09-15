@@ -62,51 +62,65 @@ class DataProcessingPipeline:
                 # 4. 处理工单金额上限（北京特有）
                 performance_amount = self._calculate_performance_amount(contract_data)
 
-                # 5. 更新管家统计中的业绩金额（用于奖励计算）
-                # 注意：这里需要加上当前合同的业绩金额来模拟累计效果
-                updated_hk_stats = HousekeeperStats(
-                    housekeeper=hk_stats.housekeeper,
-                    activity_code=hk_stats.activity_code,
-                    contract_count=hk_stats.contract_count + 1,
-                    total_amount=hk_stats.total_amount + contract_data.contract_amount,
-                    performance_amount=hk_stats.performance_amount + performance_amount,
-                    awarded=hk_stats.awarded,
-                    platform_count=hk_stats.platform_count + (1 if contract_data.order_type.value == 'platform' else 0),
-                    platform_amount=hk_stats.platform_amount + (contract_data.contract_amount if contract_data.order_type.value == 'platform' else 0),
-                    self_referral_count=hk_stats.self_referral_count + (1 if contract_data.order_type.value == 'self_referral' else 0),
-                    self_referral_amount=hk_stats.self_referral_amount + (contract_data.contract_amount if contract_data.order_type.value == 'self_referral' else 0),
-                    historical_count=hk_stats.historical_count + (1 if contract_data.is_historical else 0),
-                    new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
-                )
+                # 5. 历史合同特殊处理
+                if contract_data.is_historical and self.config.enable_historical_contracts:
+                    # 历史合同：不计入累计统计，不参与奖励计算
+                    updated_hk_stats = hk_stats  # 不更新统计数据
+                    rewards = []  # 不计算奖励
+                    contract_sequence = 0  # 不计入活动期内合同序号
 
-                # 6. 处理自引单项目地址去重（上海特有）
-                if (self.config.enable_dual_track and
-                    contract_data.order_type.value == 'self_referral'):
-                    project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
-                    if project_address and self._is_project_address_duplicate(
-                        housekeeper_key, project_address, self.config.activity_code):
-                        logging.debug(f"跳过重复项目地址: {project_address}")
-                        skipped_count += 1
-                        continue
+                    logging.debug(f"处理历史合同: {contract_data.contract_id}, 不参与累计统计和奖励计算")
+                else:
+                    # 新增合同：正常处理
+                    # 更新管家统计中的业绩金额（用于奖励计算）
+                    updated_hk_stats = HousekeeperStats(
+                        housekeeper=hk_stats.housekeeper,
+                        activity_code=hk_stats.activity_code,
+                        contract_count=hk_stats.contract_count + 1,
+                        total_amount=hk_stats.total_amount + contract_data.contract_amount,
+                        performance_amount=hk_stats.performance_amount + performance_amount,
+                        awarded=hk_stats.awarded,
+                        platform_count=hk_stats.platform_count + (1 if contract_data.order_type.value == 'platform' else 0),
+                        platform_amount=hk_stats.platform_amount + (contract_data.contract_amount if contract_data.order_type.value == 'platform' else 0),
+                        self_referral_count=hk_stats.self_referral_count + (1 if contract_data.order_type.value == 'self_referral' else 0),
+                        self_referral_amount=hk_stats.self_referral_amount + (contract_data.contract_amount if contract_data.order_type.value == 'self_referral' else 0),
+                        historical_count=hk_stats.historical_count + (1 if contract_data.is_historical else 0),
+                        new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
+                    )
 
-                # 7. 计算奖励（使用更新后的统计数据）
-                rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
-                
-                # 7. 构建业绩记录
+                    contract_sequence = processed_count + 1
+
+                    # 6. 处理自引单项目地址去重（上海特有）
+                    if (self.config.enable_dual_track and
+                        contract_data.order_type.value == 'self_referral'):
+                        project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
+                        if project_address and self._is_project_address_duplicate(
+                            housekeeper_key, project_address, self.config.activity_code):
+                            logging.debug(f"跳过重复项目地址: {project_address}")
+                            skipped_count += 1
+                            continue
+
+                    # 7. 计算奖励（使用更新后的统计数据）
+                    rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
+
+                # 8. 构建业绩记录
                 record = self.record_builder.build(
                     contract_data=contract_data,
                     housekeeper_stats=updated_hk_stats,  # 使用更新后的统计数据
                     rewards=rewards,
                     performance_amount=performance_amount,
-                    contract_sequence=processed_count + 1
+                    contract_sequence=contract_sequence
                 )
                 
-                # 8. 保存记录
+                # 9. 保存记录
                 self.store.save_performance_record(record)
                 performance_records.append(record)
-                processed_count += 1
-                
-                logging.debug(f"Processed contract {contract_data.contract_id}")
+
+                # 只有新增合同才计入processed_count（用于合同序号计算）
+                if not (contract_data.is_historical and self.config.enable_historical_contracts):
+                    processed_count += 1
+
+                logging.debug(f"Processed contract {contract_data.contract_id} (historical: {contract_data.is_historical})")
                 
             except Exception as e:
                 import traceback

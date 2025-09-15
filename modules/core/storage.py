@@ -130,13 +130,14 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute("""
                     SELECT
-                        COUNT(*) as contract_count,
-                        COALESCE(SUM(contract_amount), 0) as total_amount,
-                        COALESCE(SUM(performance_amount), 0) as performance_amount,
-                        COALESCE(SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END), 0) as platform_count,
-                        COALESCE(SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END), 0) as platform_amount,
-                        COALESCE(SUM(CASE WHEN order_type = 'self_referral' THEN 1 ELSE 0 END), 0) as self_referral_count,
-                        COALESCE(SUM(CASE WHEN order_type = 'self_referral' THEN contract_amount ELSE 0 END), 0) as self_referral_amount,
+                        -- 累计统计只包含新增合同（与旧系统保持一致）
+                        COALESCE(SUM(CASE WHEN is_historical = 0 THEN 1 ELSE 0 END), 0) as contract_count,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 THEN contract_amount ELSE 0 END), 0) as total_amount,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 THEN performance_amount ELSE 0 END), 0) as performance_amount,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 AND order_type = 'platform' THEN 1 ELSE 0 END), 0) as platform_count,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 AND order_type = 'platform' THEN contract_amount ELSE 0 END), 0) as platform_amount,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 AND order_type = 'self_referral' THEN 1 ELSE 0 END), 0) as self_referral_count,
+                        COALESCE(SUM(CASE WHEN is_historical = 0 AND order_type = 'self_referral' THEN contract_amount ELSE 0 END), 0) as self_referral_amount,
                         COALESCE(SUM(CASE WHEN is_historical = 1 THEN 1 ELSE 0 END), 0) as historical_count,
                         COALESCE(SUM(CASE WHEN is_historical = 0 THEN 1 ELSE 0 END), 0) as new_count
                     FROM performance_data
