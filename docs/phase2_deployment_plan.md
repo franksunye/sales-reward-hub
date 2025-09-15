@@ -31,51 +31,80 @@
   cp jobs.py jobs_backup_$(date +%Y%m%d).py
   ```
 
-#### Day 2-3: 影子模式配置
-- [ ] **修改jobs.py实现影子模式**
+#### Day 2-3: 影子模式配置（北京和上海9月）
+- [ ] **修改jobs.py实现9月份Job影子模式**
   ```python
-  def signing_and_sales_incentive_jun_beijing():
-      """北京6月Job - 影子模式"""
+  def signing_and_sales_incentive_sep_beijing():
+      """北京9月Job - 影子模式"""
       try:
           # 运行新系统（记录但不影响业务）
-          from modules.core.beijing_jobs import signing_and_sales_incentive_jun_beijing_v2
-          new_result = signing_and_sales_incentive_jun_beijing_v2()
-          log_shadow_result("BJ-JUN", new_result)
-          
+          from modules.core.beijing_jobs import signing_and_sales_incentive_sep_beijing_v2
+          new_result = signing_and_sales_incentive_sep_beijing_v2()
+          log_shadow_result("BJ-SEP", new_result)
+
           # 运行旧系统（保证业务连续性）
-          old_result = original_signing_and_sales_incentive_jun_beijing()
-          
-          # 对比结果
-          compare_and_log_differences("BJ-JUN", old_result, new_result)
+          old_result = original_signing_and_sales_incentive_sep_beijing()
+
+          # 对比结果（重点关注历史合同、幸运数字、5万上限）
+          compare_and_log_differences("BJ-SEP", old_result, new_result)
           return old_result
-          
+
       except Exception as e:
-          logging.error(f"影子模式失败，使用旧系统: {e}")
-          return original_signing_and_sales_incentive_jun_beijing()
+          logging.error(f"[北京9月] 影子模式失败，使用旧系统: {e}")
+          return original_signing_and_sales_incentive_sep_beijing()
+
+  def signing_and_sales_incentive_sep_shanghai():
+      """上海9月Job - 影子模式"""
+      try:
+          # 运行新系统（记录但不影响业务）
+          from modules.core.shanghai_jobs import signing_and_sales_incentive_sep_shanghai_v2
+          new_result = signing_and_sales_incentive_sep_shanghai_v2()
+          log_shadow_result("SH-SEP", new_result)
+
+          # 运行旧系统（保证业务连续性）
+          old_result = original_signing_and_sales_incentive_sep_shanghai()
+
+          # 对比结果（重点关注双轨统计、自引单、地址去重）
+          compare_and_log_differences("SH-SEP", old_result, new_result)
+          return old_result
+
+      except Exception as e:
+          logging.error(f"[上海9月] 影子模式失败，使用旧系统: {e}")
+          return original_signing_and_sales_incentive_sep_shanghai()
   ```
 
-#### Day 4-5: 监控和数据收集
+#### Day 4-5: 监控和数据收集（9月份Job专项）
 - [ ] **设置监控指标**
-  - 处理时间对比
+  - 处理时间对比（重点关注复杂业务逻辑）
   - 内存使用对比
   - 输出数据一致性
   - 错误率统计
-- [ ] **运行影子模式**
-  - 选择1-2个低风险Job进行影子模式测试
+  - 业务逻辑验证指标
+- [ ] **运行9月份影子模式**
+  - 北京9月Job影子模式测试
+  - 上海9月Job影子模式测试
   - 收集至少3天的运行数据
 - [ ] **分析结果**
   - 性能对比报告
   - 一致性验证报告
+  - 业务逻辑验证报告
   - 问题和风险评估
 
-#### Day 6-7: 影子模式扩展
-- [ ] **扩展到更多Job**
-  - 北京6月、8月
-  - 上海4月
+#### Day 6-7: 深度验证和优化
+- [ ] **业务逻辑深度验证**
+  - 北京9月：历史合同处理验证
+  - 北京9月：个人序列幸运数字验证
+  - 北京9月：5万上限逻辑验证
+  - 上海9月：双轨统计功能验证
+  - 上海9月：自引单奖励验证
+  - 上海9月：项目地址去重验证
 - [ ] **完整性验证**
   - 端到端业务流程测试
   - 通知发送功能验证
   - 异常处理验证
+- [ ] **性能优化**
+  - 基于监控数据进行必要的性能调优
+  - 确保新系统性能不低于旧系统
 
 ### 第2-3周：渐进式迁移
 
@@ -91,22 +120,24 @@
   - 业务指标监控
   - 用户反馈收集
   - 性能指标验证
-- [ ] **Day 4-5: 北京8月迁移**
-  - 同样的切换流程
+- [ ] **Day 4-5: 其他低风险Job迁移**
+  - 北京8月迁移
+  - 上海4月、8月迁移
   - 持续监控验证
 
-#### 第3周：中高风险Job迁移
-- [ ] **Day 1-2: 上海4月、8月迁移**
-  - 上海Job函数切换
-  - 重点验证housekeeper_key格式差异
-- [ ] **Day 3-4: 北京9月迁移**
+#### 第3周：高风险Job迁移（基于影子模式验证）
+- [ ] **Day 1-3: 北京9月迁移**
+  - 基于影子模式验证结果进行切换
   - 历史合同处理验证
   - 个人序列幸运数字验证
   - 5万上限逻辑验证
-- [ ] **Day 5: 上海9月迁移**
+  - 密切监控业务指标
+- [ ] **Day 4-5: 上海9月迁移**
+  - 基于影子模式验证结果进行切换
   - 双轨统计功能验证
   - 自引单奖励验证
   - 项目地址去重验证
+  - 密切监控业务指标
 
 ### 第4周：全量迁移和清理
 
