@@ -55,8 +55,15 @@ class DataProcessingPipeline:
         skipped_count = 0
 
         # 全局合同序号计数器（所有活动都需要用于"活动期内第几个合同"字段显示）
-        # 从已存在的合同ID数量开始计数
-        global_contract_sequence = len(self.store.get_existing_contract_ids(self.config.activity_code)) + 1
+        # 🔧 修复：对于有历史合同的活动，只计算非历史合同的数量
+        if self.config.enable_historical_contracts:
+            # 有历史合同的活动：只计算非历史合同数量
+            global_contract_sequence = self.store.get_existing_non_historical_contract_count(self.config.activity_code) + 1
+            logging.info(f"历史合同模式：从非历史合同数量 {global_contract_sequence - 1} 开始计算全局序号")
+        else:
+            # 无历史合同的活动：计算所有合同数量
+            global_contract_sequence = len(self.store.get_existing_contract_ids(self.config.activity_code)) + 1
+            logging.info(f"常规模式：从所有合同数量 {global_contract_sequence - 1} 开始计算全局序号")
         
         for contract_dict in contract_data_list:
             try:
@@ -93,7 +100,7 @@ class DataProcessingPipeline:
                     # 历史合同：不计入累计统计，不参与奖励计算
                     updated_hk_stats = hk_stats  # 不更新统计数据
                     rewards = []  # 不计算奖励
-                    contract_sequence = 0  # 不计入活动期内合同序号
+                    contract_sequence = 0  # 🔧 修复：历史合同不计入活动期内合同序号
 
                     logging.debug(f"处理历史合同: {contract_data.contract_id}, 不参与累计统计和奖励计算")
                 else:
@@ -163,8 +170,10 @@ class DataProcessingPipeline:
                 if not (contract_data.is_historical and self.config.enable_historical_contracts):
                     processed_count += 1
 
-                # 增加全局合同序号计数器（所有合同都计入）
-                global_contract_sequence += 1
+                # 🔧 修复：只有非历史合同才增加全局序号计数器
+                if not (contract_data.is_historical and self.config.enable_historical_contracts):
+                    global_contract_sequence += 1
+                    logging.debug(f"全局序号递增至: {global_contract_sequence - 1} (合同: {contract_data.contract_id})")
 
                 logging.debug(f"Processed contract {contract_data.contract_id} (historical: {contract_data.is_historical})")
                 

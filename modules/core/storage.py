@@ -34,6 +34,11 @@ class PerformanceDataStore(ABC):
         pass
 
     @abstractmethod
+    def get_existing_non_historical_contract_count(self, activity_code: str) -> int:
+        """获取已存在的非历史合同数量（用于全局序号计算）"""
+        pass
+
+    @abstractmethod
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """获取管家累计统计数据"""
         pass
@@ -141,6 +146,20 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error getting existing contract IDs: {e}")
             return set()
+
+    def get_existing_non_historical_contract_count(self, activity_code: str) -> int:
+        """获取已存在的非历史合同数量（用于全局序号计算）"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM performance_data WHERE activity_code = ? AND is_historical = 0",
+                    (activity_code,)
+                )
+                result = cursor.fetchone()
+                return result[0] if result else 0
+        except Exception as e:
+            logging.error(f"Error getting non-historical contract count: {e}")
+            return 0
 
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """数据库聚合查询 - 替代复杂的内存计算"""
@@ -350,6 +369,26 @@ class CSVPerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error getting existing contract IDs from CSV: {e}")
             return set()
+
+    def get_existing_non_historical_contract_count(self, activity_code: str) -> int:
+        """获取已存在的非历史合同数量（用于全局序号计算）- CSV实现"""
+        if not os.path.exists(self.performance_file):
+            return 0
+
+        try:
+            count = 0
+            with open(self.performance_file, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get('活动编号') == activity_code:
+                        # 检查是否为历史合同
+                        is_historical = row.get('是否历史合同', 'N') == 'Y'
+                        if not is_historical:
+                            count += 1
+            return count
+        except Exception as e:
+            logging.error(f"Error getting non-historical contract count from CSV: {e}")
+            return 0
 
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """从CSV文件计算管家统计 - 兼容现有逻辑"""
