@@ -41,12 +41,17 @@ class RewardCalculator:
             if lucky_reward:
                 rewards.append(lucky_reward)
             
-            # 2. 节节高奖励
+            # 2. 节节高奖励（独立奖励）
+            jiejiegao_reward = self._calculate_jiejiegao_reward(housekeeper_stats)
+            if jiejiegao_reward:
+                rewards.append(jiejiegao_reward)
+
+            # 3. 阶梯奖励（达标奖、优秀奖、精英奖）
             tiered_rewards = self._calculate_tiered_reward(housekeeper_stats)
             if tiered_rewards:
                 rewards.extend(tiered_rewards)
             
-            # 3. 自引单奖励（如果启用）
+            # 4. 自引单奖励（如果启用）
             self_referral_config = self.config.get("self_referral_rewards", {})
             if (self_referral_config.get("enable", False) and
                 contract_data.order_type == OrderType.SELF_REFERRAL):
@@ -90,6 +95,33 @@ class RewardCalculator:
             reward_name=reward_name,
             description=f"合同编号包含幸运数字{lucky_number}"
         )
+
+    def _calculate_jiejiegao_reward(self, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
+        """计算节节高奖励（独立奖励）"""
+        jiejiegao_config = self.config.get("jiejiegao_reward", {})
+        if not jiejiegao_config:
+            return None
+
+        reward_name = jiejiegao_config["name"]
+        min_contracts = jiejiegao_config["min_contracts"]
+        threshold = jiejiegao_config["threshold"]
+
+        # 检查是否已经获得过节节高奖励
+        if reward_name in housekeeper_stats.awarded:
+            logging.debug(f"Housekeeper {housekeeper_stats.housekeeper} already has {reward_name}")
+            return None
+
+        # 检查合同数量和业绩阈值
+        if (housekeeper_stats.contract_count >= min_contracts and
+            housekeeper_stats.total_performance >= threshold):
+
+            return RewardInfo(
+                reward_type="节节高",
+                reward_name=reward_name,
+                description=f"达到{min_contracts}个合同且业绩超过{threshold}元"
+            )
+
+        return None
 
     def _calculate_tiered_reward(self, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
         """计算节节高奖励 - 返回所有符合条件的奖励"""

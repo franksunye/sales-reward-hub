@@ -208,6 +208,11 @@ class ConfigAdapter:
                     {"name": "精英奖", "threshold": 280000}
                 ]
             },
+            "jiejiegao_reward": {
+                "name": "节节高",
+                "min_contracts": 10,
+                "threshold": 80000
+            },
             "awards_mapping": {
                 "接好运": "58",  # 统一58元
                 "达标奖": "400",  # 翻倍
