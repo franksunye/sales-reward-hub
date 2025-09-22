@@ -1,74 +1,82 @@
-"""
-任务管理器模块
+# task_manager.py
 
-用于创建和管理异步任务，主要用于消息发送。
-这是一个简化的实现，用于支持旧架构的运行。
-"""
+from datetime import datetime
+import sqlite3
 
-import logging
-from typing import Any, Dict
+class Task:
+    def __init__(self, task_type, recipient, message):
+        self.task_type = task_type
+        self.recipient = recipient
+        self.message = message
+        self.status = 'pending'
+        self.created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.updated_at = self.created_at
 
-# 设置日志
-logger = logging.getLogger(__name__)
+    def save(self):
+        import logging
+        logging.info(f"[DEBUG] Task.save() called for {self.task_type} to {self.recipient}")
+        try:
+            conn = sqlite3.connect('tasks.db')
+            cursor = conn.cursor()
+            sql = '''
+            INSERT INTO tasks (task_type, recipient, message, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            '''
+            cursor.execute(sql, (self.task_type, self.recipient, self.message, self.status, self.created_at, self.updated_at))
+            self.id = cursor.lastrowid  # Get the inserted row ID
+            conn.commit()
+            conn.close()
+            logging.info(f"[DEBUG] Task saved successfully with ID: {self.id}")
+        except Exception as e:
+            logging.error(f"[DEBUG] Failed to save task: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            raise
 
-def create_task(task_type: str, target: str, content: str) -> Dict[str, Any]:
-    """
-    创建任务
-    
-    Args:
-        task_type: 任务类型，如 'send_wecom_message', 'send_wechat_message'
-        target: 目标，如群组名称或联系人
-        content: 消息内容
-    
-    Returns:
-        任务信息字典
-    """
-    task_info = {
-        'task_type': task_type,
-        'target': target,
-        'content': content,
-        'status': 'created',
-        'created_at': None
-    }
-    
-    # 记录任务创建
-    logger.info(f"Task created: {task_type} -> {target}")
-    logger.debug(f"Task content: {content[:100]}..." if len(content) > 100 else content)
-    
-    # 在实际实现中，这里会将任务加入队列或立即执行
-    # 为了验证目的，我们只是记录任务创建
-    
-    return task_info
+    def update_status(self, status):
+        self.status = status
+        self.updated_at = datetime.now()
+        conn = sqlite3.connect('tasks.db')
+        cursor = conn.cursor()
+        sql = '''
+        UPDATE tasks
+        SET status = ?, updated_at = ?
+        WHERE id = ?
+        '''
+        cursor.execute(sql, (self.status, self.updated_at, self.id))  # Assuming `self.id` is set when saved
+        conn.commit()
+        conn.close()
 
-def execute_task(task_info: Dict[str, Any]) -> bool:
-    """
-    执行任务（占位符实现）
-    
-    Args:
-        task_info: 任务信息
-    
-    Returns:
-        执行是否成功
-    """
-    logger.info(f"Executing task: {task_info['task_type']}")
-    
-    # 在实际实现中，这里会执行具体的任务逻辑
-    # 为了验证目的，我们假设任务总是成功
-    
-    return True
+def create_task(task_type, recipient, message):
+    import logging
+    # logging.info(f"[DEBUG] create_task called: type={task_type}, recipient={recipient}, message_length={len(message)}")
+    try:
+        task = Task(task_type, recipient, message)
+        task.save()
+        # logging.info(f"[DEBUG] Task created successfully: {task}")
+        return task
+    except Exception as e:
+        logging.error(f"[DEBUG] Failed to create task: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        raise
 
-def get_task_status(task_id: str) -> str:
-    """
-    获取任务状态（占位符实现）
-    
-    Args:
-        task_id: 任务ID
-    
-    Returns:
-        任务状态
-    """
-    return 'completed'
+def update_task(task_id, status):
+    conn = sqlite3.connect('tasks.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
+    row = cursor.fetchone()
+    if row:
+        task = Task(row[1], row[2], row[3])  # Assuming the order of columns
+        task.id = task_id  # Set the task ID
+        task.update_status(status)
+    conn.close()
 
-# 为了兼容性，提供一些常用的任务类型常量
-TASK_TYPE_WECOM_MESSAGE = 'send_wecom_message'
-TASK_TYPE_WECHAT_MESSAGE = 'send_wechat_message'
+def get_pending_tasks():
+    conn = sqlite3.connect('tasks.db')
+    conn.row_factory = sqlite3.Row  # Set row factory to Row to return dictionaries
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE status='pending'")
+    tasks = cursor.fetchall()
+    conn.close()
+    return tasks
