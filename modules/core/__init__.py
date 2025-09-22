@@ -127,11 +127,12 @@ def create_standard_pipeline(config_key: str, activity_code: str, city: str, **k
         storage_type=kwargs.get('storage_type', 'sqlite'),
         enable_dual_track=kwargs.get('enable_dual_track', False),
         enable_historical_contracts=kwargs.get('enable_historical_contracts', False),
-        enable_project_limit=kwargs.get('enable_project_limit', False)
+        enable_project_limit=kwargs.get('enable_project_limit', False),
+        enable_csv_output=kwargs.get('enable_csv_output', False)  # 默认关闭CSV输出
     )
     
     # 创建存储实例
-    storage_kwargs = {k: v for k, v in kwargs.items() if k not in ['housekeeper_key_format', 'storage_type', 'enable_dual_track', 'enable_historical_contracts', 'enable_project_limit']}
+    storage_kwargs = {k: v for k, v in kwargs.items() if k not in ['housekeeper_key_format', 'storage_type', 'enable_dual_track', 'enable_historical_contracts', 'enable_project_limit', 'enable_csv_output']}
     store = create_data_store(
         storage_type=config.storage_type,
         **storage_kwargs

@@ -73,6 +73,7 @@ class ProcessingConfig:
     enable_dual_track: bool = False    # 是否启用双轨统计
     enable_historical_contracts: bool = False  # 是否支持历史合同
     enable_project_limit: bool = False # 是否启用工单金额上限
+    enable_csv_output: bool = False    # 是否生成CSV文件（默认关闭）
     
     # 文件路径配置
     temp_contract_file: Optional[str] = None

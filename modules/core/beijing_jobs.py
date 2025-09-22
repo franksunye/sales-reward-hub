@@ -52,9 +52,12 @@ def signing_and_sales_incentive_jun_beijing_v2() -> List[PerformanceRecord]:
         processed_records = pipeline.process(contract_data)
         logging.info(f"处理完成: {len(processed_records)} 条记录")
         
-        # 4. 生成CSV文件（保持现有输出格式）
-        csv_file = _generate_csv_output(processed_records, config)
-        logging.info(f"生成CSV文件: {csv_file}")
+        # 4. 生成CSV文件（可配置）
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        else:
+            logging.info("CSV输出已禁用，数据仅保存到数据库")
         
         # 5. 发送通知（保持现有通知逻辑）
         _send_notifications(processed_records, config)
@@ -105,7 +108,9 @@ def signing_and_sales_incentive_aug_beijing_v2() -> List[PerformanceRecord]:
         logging.info(f"处理完成: {len(processed_records)} 条记录")
         
         # 生成输出和发送通知
-        csv_file = _generate_csv_output(processed_records, config)
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
         _send_notifications(processed_records, config)
         
         return processed_records
@@ -148,7 +153,9 @@ def signing_and_sales_incentive_sep_beijing_v2() -> List[PerformanceRecord]:
         logging.info(f"处理完成: {len(processed_records)} 条记录")
         
         # 生成输出和发送通知
-        csv_file = _generate_csv_output(processed_records, config)
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
         _send_notifications(processed_records, config)
         
         return processed_records
