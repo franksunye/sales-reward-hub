@@ -248,8 +248,8 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         """保存业绩记录"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                reward_types = json.dumps([r.reward_type for r in record.rewards])
-                reward_names = json.dumps([r.reward_name for r in record.rewards])
+                reward_types = json.dumps([r.reward_type for r in record.rewards], ensure_ascii=False)
+                reward_names = json.dumps([r.reward_name for r in record.rewards], ensure_ascii=False)
                 
                 conn.execute("""
                     INSERT OR REPLACE INTO performance_data (
@@ -270,7 +270,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     reward_types,
                     reward_names,
                     record.contract_data.is_historical,
-                    json.dumps(record.contract_data.raw_data)
+                    json.dumps(record.contract_data.raw_data, ensure_ascii=False)
                 ))
                 
                 logging.debug(f"Saved performance record for contract {record.contract_data.contract_id}")
