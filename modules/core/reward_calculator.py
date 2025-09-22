@@ -32,39 +32,33 @@ class RewardCalculator:
         return ConfigAdapter.get_reward_config(config_key)
 
     def calculate(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
-        """计算所有类型的奖励"""
-        rewards = []
-        
+        """计算奖励 - 完全按照旧架构逻辑"""
         try:
-            # 1. 幸运数字奖励
-            lucky_reward = self._calculate_lucky_reward(contract_data, housekeeper_stats)
-            if lucky_reward:
-                rewards.append(lucky_reward)
-            
-            # 2. 节节高奖励（独立奖励）
-            jiejiegao_reward = self._calculate_jiejiegao_reward(housekeeper_stats)
-            if jiejiegao_reward:
-                rewards.append(jiejiegao_reward)
+            # 使用旧架构的奖励计算逻辑
+            reward_types, reward_names, next_reward_gap = self._calculate_rewards_legacy_style(
+                contract_data, housekeeper_stats
+            )
 
-            # 3. 阶梯奖励（达标奖、优秀奖、精英奖）
-            tiered_rewards = self._calculate_tiered_reward(housekeeper_stats)
-            if tiered_rewards:
-                rewards.extend(tiered_rewards)
-            
-            # 4. 自引单奖励（如果启用）
-            self_referral_config = self.config.get("self_referral_rewards", {})
-            if (self_referral_config.get("enable", False) and
-                contract_data.order_type == OrderType.SELF_REFERRAL):
-                self_referral_reward = self._calculate_self_referral_reward(contract_data, housekeeper_stats)
-                if self_referral_reward:
-                    rewards.append(self_referral_reward)
-            
+            # 解析组合奖励
+            rewards = []
+            if reward_types and reward_names:
+                type_list = [t.strip() for t in reward_types.split(',') if t.strip()]
+                name_list = [n.strip() for n in reward_names.split(',') if n.strip()]
+
+                # 确保类型和名称数量匹配
+                for i in range(min(len(type_list), len(name_list))):
+                    rewards.append(RewardInfo(
+                        reward_type=type_list[i],
+                        reward_name=name_list[i],
+                        description=f"{type_list[i]}奖励"
+                    ))
+
             logging.debug(f"Calculated {len(rewards)} rewards for contract {contract_data.contract_id}")
-            
+            return rewards
+
         except Exception as e:
             logging.error(f"Error calculating rewards: {e}")
-        
-        return rewards
+            return []
 
     def _calculate_lucky_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
         """计算幸运数字奖励"""
@@ -122,6 +116,128 @@ class RewardCalculator:
             )
 
         return None
+
+    def _calculate_rewards_legacy_style(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
+        """按照旧架构逻辑计算奖励 - 完全复制旧架构的determine_rewards_generic函数"""
+        reward_types = []
+        reward_names = []
+        next_reward_gap = ""
+
+        # 1. 幸运数字奖励逻辑
+        lucky_reward_type, lucky_reward_name = self._determine_lucky_number_reward_legacy(
+            contract_data, housekeeper_stats
+        )
+
+        if lucky_reward_type:
+            reward_types.append(lucky_reward_type)
+            reward_names.append(lucky_reward_name)
+
+        # 2. 节节高奖励逻辑
+        tiered_reward_types, tiered_reward_names, tiered_next_gap = self._calculate_tiered_rewards_legacy(
+            housekeeper_stats
+        )
+
+        if tiered_reward_types:
+            reward_types.extend(tiered_reward_types)
+            reward_names.extend(tiered_reward_names)
+
+        if tiered_next_gap:
+            next_reward_gap = tiered_next_gap
+
+        return ', '.join(reward_types), ', '.join(reward_names), next_reward_gap
+
+    def _determine_lucky_number_reward_legacy(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
+        """按照旧架构逻辑计算幸运数字奖励"""
+        lucky_number = int(self.config.get("lucky_number", "5"))
+        lucky_number_mode = self.config.get("lucky_number_mode", "personal_sequence")
+        lucky_rewards = self.config.get("lucky_rewards", {})
+
+        # 北京9月使用个人顺序模式
+        if lucky_number_mode == "personal_sequence":
+            # 检查是否是幸运数字的倍数
+            if housekeeper_stats.contract_count % lucky_number == 0:
+                # 根据合同金额确定奖励等级
+                base_reward = lucky_rewards.get("base", {})
+                high_reward = lucky_rewards.get("high", {})
+
+                # 北京9月统一奖励，不区分金额
+                reward_name = base_reward.get("name", "接好运")
+                return "幸运数字", reward_name
+
+        return "", ""
+
+    def _calculate_tiered_rewards_legacy(self, housekeeper_stats: HousekeeperStats) -> tuple:
+        """按照旧架构逻辑计算节节高奖励"""
+        tiered_rewards = self.config.get("tiered_rewards", {})
+        min_contracts = tiered_rewards.get("min_contracts", 10)
+        tiers = tiered_rewards.get("tiers", [])
+
+        reward_types = []
+        reward_names = []
+        next_reward_gap = ""
+
+        # 记录所有奖励名称，用于后续检查
+        all_tier_names = [tier["name"] for tier in tiers]
+
+        # 确定使用哪个金额字段
+        performance_limits = self.config.get("performance_limits", {})
+        enable_cap = performance_limits.get("enable_cap", False)
+
+        if enable_cap:
+            amount = housekeeper_stats.performance_amount
+        else:
+            amount = housekeeper_stats.total_amount
+
+        # 如果管家合同数量达到要求
+        if housekeeper_stats.contract_count >= min_contracts:
+            next_reward = None
+
+            # 按照阈值从高到低排序奖励等级
+            sorted_tiers = sorted(tiers, key=lambda x: x["threshold"], reverse=True)
+
+            # 第一阶段：检查是否达到奖励条件，并添加奖励
+            for i, tier in enumerate(sorted_tiers):
+                tier_name = tier["name"]
+                tier_threshold = tier["threshold"]
+
+                if amount >= tier_threshold and tier_name not in housekeeper_stats.awarded:
+                    reward_types.append("节节高")
+                    reward_names.append(tier_name)
+                    housekeeper_stats.awarded.append(tier_name)
+
+                    # 如果不是最高级别的奖励，设置下一个奖励
+                    if i > 0:
+                        next_reward = sorted_tiers[i-1]["name"]
+                    break
+
+            # 如果未达到任何奖励阈值，设置下一个奖励为最低等级
+            if not set(all_tier_names).intersection(housekeeper_stats.awarded):
+                next_reward = sorted_tiers[-1]["name"]
+
+            # 第二阶段：自动发放所有低级别奖项（如果之前未获得）
+            for tier in sorted(tiers, key=lambda x: x["threshold"]):
+                tier_name = tier["name"]
+                tier_threshold = tier["threshold"]
+
+                if tier_name not in housekeeper_stats.awarded and amount >= tier_threshold:
+                    reward_types.append("节节高")
+                    reward_names.append(tier_name)
+                    housekeeper_stats.awarded.append(tier_name)
+
+            # 计算距离下一级奖励所需的金额差
+            if next_reward:
+                next_reward_threshold = next(
+                    (tier["threshold"] for tier in tiers if tier["name"] == next_reward),
+                    0
+                )
+                if next_reward_threshold > 0:
+                    next_reward_gap = f"距离 {next_reward} 还需 {round(next_reward_threshold - amount, 2):,} 元"
+        else:
+            # 如果未达到最低合同数量要求
+            if not set(all_tier_names).intersection(housekeeper_stats.awarded):
+                next_reward_gap = f"距离达成节节高奖励条件还需 {min_contracts - housekeeper_stats.contract_count} 单"
+
+        return reward_types, reward_names, next_reward_gap
 
     def _calculate_tiered_reward(self, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
         """计算节节高奖励 - 返回所有符合条件的奖励"""
