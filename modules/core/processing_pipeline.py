@@ -36,13 +36,27 @@ class DataProcessingPipeline:
 
         logging.info(f"Initialized processing pipeline for {config.activity_code}")
 
-    def process(self, contract_data_list: List[Dict]) -> List[PerformanceRecord]:
-        """主处理流程 - 消除复杂的内存状态维护"""
+    def process(self, contract_data_list: List[Dict], housekeeper_award_lists: Dict[str, List[str]] = None) -> List[PerformanceRecord]:
+        """
+        主处理流程 - 消除复杂的内存状态维护
+
+        Args:
+            contract_data_list: 合同数据列表
+            housekeeper_award_lists: 管家历史奖励列表（关键修复：防止重复发放奖励）
+        """
         logging.info(f"Starting to process {len(contract_data_list)} contracts for {self.config.activity_code}")
-        
+
+        # 🔧 关键修复：保存历史奖励信息
+        self.housekeeper_award_lists = housekeeper_award_lists or {}
+        logging.info(f"Loaded historical awards for {len(self.housekeeper_award_lists)} housekeepers")
+
         performance_records = []
         processed_count = 0
         skipped_count = 0
+
+        # 全局合同序号计数器（与旧系统兼容）
+        # 从已存在的合同ID数量开始计数
+        global_contract_sequence = len(self.store.get_existing_contract_ids(self.config.activity_code)) + 1
         
         for contract_dict in contract_data_list:
             try:
@@ -59,9 +73,16 @@ class DataProcessingPipeline:
                 hk_stats = self.store.get_housekeeper_stats(housekeeper_key, self.config.activity_code)
                 hk_awards = self.store.get_housekeeper_awards(housekeeper_key, self.config.activity_code)
 
+                # 🔧 关键修复：优先使用传入的历史奖励信息（参考旧系统逻辑）
+                if self.housekeeper_award_lists and housekeeper_key in self.housekeeper_award_lists:
+                    historical_awards = self.housekeeper_award_lists[housekeeper_key]
+                    logging.debug(f"Using historical awards for {housekeeper_key}: {historical_awards}")
+                else:
+                    historical_awards = hk_awards
+
                 # 合并运行时奖励状态，防止同一次执行中重复发放
                 runtime_awards = self.runtime_awards.get(housekeeper_key, [])
-                all_awards = list(set(hk_awards + runtime_awards))
+                all_awards = list(set(historical_awards + runtime_awards))
                 hk_stats.awarded = all_awards
                 
                 # 4. 处理工单金额上限（北京特有）
@@ -93,7 +114,8 @@ class DataProcessingPipeline:
                         new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
                     )
 
-                    contract_sequence = processed_count + 1
+                    # 使用全局合同序号（与旧系统兼容）
+                    contract_sequence = global_contract_sequence
 
                     # 6. 处理自引单项目地址去重（上海特有）
                     if (self.config.enable_dual_track and
@@ -131,6 +153,9 @@ class DataProcessingPipeline:
                 # 只有新增合同才计入processed_count（用于合同序号计算）
                 if not (contract_data.is_historical and self.config.enable_historical_contracts):
                     processed_count += 1
+
+                # 增加全局合同序号计数器（所有合同都计入）
+                global_contract_sequence += 1
 
                 logging.debug(f"Processed contract {contract_data.contract_id} (historical: {contract_data.is_historical})")
                 

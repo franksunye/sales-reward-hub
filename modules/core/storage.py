@@ -29,6 +29,11 @@ class PerformanceDataStore(ABC):
         pass
 
     @abstractmethod
+    def get_existing_contract_ids(self, activity_code: str) -> set:
+        """获取已存在的合同ID集合"""
+        pass
+
+    @abstractmethod
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """获取管家累计统计数据"""
         pass
@@ -124,6 +129,19 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
             logging.error(f"Error checking contract existence: {e}")
             return False
 
+    def get_existing_contract_ids(self, activity_code: str) -> set:
+        """获取已存在的合同ID集合"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT contract_id FROM performance_data WHERE activity_code = ?",
+                    (activity_code,)
+                )
+                return {row[0] for row in cursor.fetchall()}
+        except Exception as e:
+            logging.error(f"Error getting existing contract IDs: {e}")
+            return set()
+
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """数据库聚合查询 - 替代复杂的内存计算"""
         try:
@@ -170,7 +188,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute("""
-                    SELECT reward_names FROM performance_records
+                    SELECT reward_names FROM performance_data
                     WHERE housekeeper = ? AND activity_code = ? AND reward_names IS NOT NULL AND reward_names != ''
                 """, (housekeeper, activity_code))
 
@@ -188,6 +206,43 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error getting housekeeper awards: {e}")
             return []
+
+    def get_all_housekeeper_awards(self, activity_code: str) -> Dict[str, List[str]]:
+        """
+        获取所有管家的历史奖励列表
+
+        这是修复节节高奖项重复发放问题的关键方法
+        返回格式：{管家_服务商: [奖励名称列表]}
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT housekeeper, reward_names FROM performance_data
+                    WHERE activity_code = ? AND reward_names IS NOT NULL AND reward_names != ''
+                """, (activity_code,))
+
+                housekeeper_awards = {}
+                for row in cursor.fetchall():
+                    housekeeper = row[0]
+                    reward_names_str = row[1]
+
+                    if housekeeper not in housekeeper_awards:
+                        housekeeper_awards[housekeeper] = []
+
+                    if reward_names_str:
+                        # 处理逗号分隔的奖励名称
+                        reward_names = reward_names_str.split(',')
+                        for reward_name in reward_names:
+                            reward_name = reward_name.strip()
+                            if reward_name and reward_name not in housekeeper_awards[housekeeper]:
+                                housekeeper_awards[housekeeper].append(reward_name)
+
+                logging.info(f"Retrieved awards for {len(housekeeper_awards)} housekeepers from database")
+                return housekeeper_awards
+
+        except Exception as e:
+            logging.error(f"Error getting all housekeeper awards: {e}")
+            return {}
 
     def save_performance_record(self, record: PerformanceRecord) -> None:
         """保存业绩记录"""
@@ -277,6 +332,23 @@ class CSVPerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error checking contract existence in CSV: {e}")
             return False
+
+    def get_existing_contract_ids(self, activity_code: str) -> set:
+        """获取已存在的合同ID集合 - CSV实现"""
+        if not os.path.exists(self.performance_file):
+            return set()
+
+        try:
+            contract_ids = set()
+            with open(self.performance_file, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get('活动编号') == activity_code:
+                        contract_ids.add(row.get('合同ID(_id)', ''))
+            return contract_ids
+        except Exception as e:
+            logging.error(f"Error getting existing contract IDs from CSV: {e}")
+            return set()
 
     def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
         """从CSV文件计算管家统计 - 兼容现有逻辑"""
