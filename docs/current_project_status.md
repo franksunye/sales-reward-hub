@@ -41,6 +41,13 @@
 ### 🎯 当前任务
 **准备阶段D：上海9月等价性验证**
 
+#### ✅ 最新完成 (今天)
+- **架构纯粹性改进**: 新架构默认不生成CSV，数据库优先
+- **个体抽样验证**: 补充统计验证，确保真正完全等价性
+- **配置化输出**: 按需导出CSV，保持根目录清洁
+
+北京9月验证已100%完成，架构改进已提交GitHub。
+
 ## 📁 本次提交文件清单
 
 ### 验证报告
@@ -52,6 +59,8 @@
 - `scripts/business_logic_validator.py` - 业务逻辑验证
 - `scripts/output_comparison_validator.py` - 输出结果对比验证
 - `scripts/edge_case_validator.py` - 边界情况验证
+- `scripts/individual_sampling_validator.py` - 个体抽样验证
+- `scripts/export_database_to_csv.py` - 数据库导出工具
 
 ### 基础设施修复
 - `task_manager.py` - 新增任务管理器模块（解决旧架构依赖）
