@@ -31,12 +31,20 @@ class RewardCalculator:
         from .config_adapter import ConfigAdapter
         return ConfigAdapter.get_reward_config(config_key)
 
-    def calculate(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
-        """计算奖励 - 完全按照旧架构逻辑"""
+    def calculate(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
+                  global_sequence: int = None, personal_sequence: int = None) -> List[RewardInfo]:
+        """计算奖励 - 完全按照旧架构逻辑
+
+        Args:
+            contract_data: 合同数据
+            housekeeper_stats: 管家统计数据
+            global_sequence: 全局合同签署序号
+            personal_sequence: 管家个人合同签署序号
+        """
         try:
             # 使用旧架构的奖励计算逻辑
             reward_types, reward_names, next_reward_gap = self._calculate_rewards_legacy_style(
-                contract_data, housekeeper_stats
+                contract_data, housekeeper_stats, global_sequence, personal_sequence
             )
 
             # 解析组合奖励
@@ -117,15 +125,23 @@ class RewardCalculator:
 
         return None
 
-    def _calculate_rewards_legacy_style(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
-        """按照旧架构逻辑计算奖励 - 完全复制旧架构的determine_rewards_generic函数"""
+    def _calculate_rewards_legacy_style(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
+                                       global_sequence: int = None, personal_sequence: int = None) -> tuple:
+        """按照旧架构逻辑计算奖励 - 完全复制旧架构的determine_rewards_generic函数
+
+        Args:
+            contract_data: 合同数据
+            housekeeper_stats: 管家统计数据
+            global_sequence: 全局合同签署序号
+            personal_sequence: 管家个人合同签署序号
+        """
         reward_types = []
         reward_names = []
         next_reward_gap = ""
 
-        # 1. 幸运数字奖励逻辑
+        # 1. 幸运数字奖励逻辑（传递序号信息）
         lucky_reward_type, lucky_reward_name = self._determine_lucky_number_reward_legacy(
-            contract_data, housekeeper_stats
+            contract_data, housekeeper_stats, global_sequence, personal_sequence
         )
 
         if lucky_reward_type:
@@ -155,8 +171,16 @@ class RewardCalculator:
 
         return ', '.join(reward_types), ', '.join(reward_names), next_reward_gap
 
-    def _determine_lucky_number_reward_legacy(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
-        """按照旧架构逻辑计算幸运数字奖励"""
+    def _determine_lucky_number_reward_legacy(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
+                                            global_sequence: int = None, personal_sequence: int = None) -> tuple:
+        """按照旧架构逻辑计算幸运数字奖励
+
+        Args:
+            contract_data: 合同数据
+            housekeeper_stats: 管家统计数据
+            global_sequence: 全局合同签署序号
+            personal_sequence: 管家个人合同签署序号
+        """
         lucky_number_str = self.config.get("lucky_number", "5")
 
         # 🔧 修复：如果lucky_number为空字符串，则禁用幸运奖励（上海9月的情况）
@@ -170,12 +194,22 @@ class RewardCalculator:
             return "", ""
 
         lucky_number_mode = self.config.get("lucky_number_mode", "personal_sequence")
+        lucky_number_sequence_type = self.config.get("lucky_number_sequence_type", "personal")
         lucky_rewards = self.config.get("lucky_rewards", {})
+
+        # 根据配置选择使用哪种序号进行幸运数字判定
+        if lucky_number_sequence_type == "global" and global_sequence is not None:
+            sequence_to_check = global_sequence
+        elif lucky_number_sequence_type == "personal" and personal_sequence is not None:
+            sequence_to_check = personal_sequence
+        else:
+            # 兜底：使用管家统计中的个人序号
+            sequence_to_check = housekeeper_stats.contract_count
 
         # 北京9月使用个人顺序模式
         if lucky_number_mode == "personal_sequence":
             # 检查是否是幸运数字的倍数
-            if housekeeper_stats.contract_count % lucky_number == 0:
+            if sequence_to_check % lucky_number == 0:
                 # 根据合同金额确定奖励等级
                 base_reward = lucky_rewards.get("base", {})
                 high_reward = lucky_rewards.get("high", {})

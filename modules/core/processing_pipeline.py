@@ -54,7 +54,7 @@ class DataProcessingPipeline:
         processed_count = 0
         skipped_count = 0
 
-        # 全局合同序号计数器（与旧系统兼容）
+        # 全局合同序号计数器（所有活动都需要用于"活动期内第几个合同"字段显示）
         # 从已存在的合同ID数量开始计数
         global_contract_sequence = len(self.store.get_existing_contract_ids(self.config.activity_code)) + 1
         
@@ -114,8 +114,12 @@ class DataProcessingPipeline:
                         new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
                     )
 
-                    # 使用全局合同序号（与旧系统兼容）
-                    contract_sequence = global_contract_sequence
+                    # 计算两种序号，供业务逻辑选择使用
+                    global_sequence = global_contract_sequence  # 全局合同签署序号
+                    personal_sequence = updated_hk_stats.contract_count  # 管家个人合同签署序号
+
+                    # 默认显示全局序号（可通过配置调整）
+                    contract_sequence = global_sequence
 
                     # 6. 处理自引单项目地址去重（上海特有）
                     if (self.config.enable_dual_track and
@@ -127,8 +131,13 @@ class DataProcessingPipeline:
                             skipped_count += 1
                             continue
 
-                    # 7. 计算奖励（使用更新后的统计数据）
-                    rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
+                    # 7. 计算奖励（使用更新后的统计数据，传递序号信息）
+                    rewards = self.reward_calculator.calculate(
+                        contract_data,
+                        updated_hk_stats,
+                        global_sequence=global_sequence,
+                        personal_sequence=personal_sequence
+                    )
 
                     # 8. 更新运行时奖励状态
                     if rewards:

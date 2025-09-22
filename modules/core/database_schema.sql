@@ -25,6 +25,9 @@ CREATE TABLE performance_data (
     -- 订单类型（上海双轨统计）
     order_type TEXT DEFAULT 'platform',    -- 'platform' 或 'self_referral'
     
+    -- 序号信息
+    contract_sequence INTEGER DEFAULT 0,   -- 活动期内第几个合同（全局序号）
+
     -- 奖励信息
     reward_types TEXT,                     -- 奖励类型（JSON格式）
     reward_names TEXT,                     -- 奖励名称（JSON格式）

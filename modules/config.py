@@ -67,6 +67,7 @@ REWARD_CONFIGS = {
     "BJ-2025-09": {
         "lucky_number": "5",  # 基于个人合同顺序的倍数
         "lucky_number_mode": "personal_sequence",  # 个人顺序模式
+        "lucky_number_sequence_type": "personal",  # 幸运数字使用的序号类型：personal（个人序号）或 global（全局序号）
         "lucky_rewards": {
             "base": {"name": "接好运", "threshold": 0},
             "high": {"name": "接好运", "threshold": 999999999}  # 统一奖励，不区分金额
@@ -126,6 +127,7 @@ REWARD_CONFIGS = {
     # 上海2025年9月活动配置
     "SH-2025-09": {
         "lucky_number": "",  # 禁用幸运奖
+        "lucky_number_sequence_type": "global",  # 如果启用幸运奖，上海早期使用全局序号
         "performance_limits": {
             "enable_cap": False,  # 上海不启用业绩上限
             "single_contract_cap": 40000

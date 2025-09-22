@@ -255,8 +255,8 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     INSERT OR REPLACE INTO performance_data (
                         activity_code, contract_id, housekeeper, service_provider,
                         contract_amount, performance_amount, order_type, project_id,
-                        reward_types, reward_names, is_historical, extensions
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        contract_sequence, reward_types, reward_names, is_historical, extensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     record.activity_code,
                     record.contract_data.contract_id,
@@ -266,6 +266,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     record.performance_amount,
                     record.contract_data.order_type.value,
                     record.contract_data.project_id,
+                    record.contract_sequence,
                     reward_types,
                     reward_names,
                     record.contract_data.is_historical,
