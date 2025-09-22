@@ -136,8 +136,8 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
 
         logging.info(f"创建处理管道成功: {config.activity_code}")
 
-        # 获取合同数据（使用固定的输入数据以确保与旧系统一致）
-        contract_data = _get_fixed_shanghai_contract_data()
+        # 获取合同数据（从Metabase API获取真实数据）
+        contract_data = _get_shanghai_contract_data()
         logging.info(f"获取到 {len(contract_data)} 个合同数据（支持双轨统计）")
 
         # 🔧 关键修复：获取管家历史奖励列表（参考旧系统逻辑）

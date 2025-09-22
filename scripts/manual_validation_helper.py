@@ -100,14 +100,21 @@ def compare_shanghai():
         old_df = pd.read_csv(old_file)
         print(f"✅ 旧架构文件加载成功: {len(old_df)} 条记录")
         
-        # 查找新架构文件
+        # 查找新架构文件（优先选择双轨统计文件）
         new_files = [f for f in os.listdir('.') if f.startswith('performance_data_SH-SEP_')]
         if not new_files:
             print("❌ 未找到新架构上海输出文件")
             print("提示: 请先运行新架构并导出CSV文件")
             return False
-            
-        new_file = new_files[0]
+
+        # 优先选择双轨统计文件
+        dual_track_files = [f for f in new_files if 'dual_track' in f]
+        if dual_track_files:
+            new_file = dual_track_files[0]
+            print(f"📈 使用双轨统计文件: {new_file}")
+        else:
+            new_file = new_files[0]
+            print(f"📊 使用标准文件: {new_file}")
         new_df = pd.read_csv(new_file)
         print(f"✅ 新架构文件加载成功: {len(new_df)} 条记录")
         
