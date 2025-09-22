@@ -42,8 +42,8 @@ class RewardCalculator:
             personal_sequence: 管家个人合同签署序号
         """
         try:
-            # 使用旧架构的奖励计算逻辑
-            reward_types, reward_names, next_reward_gap = self._calculate_rewards_legacy_style(
+            # 计算奖励
+            reward_types, reward_names, next_reward_gap = self._calculate_rewards(
                 contract_data, housekeeper_stats, global_sequence, personal_sequence
             )
 
@@ -68,66 +68,11 @@ class RewardCalculator:
             logging.error(f"Error calculating rewards: {e}")
             return []
 
-    def _calculate_lucky_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
-        """计算幸运数字奖励"""
-        lucky_config = self.config.get("lucky_rewards")
-        if not lucky_config:
-            return None
 
-        lucky_number = self.config.get("lucky_number", "8")
-        contract_amount = contract_data.contract_amount
 
-        # 检查是否符合幸运数字条件
-        if not self._is_lucky_contract(contract_data, housekeeper_stats, lucky_number):
-            return None
-        
-        # 根据合同金额确定奖励类型
-        if contract_amount >= lucky_config.get("high", {}).get("threshold", 10000):
-            reward_name = lucky_config["high"]["name"]
-        else:
-            reward_name = lucky_config["base"]["name"]
-        
-        # 检查是否已经获得过此类奖励
-        if reward_name in housekeeper_stats.awarded:
-            logging.debug(f"Housekeeper {contract_data.housekeeper} already has {reward_name}")
-            return None
-        
-        return RewardInfo(
-            reward_type="幸运数字",
-            reward_name=reward_name,
-            description=f"合同编号包含幸运数字{lucky_number}"
-        )
-
-    def _calculate_jiejiegao_reward(self, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
-        """计算节节高奖励（独立奖励）"""
-        jiejiegao_config = self.config.get("jiejiegao_reward", {})
-        if not jiejiegao_config:
-            return None
-
-        reward_name = jiejiegao_config["name"]
-        min_contracts = jiejiegao_config["min_contracts"]
-        threshold = jiejiegao_config["threshold"]
-
-        # 检查是否已经获得过节节高奖励
-        if reward_name in housekeeper_stats.awarded:
-            logging.debug(f"Housekeeper {housekeeper_stats.housekeeper} already has {reward_name}")
-            return None
-
-        # 检查合同数量和业绩阈值
-        if (housekeeper_stats.contract_count >= min_contracts and
-            housekeeper_stats.total_performance >= threshold):
-
-            return RewardInfo(
-                reward_type="节节高",
-                reward_name=reward_name,
-                description=f"达到{min_contracts}个合同且业绩超过{threshold}元"
-            )
-
-        return None
-
-    def _calculate_rewards_legacy_style(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
-                                       global_sequence: int = None, personal_sequence: int = None) -> tuple:
-        """按照旧架构逻辑计算奖励 - 完全复制旧架构的determine_rewards_generic函数
+    def _calculate_rewards(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
+                          global_sequence: int = None, personal_sequence: int = None) -> tuple:
+        """计算奖励 - 按照业务逻辑计算各种奖励
 
         Args:
             contract_data: 合同数据
@@ -140,7 +85,7 @@ class RewardCalculator:
         next_reward_gap = ""
 
         # 1. 幸运数字奖励逻辑（传递序号信息）
-        lucky_reward_type, lucky_reward_name = self._determine_lucky_number_reward_legacy(
+        lucky_reward_type, lucky_reward_name = self._determine_lucky_number_reward(
             contract_data, housekeeper_stats, global_sequence, personal_sequence
         )
 
@@ -149,7 +94,7 @@ class RewardCalculator:
             reward_names.append(lucky_reward_name)
 
         # 2. 节节高奖励逻辑
-        tiered_reward_types, tiered_reward_names, tiered_next_gap = self._calculate_tiered_rewards_legacy(
+        tiered_reward_types, tiered_reward_names, tiered_next_gap = self._calculate_tiered_rewards(
             housekeeper_stats
         )
 
@@ -161,7 +106,7 @@ class RewardCalculator:
             next_reward_gap = tiered_next_gap
 
         # 3. 自引单奖励逻辑（上海9月特有）
-        self_referral_reward_type, self_referral_reward_name = self._determine_self_referral_reward_legacy(
+        self_referral_reward_type, self_referral_reward_name = self._determine_self_referral_reward(
             contract_data, housekeeper_stats
         )
 
@@ -171,9 +116,9 @@ class RewardCalculator:
 
         return ', '.join(reward_types), ', '.join(reward_names), next_reward_gap
 
-    def _determine_lucky_number_reward_legacy(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
-                                            global_sequence: int = None, personal_sequence: int = None) -> tuple:
-        """按照旧架构逻辑计算幸运数字奖励
+    def _determine_lucky_number_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
+                                      global_sequence: int = None, personal_sequence: int = None) -> tuple:
+        """计算幸运数字奖励
 
         Args:
             contract_data: 合同数据
@@ -220,8 +165,8 @@ class RewardCalculator:
 
         return "", ""
 
-    def _determine_self_referral_reward_legacy(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
-        """按照旧架构逻辑计算自引单奖励"""
+    def _determine_self_referral_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
+        """计算自引单奖励"""
         self_referral_config = self.config.get("self_referral_rewards", {})
 
         # 检查是否启用自引单奖励
@@ -245,8 +190,8 @@ class RewardCalculator:
 
         return reward_type, reward_name
 
-    def _calculate_tiered_rewards_legacy(self, housekeeper_stats: HousekeeperStats) -> tuple:
-        """按照旧架构逻辑计算节节高奖励"""
+    def _calculate_tiered_rewards(self, housekeeper_stats: HousekeeperStats) -> tuple:
+        """计算节节高奖励"""
         tiered_rewards = self.config.get("tiered_rewards", {})
         min_contracts = tiered_rewards.get("min_contracts", 10)
         tiers = tiered_rewards.get("tiers", [])
@@ -326,63 +271,7 @@ class RewardCalculator:
 
         return reward_types, reward_names, next_reward_gap
 
-    def _calculate_tiered_reward(self, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
-        """计算节节高奖励 - 返回所有符合条件的奖励"""
-        tiered_config = self.config.get("tiered_rewards")
-        if not tiered_config:
-            return []
 
-        min_contracts = tiered_config.get("min_contracts", 6)
-        if housekeeper_stats.contract_count < min_contracts:
-            return []
-
-        rewards = []
-        tiers = tiered_config.get("tiers", [])
-
-        # 按照阈值从低到高排序，确保按顺序发放奖励
-        sorted_tiers = sorted(tiers, key=lambda x: x["threshold"])
-
-        for tier in sorted_tiers:
-            threshold = tier.get("threshold", 0)
-            reward_name = tier.get("name", "")
-
-            if (housekeeper_stats.performance_amount >= threshold and
-                reward_name not in housekeeper_stats.awarded):
-
-                rewards.append(RewardInfo(
-                    reward_type="节节高",
-                    reward_name=reward_name,
-                    description=f"累计业绩达到{threshold}元"
-                ))
-
-                # 将奖励添加到已获得列表中，防止重复发放
-                housekeeper_stats.awarded.append(reward_name)
-
-        return rewards
-
-    def _calculate_self_referral_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
-        """计算自引单奖励"""
-        self_referral_config = self.config.get("self_referral_rewards")
-        if not self_referral_config or not self_referral_config.get("enable", False):
-            return None
-
-        # 检查项目地址去重逻辑（上海特有）
-        project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
-        if not project_address:
-            return None
-
-        # 项目地址去重逻辑
-        # 注意：这里简化处理，实际应该查询数据库检查该项目地址是否已经被该管家使用过
-        # 在处理管道中会有更完整的去重逻辑
-
-        reward_type = self_referral_config.get("reward_type", "自引单")
-        reward_name = self_referral_config.get("reward_name", "红包")
-
-        return RewardInfo(
-            reward_type=reward_type,
-            reward_name=reward_name,
-            description=f"自引单项目地址: {project_address}"
-        )
 
     def _is_lucky_contract(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats, lucky_number: str) -> bool:
         """检查是否是幸运合同"""
