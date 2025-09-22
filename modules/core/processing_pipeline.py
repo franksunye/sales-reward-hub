@@ -32,7 +32,8 @@ class DataProcessingPipeline:
         self.store = store
         self.reward_calculator = RewardCalculator(config.config_key)
         self.record_builder = RecordBuilder(config)
-        
+        self.runtime_awards = {}  # 运行时奖励状态，防止同一次执行中重复发放
+
         logging.info(f"Initialized processing pipeline for {config.activity_code}")
 
     def process(self, contract_data_list: List[Dict]) -> List[PerformanceRecord]:
@@ -57,7 +58,11 @@ class DataProcessingPipeline:
                 housekeeper_key = self._build_housekeeper_key(contract_data)
                 hk_stats = self.store.get_housekeeper_stats(housekeeper_key, self.config.activity_code)
                 hk_awards = self.store.get_housekeeper_awards(housekeeper_key, self.config.activity_code)
-                hk_stats.awarded = hk_awards
+
+                # 合并运行时奖励状态，防止同一次执行中重复发放
+                runtime_awards = self.runtime_awards.get(housekeeper_key, [])
+                all_awards = list(set(hk_awards + runtime_awards))
+                hk_stats.awarded = all_awards
                 
                 # 4. 处理工单金额上限（北京特有）
                 performance_amount = self._calculate_performance_amount(contract_data)
@@ -103,7 +108,14 @@ class DataProcessingPipeline:
                     # 7. 计算奖励（使用更新后的统计数据）
                     rewards = self.reward_calculator.calculate(contract_data, updated_hk_stats)
 
-                # 8. 构建业绩记录
+                    # 8. 更新运行时奖励状态
+                    if rewards:
+                        if housekeeper_key not in self.runtime_awards:
+                            self.runtime_awards[housekeeper_key] = []
+                        for reward in rewards:
+                            self.runtime_awards[housekeeper_key].append(reward.reward_name)
+
+                # 9. 构建业绩记录
                 record = self.record_builder.build(
                     contract_data=contract_data,
                     housekeeper_stats=updated_hk_stats,  # 使用更新后的统计数据
@@ -112,7 +124,7 @@ class DataProcessingPipeline:
                     contract_sequence=contract_sequence
                 )
                 
-                # 9. 保存记录
+                # 10. 保存记录
                 self.store.save_performance_record(record)
                 performance_records.append(record)
 

@@ -170,19 +170,20 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute("""
-                    SELECT reward_types FROM performance_data
-                    WHERE housekeeper = ? AND activity_code = ? AND reward_types IS NOT NULL
+                    SELECT reward_names FROM performance_records
+                    WHERE housekeeper = ? AND activity_code = ? AND reward_names IS NOT NULL AND reward_names != ''
                 """, (housekeeper, activity_code))
-                
+
                 awards = []
                 for row in cursor.fetchall():
                     if row[0]:
-                        try:
-                            reward_list = json.loads(row[0]) if row[0].startswith('[') else [row[0]]
-                            awards.extend(reward_list)
-                        except json.JSONDecodeError:
-                            awards.append(row[0])
-                
+                        # 处理逗号分隔的奖励名称
+                        reward_names = row[0].split(',')
+                        for reward_name in reward_names:
+                            reward_name = reward_name.strip()
+                            if reward_name:
+                                awards.append(reward_name)
+
                 return list(set(awards))  # 去重
         except Exception as e:
             logging.error(f"Error getting housekeeper awards: {e}")
