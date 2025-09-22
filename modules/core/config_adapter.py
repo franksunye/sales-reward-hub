@@ -193,7 +193,7 @@ class ConfigAdapter:
             "lucky_strategy": "personal_sequence",  # 个人序列5的倍数
             "lucky_rewards": {
                 "base": {"name": "接好运", "threshold": 0},
-                "high": {"name": "接好运万元以上", "threshold": 10000}
+                "high": {"name": "接好运", "threshold": 999999999}  # 统一奖励，不区分金额
             },
             "performance_limits": {
                 "single_project_limit": 50000,  # 北京9月是5万上限
@@ -204,14 +204,15 @@ class ConfigAdapter:
                 "min_contracts": 10,  # 北京9月是10个合同门槛
                 "tiers": [
                     {"name": "达标奖", "threshold": 80000},
-                    {"name": "优秀奖", "threshold": 120000}
+                    {"name": "优秀奖", "threshold": 180000},
+                    {"name": "精英奖", "threshold": 280000}
                 ]
             },
             "awards_mapping": {
-                "接好运": "36",
-                "接好运万元以上": "66",
-                "达标奖": "200",
-                "优秀奖": "400"
+                "接好运": "58",  # 统一58元
+                "达标奖": "400",  # 翻倍
+                "优秀奖": "800",  # 翻倍
+                "精英奖": "1600"  # 翻倍
             },
             "enable_historical_contracts": True  # 支持历史合同
         }

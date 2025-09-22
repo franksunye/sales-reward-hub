@@ -111,7 +111,7 @@ class ContractData:
             paid_amount=float(data.get('支付金额(paidAmount)', 0)),
             project_id=data.get('工单编号(serviceAppointmentNum)'),
             order_type=OrderType.SELF_REFERRAL if data.get('款项来源类型(tradeIn)') == 1 else OrderType.PLATFORM,
-            is_historical=bool(data.get('pcContractdocNum')),  # 如果有历史合同字段则为历史合同
+            is_historical=bool(data.get('pcContractdocNum') and str(data.get('pcContractdocNum')).strip()),  # 如果历史合同字段有值则为历史合同
             raw_data=data
         )
 

@@ -237,8 +237,9 @@ def _get_contract_data_with_historical() -> List[Dict]:
     
     # 添加历史合同标记
     for contract in contract_data:
-        # 如果有历史合同编号字段，则标记为历史合同
-        if contract.get('pcContractdocNum'):
+        # 如果历史合同编号字段有值且不为空，则标记为历史合同
+        pc_contract_doc_num = contract.get('pcContractdocNum', '')
+        if pc_contract_doc_num and str(pc_contract_doc_num).strip():
             contract['is_historical'] = True
         else:
             contract['is_historical'] = False

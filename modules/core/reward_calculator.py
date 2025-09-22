@@ -42,9 +42,9 @@ class RewardCalculator:
                 rewards.append(lucky_reward)
             
             # 2. 节节高奖励
-            tiered_reward = self._calculate_tiered_reward(housekeeper_stats)
-            if tiered_reward:
-                rewards.append(tiered_reward)
+            tiered_rewards = self._calculate_tiered_reward(housekeeper_stats)
+            if tiered_rewards:
+                rewards.extend(tiered_rewards)
             
             # 3. 自引单奖励（如果启用）
             self_referral_config = self.config.get("self_referral_rewards", {})
@@ -91,32 +91,39 @@ class RewardCalculator:
             description=f"合同编号包含幸运数字{lucky_number}"
         )
 
-    def _calculate_tiered_reward(self, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
-        """计算节节高奖励"""
+    def _calculate_tiered_reward(self, housekeeper_stats: HousekeeperStats) -> List[RewardInfo]:
+        """计算节节高奖励 - 返回所有符合条件的奖励"""
         tiered_config = self.config.get("tiered_rewards")
         if not tiered_config:
-            return None
-        
+            return []
+
         min_contracts = tiered_config.get("min_contracts", 6)
         if housekeeper_stats.contract_count < min_contracts:
-            return None
-        
-        # 检查各个档次的奖励
+            return []
+
+        rewards = []
         tiers = tiered_config.get("tiers", [])
-        for tier in reversed(tiers):  # 从高到低检查
+
+        # 按照阈值从低到高排序，确保按顺序发放奖励
+        sorted_tiers = sorted(tiers, key=lambda x: x["threshold"])
+
+        for tier in sorted_tiers:
             threshold = tier.get("threshold", 0)
             reward_name = tier.get("name", "")
-            
-            if (housekeeper_stats.performance_amount >= threshold and 
+
+            if (housekeeper_stats.performance_amount >= threshold and
                 reward_name not in housekeeper_stats.awarded):
-                
-                return RewardInfo(
+
+                rewards.append(RewardInfo(
                     reward_type="节节高",
                     reward_name=reward_name,
                     description=f"累计业绩达到{threshold}元"
-                )
-        
-        return None
+                ))
+
+                # 将奖励添加到已获得列表中，防止重复发放
+                housekeeper_stats.awarded.append(reward_name)
+
+        return rewards
 
     def _calculate_self_referral_reward(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> Optional[RewardInfo]:
         """计算自引单奖励"""
