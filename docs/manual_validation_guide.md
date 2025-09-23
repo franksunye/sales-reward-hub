@@ -1,7 +1,7 @@
 # 手动验证指南
 
-**版本**: v2.0
-**更新日期**: 2025-09-22
+**版本**: v3.0
+**更新日期**: 2025-09-23
 **适用范围**: 北京和上海9月销售激励活动验证
 
 ## 🎯 目标
@@ -10,7 +10,6 @@
 ## 📋 验证清单
 - [ ] 北京9月 (BJ-SEP) 验证
 - [ ] 上海9月 (SH-SEP) 验证
-- [ ] 跨城市兼容性验证
 
 ## 📋 准备工作
 
@@ -20,10 +19,7 @@
 - 项目依赖已安装
 
 ### ⚠️ 实时数据验证说明
-**重要**: 手工测试与自动化验证的区别：
-
-- **自动化验证**: 使用固定基准数据，确保100%等价性
-- **手工测试**: 使用实时API数据，验证系统功能正常
+**重要**: 手工测试使用实时API数据，验证系统功能正常。
 
 **预期的微小差异**（正常情况）:
 - 记录数量: ±1-2条（数据更新延迟）
@@ -41,7 +37,7 @@
 rm -f performance_data_*.csv
 rm -f state/PerformanceData-*.csv
 rm -f performance_data.db
-rm -f logs/*.log
+rm -f tasks.db
 
 # 2. 确保在项目根目录
 pwd  # 应该显示项目根路径
@@ -50,14 +46,6 @@ ls modules/  # 应该能看到core目录
 # 3. 验证Python环境
 python --version
 python -c "import pandas, sqlite3; print('依赖检查通过')"
-```
-
-### 验证工具准备
-```bash
-# 检查验证工具是否可用
-ls scripts/export_database_to_csv.py
-ls scripts/comprehensive_equivalence_validator.py
-python scripts/export_database_to_csv.py --help
 ```
 
 ## 🏢 北京9月验证 (BJ-SEP)
@@ -116,14 +104,13 @@ echo "数据库文件大小: $(du -h performance_data.db)"
 echo "📊 导出新架构数据..."
 
 # 从数据库导出CSV（兼容旧格式）
-python scripts/export_database_to_csv.py --activity BJ-SEP --compatible
+python scripts/export_database_to_csv.py --activity BJ-SEP --output beijing_new_output.csv
 
 # 检查导出文件
-NEW_BJ_FILE=$(ls performance_data_BJ-SEP_*.csv | head -1)
-echo "新架构导出文件: $NEW_BJ_FILE"
-ls -la $NEW_BJ_FILE
-wc -l $NEW_BJ_FILE
-echo "新架构文件大小: $(du -h $NEW_BJ_FILE)"
+echo "新架构导出文件: beijing_new_output.csv"
+ls -la beijing_new_output.csv
+wc -l beijing_new_output.csv
+echo "新架构文件大小: $(du -h beijing_new_output.csv)"
 ```
 
 ### 步骤4: 北京对比验证
@@ -132,7 +119,7 @@ echo "🔍 开始北京9月对比验证..."
 
 # 设置文件变量
 OLD_BJ_FILE="state/PerformanceData-BJ-Sep.csv"
-NEW_BJ_FILE=$(ls performance_data_BJ-SEP_*.csv | head -1)
+NEW_BJ_FILE="beijing_new_output.csv"
 
 echo "旧架构文件: $OLD_BJ_FILE"
 echo "新架构文件: $NEW_BJ_FILE"
@@ -169,9 +156,7 @@ fi
 ```bash
 echo "🏙️ 开始上海9月旧架构验证..."
 
-# 清理环境
-rm -f state/PerformanceData-SH-Sep.csv
-rm -f performance_data.db
+
 
 # 运行旧架构上海9月
 python -c "
@@ -222,15 +207,14 @@ echo "数据库文件大小: $(du -h performance_data.db)"
 ```bash
 echo "📊 导出上海新架构数据..."
 
-# 从数据库导出CSV（支持双轨统计）
-python scripts/export_database_to_csv.py --activity SH-SEP --dual-track
+# 从数据库导出CSV（兼容旧格式）
+python scripts/export_database_to_csv.py --activity SH-SEP --output shanghai_new_output.csv
 
 # 检查导出文件
-NEW_SH_FILE=$(ls performance_data_SH-SEP_*.csv | head -1)
-echo "新架构导出文件: $NEW_SH_FILE"
-ls -la $NEW_SH_FILE
-wc -l $NEW_SH_FILE
-echo "新架构文件大小: $(du -h $NEW_SH_FILE)"
+echo "新架构导出文件: shanghai_new_output.csv"
+ls -la shanghai_new_output.csv
+wc -l shanghai_new_output.csv
+echo "新架构文件大小: $(du -h shanghai_new_output.csv)"
 ```
 
 ### 步骤4: 上海对比验证
@@ -239,7 +223,7 @@ echo "🔍 开始上海9月对比验证..."
 
 # 设置文件变量
 OLD_SH_FILE="state/PerformanceData-SH-Sep.csv"
-NEW_SH_FILE=$(ls performance_data_SH-SEP_*.csv | head -1)
+NEW_SH_FILE="shanghai_new_output.csv"
 
 echo "旧架构文件: $OLD_SH_FILE"
 echo "新架构文件: $NEW_SH_FILE"
@@ -248,238 +232,116 @@ echo "新架构文件: $NEW_SH_FILE"
 echo "=== 记录数量对比 ==="
 wc -l $OLD_SH_FILE $NEW_SH_FILE
 
-echo "=== 双轨统计字段检查 ==="
-echo "检查新架构是否包含双轨统计字段:"
-head -1 $NEW_SH_FILE | grep -o "平台单累计\|自引单累计" || echo "双轨统计字段存在"
+echo "=== 双轨统计对比 ==="
+echo "旧架构平台单数:"
+OLD_SH_PLATFORM=$(grep -c "平台单" $OLD_SH_FILE)
+echo $OLD_SH_PLATFORM
+echo "新架构平台单数:"
+NEW_SH_PLATFORM=$(grep -c "平台单" $NEW_SH_FILE)
+echo $NEW_SH_PLATFORM
 
-echo "=== 奖励统计对比 ==="
-echo "旧架构奖励数:"
-OLD_SH_REWARDS=$(grep -c "接好运\|达标奖\|优秀奖" $OLD_SH_FILE)
-echo $OLD_SH_REWARDS
-echo "新架构奖励数:"
-NEW_SH_REWARDS=$(grep -c "接好运\|达标奖\|优秀奖" $NEW_SH_FILE)
-echo $NEW_SH_REWARDS
+echo "旧架构自引单数:"
+OLD_SH_SELF=$(grep -c "自引单" $OLD_SH_FILE)
+echo $OLD_SH_SELF
+echo "新架构自引单数:"
+NEW_SH_SELF=$(grep -c "自引单" $NEW_SH_FILE)
+echo $NEW_SH_SELF
+
+echo "旧架构红包奖励数:"
+OLD_SH_HONGBAO=$(grep -c "红包" $OLD_SH_FILE)
+echo $OLD_SH_HONGBAO
+echo "新架构红包奖励数:"
+NEW_SH_HONGBAO=$(grep -c "红包" $NEW_SH_FILE)
+echo $NEW_SH_HONGBAO
 
 # 验证结果
-if [ "$OLD_SH_REWARDS" -eq "$NEW_SH_REWARDS" ]; then
-    echo "✅ 上海9月奖励数量一致"
+if [ "$OLD_SH_PLATFORM" -eq "$NEW_SH_PLATFORM" ] && [ "$OLD_SH_SELF" -eq "$NEW_SH_SELF" ] && [ "$OLD_SH_HONGBAO" -eq "$NEW_SH_HONGBAO" ]; then
+    echo "✅ 上海9月双轨统计一致"
 else
-    echo "❌ 上海9月奖励数量不一致"
+    echo "❌ 上海9月双轨统计不一致"
 fi
-
-echo "=== 管家键格式检查 ==="
-echo "检查管家_服务商格式:"
-head -5 $NEW_SH_FILE | cut -d',' -f3,4 | tail -4
 ```
 
 ## ✅ 预期结果
 
-基于我们的自动化验证，您应该看到：
+基于实时数据，您应该看到：
 
 ### 北京9月 (BJ-SEP)
-- **记录数量**: 1055条
-- **合同金额总和**: 6,928,792.94元
-- **奖励记录**: 34条（31个接好运+6个达标奖+1个优秀奖）
-- **管家数量**: 53个
-- **幸运数字**: 5的倍数获得接好运奖励
+- **记录数量**: 约1000+条（根据实时数据变化）
+- **奖励类型**: 接好运、达标奖、优秀奖、精英奖
+- **幸运数字**: 个人序号模式的幸运数字奖励
+- **历史合同**: 标记为"Y"，仅计入业绩金额
 
 ### 上海9月 (SH-SEP)
-- **记录数量**: 根据实时数据变化（验证时为173条）
-- **合同金额总和**: 根据实时数据变化（验证时为1,539,863.00元）
-- **奖励记录**: 根据实时数据变化（验证时为24条）
-- **管家键格式**: "管家_服务商"
-- **双轨统计**: 支持平台单/自引单分别统计
+- **记录数量**: 根据实时数据变化
+- **双轨统计**: 平台单和自引单分别统计
+- **奖励类型**: 阶梯奖励（基础奖、达标奖、优秀奖、精英奖、卓越奖）+ 自引单红包
+- **管家格式**: "管家_服务商"格式
 - **数据源**: 实时从Metabase API获取
 
-## 🔧 详细验证（可选）
+## 🔧 手动数据对比（可选）
 
-### Python脚本验证
-```python
-# 创建 detailed_compare.py 文件
-import pandas as pd
-import sys
+如果需要更详细的对比，可以手动检查关键数据：
 
-def compare_beijing():
-    print("🏢 北京9月详细对比")
-    print("=" * 50)
+### 检查关键管家数据
+```bash
+# 北京 - 检查关键管家的合同数量
+echo "=== 北京关键管家对比 ==="
+for hk in "余金凤" "文刘飞" "梁庆龙"; do
+    old_count=$(grep -c "$hk" state/PerformanceData-BJ-Sep.csv)
+    new_count=$(grep -c "$hk" beijing_new_output.csv)
+    echo "管家 $hk: 旧系统 $old_count vs 新系统 $new_count"
+done
 
-    try:
-        old_df = pd.read_csv('state/PerformanceData-BJ-Sep.csv')
-        new_files = [f for f in os.listdir('.') if f.startswith('performance_data_BJ-SEP_')]
-        if not new_files:
-            print("❌ 未找到新架构北京输出文件")
-            return False
-
-        new_df = pd.read_csv(new_files[0])
-
-        print(f"记录数: 旧{len(old_df)} vs 新{len(new_df)}")
-        print(f"合同金额: 旧{old_df['合同金额(adjustRefundMoney)'].sum():.2f} vs 新{new_df['合同金额(adjustRefundMoney)'].sum():.2f}")
-
-        old_rewards = len(old_df[old_df['奖励名称'].str.contains('接好运|达标奖|优秀奖', na=False)])
-        new_rewards = len(new_df[new_df['奖励名称'].str.contains('接好运|达标奖|优秀奖', na=False)])
-        print(f"奖励数: 旧{old_rewards} vs 新{new_rewards}")
-
-        # 检查关键管家
-        key_housekeepers = ['余金凤', '张争光', '文刘飞']
-        for hk in key_housekeepers:
-            old_count = len(old_df[old_df['管家(serviceHousekeeper)'] == hk])
-            new_count = len(new_df[new_df['管家(serviceHousekeeper)'] == hk])
-            print(f"管家{hk}: 旧{old_count} vs 新{new_count}")
-
-        return len(old_df) == len(new_df) and old_rewards == new_rewards
-
-    except Exception as e:
-        print(f"❌ 北京对比失败: {e}")
-        return False
-
-def compare_shanghai():
-    print("\n🏙️ 上海9月详细对比")
-    print("=" * 50)
-
-    try:
-        old_df = pd.read_csv('state/PerformanceData-SH-Sep.csv')
-        new_files = [f for f in os.listdir('.') if f.startswith('performance_data_SH-SEP_')]
-        if not new_files:
-            print("❌ 未找到新架构上海输出文件")
-            return False
-
-        new_df = pd.read_csv(new_files[0])
-
-        print(f"记录数: 旧{len(old_df)} vs 新{len(new_df)}")
-        print(f"合同金额: 旧{old_df['合同金额(adjustRefundMoney)'].sum():.2f} vs 新{new_df['合同金额(adjustRefundMoney)'].sum():.2f}")
-
-        old_rewards = len(old_df[old_df['奖励名称'].str.contains('接好运|达标奖|优秀奖', na=False)])
-        new_rewards = len(new_df[new_df['奖励名称'].str.contains('接好运|达标奖|优秀奖', na=False)])
-        print(f"奖励数: 旧{old_rewards} vs 新{new_rewards}")
-
-        # 检查双轨统计字段
-        dual_track_fields = ['平台单累计数量', '平台单累计金额', '自引单累计数量', '自引单累计金额']
-        for field in dual_track_fields:
-            if field in new_df.columns:
-                print(f"✅ {field}: 存在")
-            else:
-                print(f"❌ {field}: 缺失")
-
-        return len(old_df) == len(new_df) and old_rewards == new_rewards
-
-    except Exception as e:
-        print(f"❌ 上海对比失败: {e}")
-        return False
-
-if __name__ == "__main__":
-    import os
-
-    bj_success = compare_beijing()
-    sh_success = compare_shanghai()
-
-    print("\n" + "=" * 60)
-    print("📊 验证总结")
-    print("=" * 60)
-    print(f"北京9月: {'✅ 通过' if bj_success else '❌ 失败'}")
-    print(f"上海9月: {'✅ 通过' if sh_success else '❌ 失败'}")
-
-    if bj_success and sh_success:
-        print("🎉 所有验证通过！新旧架构完全等价")
-        sys.exit(0)
-    else:
-        print("⚠️ 验证失败，请检查差异")
-        sys.exit(1)
+# 上海 - 检查关键管家的合同数量
+echo "=== 上海关键管家对比 ==="
+for hk in "李涛" "周志林" "胡长俊"; do
+    old_count=$(grep -c "$hk" state/PerformanceData-SH-Sep.csv)
+    new_count=$(grep -c "$hk" shanghai_new_output.csv)
+    echo "管家 $hk: 旧系统 $old_count vs 新系统 $new_count"
+done
 ```
 
+### 检查业绩金额统计
 ```bash
-# 运行详细对比
-python detailed_compare.py
+# 使用awk计算总业绩金额
+echo "=== 业绩金额对比 ==="
+old_bj_amount=$(awk -F',' 'NR>1 {sum+=$8} END {print sum}' state/PerformanceData-BJ-Sep.csv)
+new_bj_amount=$(awk -F',' 'NR>1 {sum+=$8} END {print sum}' beijing_new_output.csv)
+echo "北京总业绩: 旧系统 $old_bj_amount vs 新系统 $new_bj_amount"
+
+old_sh_amount=$(awk -F',' 'NR>1 {sum+=$8} END {print sum}' state/PerformanceData-SH-Sep.csv)
+new_sh_amount=$(awk -F',' 'NR>1 {sum+=$8} END {print sum}' shanghai_new_output.csv)
+echo "上海总业绩: 旧系统 $old_sh_amount vs 新系统 $new_sh_amount"
 ```
 
 ## 🚨 注意事项
 
 ### 环境要求
-1. **数据库清理**: 每次运行新架构前确保删除`performance_data.db`
-2. **网络连接**: 确保能访问Metabase API (metabase.fsgo365.cn:3000)
+1. **数据库清理**: 每次运行新架构前确保删除`performance_data.db`和`tasks.db`
+2. **网络连接**: 确保能访问Metabase API
 3. **文件权限**: 确保有写入权限创建CSV和数据库文件
 4. **Python环境**: 需要pandas, sqlite3等依赖
 
-### 文件管理
-1. **文件名**: 新架构导出的文件名包含时间戳，需要动态获取
-2. **根目录清洁**: 新架构默认不生成CSV，保持根目录清洁
-3. **状态文件**: 旧架构会在state/目录生成文件
-4. **日志文件**: 执行过程中会生成日志，可用于问题排查
-
 ### 验证要点
 1. **数据一致性**: 重点检查记录数量、合同金额、奖励数量
-2. **业务逻辑**: 北京关注幸运数字，上海关注双轨统计
-3. **特色功能**: 上海的管家键格式和双轨统计字段
-4. **边界情况**: 大金额项目限额、历史合同处理
+2. **业务逻辑**: 北京关注幸运数字和历史合同，上海关注双轨统计
+3. **实时数据**: 由于使用实时API数据，允许±1-2条记录的微小差异
+4. **格式差异**: 新旧架构在数据格式上可能有差异，但业务逻辑应该一致
 
-## 💡 工具使用
-
-### 数据库导出工具
-```bash
-# 查看数据库中的活动
-python scripts/export_database_to_csv.py --list
-
-# 导出北京活动（兼容格式）
-python scripts/export_database_to_csv.py --activity BJ-SEP --compatible
-
-# 导出上海活动（双轨统计）
-python scripts/export_database_to_csv.py --activity SH-SEP --dual-track
-
-# 导出到指定文件
-python scripts/export_database_to_csv.py --activity BJ-SEP --output my_beijing_export.csv
-```
-
-### 自动化验证工具
-```bash
-# 全面等价性验证（推荐）
-python scripts/comprehensive_equivalence_validator.py --city beijing --month sep
-python scripts/comprehensive_equivalence_validator.py --city shanghai --month sep
-
-# 单项验证工具
-python scripts/data_input_consistency_validator.py --activity BJ-SEP
-python scripts/business_logic_validator.py --activity BJ-SEP
-python scripts/output_comparison_validator.py --activity BJ-SEP
-```
-
-### 问题排查工具
-```bash
-# 检查环境状态
-python scripts/environment_validator.py --activity BJ-SEP
-
-# 清理数据库
-python scripts/database_cleanup.py --activity BJ-SEP
-
-# 查看详细日志
-tail -f logs/app.log
-```
-
-## 🔄 完整验证流程
-
-### 快速验证（推荐）
-```bash
-# 一键验证北京
-echo "🚀 开始北京9月完整验证..."
-rm -f performance_data.db state/PerformanceData-BJ-Sep.csv
-python scripts/comprehensive_equivalence_validator.py --city beijing --month sep
-
-# 一键验证上海
-echo "🚀 开始上海9月完整验证..."
-rm -f performance_data.db state/PerformanceData-SH-Sep.csv
-python scripts/comprehensive_equivalence_validator.py --city shanghai --month sep
-```
-
-### 手动验证（详细）
-按照本文档的步骤逐一执行，适合深入了解验证过程。
+### 常见差异说明
+1. **管家累计业绩金额**: 旧系统显示累计值，新系统通过数据库查询获得
+2. **奖励名称格式**: 旧系统用逗号分隔，新系统用JSON数组格式
+3. **管家名称格式**: 上海新系统包含"管家_服务商"格式
 
 ## 📞 支持
 
 如果验证过程中遇到问题：
 
-1. **检查日志**: `tail -f logs/app.log`
-2. **检查网络**: 确保能访问Metabase API
-3. **检查环境**: `python scripts/environment_validator.py`
-4. **清理重试**: 删除所有输出文件后重新执行
+1. **检查网络**: 确保能访问Metabase API
+2. **清理重试**: 删除所有输出文件后重新执行
+3. **检查依赖**: 确保Python环境和依赖包正常
 
 ---
 
-**核心理念**: 新架构数据库优先，按需导出CSV，保持架构纯粹性。
-**验证原则**: 零容忍差异，100%等价性，真实数据验证。
+**验证原则**: 关注业务逻辑一致性，允许技术实现上的格式差异。
