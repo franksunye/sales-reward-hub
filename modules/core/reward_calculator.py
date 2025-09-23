@@ -93,9 +93,9 @@ class RewardCalculator:
             reward_types.append(lucky_reward_type)
             reward_names.append(lucky_reward_name)
 
-        # 2. 节节高奖励逻辑
+        # 2. 节节高奖励逻辑（根据配置和工单类型计算）
         tiered_reward_types, tiered_reward_names, tiered_next_gap = self._calculate_tiered_rewards(
-            housekeeper_stats
+            contract_data, housekeeper_stats
         )
 
         if tiered_reward_types:
@@ -190,8 +190,38 @@ class RewardCalculator:
 
         return reward_type, reward_name
 
-    def _calculate_tiered_rewards(self, housekeeper_stats: HousekeeperStats) -> tuple:
-        """计算节节高奖励"""
+    def _calculate_tiered_rewards(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats) -> tuple:
+        """计算节节高奖励（根据配置和工单类型）"""
+        # 获取奖励计算策略配置
+        strategy_config = self.config.get("reward_calculation_strategy", {})
+        strategy_type = strategy_config.get("type", "single_track")
+        rules = strategy_config.get("rules", {})
+
+        # 根据工单类型确定使用的规则
+        if strategy_type == "dual_track":
+            # 双轨激励：根据工单类型选择规则
+            if contract_data.order_type.value == 'platform':
+                rule_key = "platform"
+            elif contract_data.order_type.value == 'self_referral':
+                rule_key = "self_referral"
+            else:
+                rule_key = "platform"  # 默认使用平台单规则
+        else:
+            # 单轨激励：使用默认规则
+            rule_key = "default"
+
+        # 获取具体规则
+        rule = rules.get(rule_key, {"enable_tiered_rewards": True, "stats_source": "total"})
+
+        # 如果该工单类型不启用节节高奖励，直接返回
+        if not rule.get("enable_tiered_rewards", True):
+            return [], [], ""
+
+        # 根据规则选择统计数据
+        stats_source = rule.get("stats_source", "total")
+        contract_count, amount = self._get_stats_by_source(housekeeper_stats, stats_source)
+
+        # 获取节节高奖励配置
         tiered_rewards = self.config.get("tiered_rewards", {})
         min_contracts = tiered_rewards.get("min_contracts", 10)
         tiers = tiered_rewards.get("tiers", [])
@@ -203,17 +233,8 @@ class RewardCalculator:
         # 记录所有奖励名称，用于后续检查
         all_tier_names = [tier["name"] for tier in tiers]
 
-        # 确定使用哪个金额字段
-        performance_limits = self.config.get("performance_limits", {})
-        enable_cap = performance_limits.get("enable_cap", False)
-
-        if enable_cap:
-            amount = housekeeper_stats.performance_amount
-        else:
-            amount = housekeeper_stats.total_amount
-
         # 如果管家合同数量达到要求
-        if housekeeper_stats.contract_count >= min_contracts:
+        if contract_count >= min_contracts:
             next_reward = None
 
             # 按照阈值从高到低排序奖励等级（与旧系统保持一致）
@@ -267,9 +288,47 @@ class RewardCalculator:
         else:
             # 如果未达到最低合同数量要求
             if not set(all_tier_names).intersection(housekeeper_stats.awarded):
-                next_reward_gap = f"距离达成节节高奖励条件还需 {min_contracts - housekeeper_stats.contract_count} 单"
+                next_reward_gap = f"距离达成节节高奖励条件还需 {min_contracts - contract_count} 单"
 
         return reward_types, reward_names, next_reward_gap
+
+    def _get_stats_by_source(self, housekeeper_stats: HousekeeperStats, stats_source: str) -> tuple:
+        """根据统计数据源获取合同数量和金额
+
+        Args:
+            housekeeper_stats: 管家统计数据
+            stats_source: 统计数据源类型
+
+        Returns:
+            tuple: (合同数量, 金额)
+        """
+        # 确定使用哪个金额字段（业绩上限逻辑）
+        performance_limits = self.config.get("performance_limits", {})
+        enable_cap = performance_limits.get("enable_cap", False)
+
+        if stats_source == "platform_only":
+            # 使用平台单统计数据
+            contract_count = housekeeper_stats.platform_count
+            if enable_cap:
+                amount = housekeeper_stats.performance_amount  # 平台单的业绩金额
+            else:
+                amount = housekeeper_stats.platform_amount
+        elif stats_source == "self_referral_only":
+            # 使用自引单统计数据
+            contract_count = housekeeper_stats.self_referral_count
+            if enable_cap:
+                amount = housekeeper_stats.performance_amount  # 自引单的业绩金额
+            else:
+                amount = housekeeper_stats.self_referral_amount
+        else:
+            # 使用总统计数据（默认）
+            contract_count = housekeeper_stats.contract_count
+            if enable_cap:
+                amount = housekeeper_stats.performance_amount
+            else:
+                amount = housekeeper_stats.total_amount
+
+        return contract_count, amount
 
 
 

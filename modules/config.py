@@ -33,6 +33,16 @@ REWARD_CONFIGS = {
             "达标奖": "200",
             "优秀奖": "400",
             "精英奖": "600"
+        },
+        # 奖励计算策略配置
+        "reward_calculation_strategy": {
+            "type": "single_track",  # 单轨激励
+            "rules": {
+                "default": {
+                    "enable_tiered_rewards": True,
+                    "stats_source": "total"  # 使用总统计数据
+                }
+            }
         }
     },
     # 北京2025年8月活动配置
@@ -90,6 +100,16 @@ REWARD_CONFIGS = {
             "达标奖": "400",  # 翻倍
             "优秀奖": "800",  # 翻倍
             "精英奖": "1600"  # 翻倍
+        },
+        # 奖励计算策略配置
+        "reward_calculation_strategy": {
+            "type": "single_track",  # 单轨激励
+            "rules": {
+                "default": {
+                    "enable_tiered_rewards": True,
+                    "stats_source": "total"  # 使用总统计数据
+                }
+            }
         },
         "badge_config": {
             "enable_elite_badge": False,
@@ -159,6 +179,20 @@ REWARD_CONFIGS = {
             "reward_name": "红包",
             "deduplication_field": "projectAddress"  # 去重字段
             # 注意：奖励金额统一在awards_mapping中定义，避免重复配置
+        },
+        # 奖励计算策略配置
+        "reward_calculation_strategy": {
+            "type": "dual_track",  # 双轨激励
+            "rules": {
+                "platform": {
+                    "enable_tiered_rewards": True,
+                    "stats_source": "platform_only"  # 使用平台单统计数据
+                },
+                "self_referral": {
+                    "enable_tiered_rewards": False,  # 自引单不参与节节高奖励
+                    "stats_source": "self_referral_only"  # 使用自引单统计数据
+                }
+            }
         }
     },
 }
