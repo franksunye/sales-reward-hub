@@ -34,6 +34,9 @@ class DataProcessingPipeline:
         self.record_builder = RecordBuilder(config)
         self.runtime_awards = {}  # 运行时奖励状态，防止同一次执行中重复发放
 
+        # 🔧 修复：运行时项目地址去重管理 - 与旧架构保持一致的内存去重
+        self.runtime_project_addresses = {}  # {housekeeper_key: set(project_addresses)}
+
         logging.info(f"Initialized processing pipeline for {config.activity_code}")
 
     def process(self, contract_data_list: List[Dict], housekeeper_award_lists: Dict[str, List[str]] = None) -> List[PerformanceRecord]:
@@ -128,23 +131,35 @@ class DataProcessingPipeline:
                     # 默认显示全局序号（可通过配置调整）
                     contract_sequence = global_sequence
 
-                    # 6. 处理自引单项目地址去重（上海特有）
+                    # 6. 处理自引单项目地址去重（上海特有）- 🔧 修复：与旧架构保持一致，处理合同但可能不给奖励
+                    is_duplicate_address = False
                     if (self.config.enable_dual_track and
                         contract_data.order_type.value == 'self_referral'):
                         project_address = contract_data.raw_data.get('项目地址(projectAddress)', '')
-                        if project_address and self._is_project_address_duplicate(
-                            housekeeper_key, project_address, self.config.activity_code):
-                            logging.debug(f"跳过重复项目地址: {project_address}")
-                            skipped_count += 1
-                            continue
+                        if project_address:
+                            is_duplicate_address = self._is_project_address_duplicate_runtime(
+                                housekeeper_key, project_address)
+
+                            if is_duplicate_address:
+                                logging.debug(f"重复项目地址，将处理合同但不给奖励: {project_address}")
+
+                            # 记录项目地址到运行时缓存（无论是否重复都要记录）
+                            if housekeeper_key not in self.runtime_project_addresses:
+                                self.runtime_project_addresses[housekeeper_key] = set()
+                            self.runtime_project_addresses[housekeeper_key].add(project_address)
 
                     # 7. 计算奖励（使用更新后的统计数据，传递序号信息）
-                    rewards = self.reward_calculator.calculate(
-                        contract_data,
-                        updated_hk_stats,
-                        global_sequence=global_sequence,
-                        personal_sequence=personal_sequence
-                    )
+                    # 🔧 修复：重复项目地址的自引单不给奖励，与旧架构保持一致
+                    if is_duplicate_address:
+                        rewards = []  # 重复项目地址的自引单不给奖励
+                        logging.debug(f"重复项目地址的自引单不给奖励: {contract_data.contract_id}")
+                    else:
+                        rewards = self.reward_calculator.calculate(
+                            contract_data,
+                            updated_hk_stats,
+                            global_sequence=global_sequence,
+                            personal_sequence=personal_sequence
+                        )
 
                     # 8. 更新运行时奖励状态
                     if rewards:
@@ -248,6 +263,13 @@ class DataProcessingPipeline:
             })
         
         return summary
+
+    def _is_project_address_duplicate_runtime(self, housekeeper_key: str, project_address: str) -> bool:
+        """检查项目地址是否重复（运行时内存去重 - 与旧架构保持一致）"""
+        if housekeeper_key not in self.runtime_project_addresses:
+            return False
+
+        return project_address in self.runtime_project_addresses[housekeeper_key]
 
     def _is_project_address_duplicate(self, housekeeper: str, project_address: str, activity_code: str) -> bool:
         """检查项目地址是否重复（上海自引单特有逻辑）"""

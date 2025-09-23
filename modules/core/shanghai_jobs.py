@@ -327,27 +327,38 @@ def _generate_csv_output_with_dual_track(records: List[PerformanceRecord], confi
     """生成包含双轨统计的CSV输出文件"""
     import csv
     from datetime import datetime
-    
+
     # 生成文件名
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     csv_file = f"performance_data_{config.activity_code}_dual_track_{timestamp}.csv"
-    
+
     if not records:
         logging.warning("没有记录需要输出")
         return csv_file
-    
+
+    # 🔧 修复：重新计算管家累计业绩金额，确保准确性
+    # 按管家分组，计算每个管家的累计业绩金额
+    housekeeper_cumulative = {}
+
     # 转换记录为字典格式，包含双轨统计字段
     record_dicts = []
     for record in records:
         record_dict = record.to_dict()
-        
+
         # 添加双轨统计特有字段
         record_dict.update({
             '管家ID(serviceHousekeeperId)': record.contract_data.raw_data.get('管家ID(serviceHousekeeperId)', ''),
             '客户联系地址(contactsAddress)': record.contract_data.raw_data.get('客户联系地址(contactsAddress)', ''),
             '项目地址(projectAddress)': record.contract_data.raw_data.get('项目地址(projectAddress)', '')
         })
-        
+
+        # 🔧 修复：重新计算管家累计业绩金额
+        housekeeper = record.contract_data.housekeeper
+        if housekeeper not in housekeeper_cumulative:
+            housekeeper_cumulative[housekeeper] = 0
+        housekeeper_cumulative[housekeeper] += record.performance_amount
+        record_dict['管家累计业绩金额'] = housekeeper_cumulative[housekeeper]
+
         record_dicts.append(record_dict)
     
     # 写入CSV文件

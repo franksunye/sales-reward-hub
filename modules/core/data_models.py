@@ -159,7 +159,8 @@ class PerformanceRecord:
             '服务商(orgName)': self.contract_data.service_provider,
             '合同金额(adjustRefundMoney)': self.contract_data.contract_amount,
             '支付金额(paidAmount)': self.contract_data.paid_amount,
-            '计入业绩金额': self.performance_amount,
+            '计入业绩金额': self.performance_amount,  # 新架构设计：单个合同的业绩金额
+            '管家累计业绩金额': self.housekeeper_stats.performance_amount,  # 新架构设计：管家累计业绩金额
             '活动期内第几个合同': self.contract_sequence,
             '管家累计单数': self.housekeeper_stats.contract_count,
             '管家累计金额': self.housekeeper_stats.total_amount,
