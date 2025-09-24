@@ -3,14 +3,14 @@
 数据库视图迁移脚本 - 修复 performance_amount 统计问题
 
 问题描述：
-- housekeeper_stats 视图中的 performance_amount 字段统计了所有合同（包括历史合同）
-- 需求是只统计新工单，不统计历史工单
-- 这个问题影响北京和上海的业绩金额统计
+- 数据库视图中的多个金额字段统计了所有合同（包括历史合同）
+- 需求是累计金额统计只计入新工单，不计入历史工单
+- 历史工单仅作为后台计算的逻辑数据，不参与前端的数据统计
 
 修复内容：
-1. 重新创建 housekeeper_stats 视图，performance_amount 只统计非历史合同
-2. 重新创建 project_stats 视图，performance_amount 只统计非历史合同  
-3. 重新创建 activity_stats 视图，total_performance_amount 只统计非历史合同
+1. 重新创建 housekeeper_stats 视图，所有累计金额字段只统计非历史合同
+2. 重新创建 project_stats 视图，所有累计金额字段只统计非历史合同
+3. 重新创建 activity_stats 视图，所有累计金额字段只统计非历史合同
 
 使用方法:
     python scripts/migrate_views_fix_performance_amount.py --db performance_data.db
@@ -112,18 +112,21 @@ def create_fixed_views(conn: sqlite3.Connection, dry_run: bool = False) -> bool:
     # 修复后的 housekeeper_stats 视图
     housekeeper_stats_sql = """
     CREATE VIEW housekeeper_stats AS
-    SELECT 
+    SELECT
         housekeeper,
         activity_code,
         COUNT(*) as contract_count,
-        SUM(contract_amount) as total_amount,
+        -- 🔧 修复：累计合同金额仅计入新工单，不计入历史工单
+        SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
         -- 🔧 修复：累计计入业绩金额仅计入新工单，不计入历史工单
         SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount,
         -- 双轨统计（上海特有）
         SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END) as platform_count,
-        SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END) as platform_amount,
+        -- 🔧 修复：累计平台单金额仅计入新工单，不计入历史工单
+        SUM(CASE WHEN order_type = 'platform' AND is_historical = FALSE THEN contract_amount ELSE 0 END) as platform_amount,
         SUM(CASE WHEN order_type = 'self_referral' THEN 1 ELSE 0 END) as self_referral_count,
-        SUM(CASE WHEN order_type = 'self_referral' THEN contract_amount ELSE 0 END) as self_referral_amount,
+        -- 🔧 修复：累计自引单金额仅计入新工单，不计入历史工单
+        SUM(CASE WHEN order_type = 'self_referral' AND is_historical = FALSE THEN contract_amount ELSE 0 END) as self_referral_amount,
         -- 历史合同统计（北京9月特有）
         SUM(CASE WHEN is_historical = TRUE THEN 1 ELSE 0 END) as historical_count,
         SUM(CASE WHEN is_historical = FALSE THEN 1 ELSE 0 END) as new_count
@@ -134,11 +137,12 @@ def create_fixed_views(conn: sqlite3.Connection, dry_run: bool = False) -> bool:
     # 修复后的 project_stats 视图
     project_stats_sql = """
     CREATE VIEW project_stats AS
-    SELECT 
+    SELECT
         project_id,
         activity_code,
         COUNT(*) as contract_count,
-        SUM(contract_amount) as total_amount,
+        -- 🔧 修复：工单累计合同金额仅计入新工单，不计入历史工单
+        SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
         -- 🔧 修复：工单累计业绩金额仅计入新工单，不计入历史工单
         SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount
     FROM performance_data
@@ -149,14 +153,16 @@ def create_fixed_views(conn: sqlite3.Connection, dry_run: bool = False) -> bool:
     # 修复后的 activity_stats 视图
     activity_stats_sql = """
     CREATE VIEW activity_stats AS
-    SELECT 
+    SELECT
         activity_code,
         COUNT(*) as total_contracts,
         COUNT(DISTINCT housekeeper) as unique_housekeepers,
-        SUM(contract_amount) as total_amount,
+        -- 🔧 修复：活动总合同金额仅计入新工单，不计入历史工单
+        SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
         -- 🔧 修复：活动总业绩金额仅计入新工单，不计入历史工单
         SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as total_performance_amount,
-        AVG(contract_amount) as avg_contract_amount,
+        -- 🔧 修复：平均合同金额仅基于新工单计算，不包含历史工单
+        AVG(CASE WHEN is_historical = FALSE THEN contract_amount ELSE NULL END) as avg_contract_amount,
         MIN(created_at) as first_contract_time,
         MAX(created_at) as last_contract_time
     FROM performance_data
@@ -193,8 +199,8 @@ def create_fixed_views(conn: sqlite3.Connection, dry_run: bool = False) -> bool:
 
 def update_schema_version(conn: sqlite3.Connection, dry_run: bool = False) -> bool:
     """更新schema版本信息"""
-    version = "1.0.1"
-    description = "Fix performance_amount calculation to exclude historical contracts"
+    version = "1.0.2"
+    description = "Fix all amount calculations to exclude historical contracts"
     
     try:
         cursor = conn.cursor()

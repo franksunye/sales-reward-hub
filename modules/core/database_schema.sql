@@ -59,14 +59,17 @@ SELECT
     housekeeper,
     activity_code,
     COUNT(*) as contract_count,
-    SUM(contract_amount) as total_amount,
+    -- 🔧 修复：累计合同金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
     -- 🔧 修复：累计计入业绩金额仅计入新工单，不计入历史工单
     SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount,
     -- 双轨统计（上海特有）
     SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END) as platform_count,
-    SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END) as platform_amount,
+    -- 🔧 修复：累计平台单金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN order_type = 'platform' AND is_historical = FALSE THEN contract_amount ELSE 0 END) as platform_amount,
     SUM(CASE WHEN order_type = 'self_referral' THEN 1 ELSE 0 END) as self_referral_count,
-    SUM(CASE WHEN order_type = 'self_referral' THEN contract_amount ELSE 0 END) as self_referral_amount,
+    -- 🔧 修复：累计自引单金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN order_type = 'self_referral' AND is_historical = FALSE THEN contract_amount ELSE 0 END) as self_referral_amount,
     -- 历史合同统计（北京9月特有）
     SUM(CASE WHEN is_historical = TRUE THEN 1 ELSE 0 END) as historical_count,
     SUM(CASE WHEN is_historical = FALSE THEN 1 ELSE 0 END) as new_count
@@ -79,7 +82,8 @@ SELECT
     project_id,
     activity_code,
     COUNT(*) as contract_count,
-    SUM(contract_amount) as total_amount,
+    -- 🔧 修复：工单累计合同金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
     -- 🔧 修复：工单累计业绩金额仅计入新工单，不计入历史工单
     SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount
 FROM performance_data
@@ -92,10 +96,12 @@ SELECT
     activity_code,
     COUNT(*) as total_contracts,
     COUNT(DISTINCT housekeeper) as unique_housekeepers,
-    SUM(contract_amount) as total_amount,
+    -- 🔧 修复：活动总合同金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
     -- 🔧 修复：活动总业绩金额仅计入新工单，不计入历史工单
     SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as total_performance_amount,
-    AVG(contract_amount) as avg_contract_amount,
+    -- 🔧 修复：平均合同金额仅基于新工单计算，不包含历史工单
+    AVG(CASE WHEN is_historical = FALSE THEN contract_amount ELSE NULL END) as avg_contract_amount,
     MIN(created_at) as first_contract_time,
     MAX(created_at) as last_contract_time
 FROM performance_data

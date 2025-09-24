@@ -51,40 +51,49 @@ def test_housekeeper_stats(db_path: str):
     print("-" * 50)
     
     cursor.execute("""
-        SELECT housekeeper, activity_code, contract_count, total_amount, 
-               performance_amount, historical_count, new_count
+        SELECT housekeeper, activity_code, contract_count, total_amount,
+               performance_amount, platform_amount, self_referral_amount, historical_count, new_count
         FROM housekeeper_stats
         ORDER BY housekeeper, activity_code
     """)
-    
+
     results = cursor.fetchall()
-    
-    print(f"{'管家':<8} {'活动':<8} {'合同数':<6} {'总金额':<8} {'业绩金额':<8} {'历史':<4} {'新增':<4}")
-    print("-" * 50)
-    
+
+    print(f"{'管家':<8} {'活动':<8} {'合同数':<6} {'总金额':<8} {'业绩金额':<8} {'平台金额':<8} {'自引金额':<8} {'历史':<4} {'新增':<4}")
+    print("-" * 80)
+
     for row in results:
-        housekeeper, activity, count, total, performance, historical, new = row
-        print(f"{housekeeper:<8} {activity:<8} {count:<6} {total:<8.0f} {performance:<8.0f} {historical:<4} {new:<4}")
-    
+        housekeeper, activity, count, total, performance, platform, self_ref, historical, new = row
+        print(f"{housekeeper:<8} {activity:<8} {count:<6} {total:<8.0f} {performance:<8.0f} {platform:<8.0f} {self_ref:<8.0f} {historical:<4} {new:<4}")
+
     # 验证张三的数据
     cursor.execute("""
-        SELECT performance_amount FROM housekeeper_stats 
+        SELECT total_amount, performance_amount, platform_amount FROM housekeeper_stats
         WHERE housekeeper = '张三' AND activity_code = 'BJ-SEP'
     """)
-    zhang_performance = cursor.fetchone()[0]
-    
+    zhang_data = cursor.fetchone()
+    zhang_total, zhang_performance, zhang_platform = zhang_data
+
+    expected_zhang_total = 25000       # 只统计新合同：10000 + 15000
     expected_zhang_performance = 25000  # 只统计新合同：10000 + 15000
-    
+    expected_zhang_platform = 25000    # 只统计新合同平台单：10000 + 15000
+
     print(f"\n🔍 验证结果:")
+    print(f"张三的总金额: {zhang_total} (期望: {expected_zhang_total})")
     print(f"张三的业绩金额: {zhang_performance} (期望: {expected_zhang_performance})")
-    
-    if zhang_performance == expected_zhang_performance:
-        print("✅ 修复成功！只统计了新合同的业绩金额")
+    print(f"张三的平台单金额: {zhang_platform} (期望: {expected_zhang_platform})")
+
+    all_correct = (zhang_total == expected_zhang_total and
+                   zhang_performance == expected_zhang_performance and
+                   zhang_platform == expected_zhang_platform)
+
+    if all_correct:
+        print("✅ 修复成功！所有累计金额字段都只统计了新合同")
     else:
-        print("❌ 修复失败！仍然包含了历史合同的业绩金额")
-    
+        print("❌ 修复失败！部分字段仍然包含了历史合同")
+
     conn.close()
-    return zhang_performance == expected_zhang_performance
+    return all_correct
 
 def test_project_stats(db_path: str):
     """测试工单统计视图"""
@@ -99,33 +108,38 @@ def test_project_stats(db_path: str):
         FROM project_stats
         ORDER BY project_id
     """)
-    
+
     results = cursor.fetchall()
-    
+
     print(f"{'工单ID':<12} {'活动':<8} {'合同数':<6} {'总金额':<8} {'业绩金额':<8}")
-    print("-" * 40)
-    
+    print("-" * 50)
+
     for row in results:
         project_id, activity, count, total, performance = row
         print(f"{project_id:<12} {activity:<8} {count:<6} {total:<8.0f} {performance:<8.0f}")
-    
-    # 验证历史工单的业绩金额为0
+
+    # 验证历史工单的所有金额字段为0
     cursor.execute("""
-        SELECT SUM(performance_amount) FROM project_stats
+        SELECT SUM(total_amount), SUM(performance_amount) FROM project_stats
         WHERE project_id IN ('project_003', 'project_004')
     """)
-    historical_performance = cursor.fetchone()[0] or 0
+    historical_data = cursor.fetchone()
+    historical_total = historical_data[0] or 0
+    historical_performance = historical_data[1] or 0
 
     print(f"\n🔍 验证结果:")
-    print(f"历史工单的业绩金额总和: {historical_performance} (期望: 0)")
+    print(f"历史工单的总金额: {historical_total} (期望: 0)")
+    print(f"历史工单的业绩金额: {historical_performance} (期望: 0)")
 
-    if historical_performance == 0:
-        print("✅ 修复成功！历史工单的业绩金额被正确排除")
+    all_correct = historical_total == 0 and historical_performance == 0
+
+    if all_correct:
+        print("✅ 修复成功！历史工单的所有金额字段被正确排除")
     else:
         print("❌ 修复失败！历史工单仍然被统计")
 
     conn.close()
-    return historical_performance == 0
+    return all_correct
 
 def test_activity_stats(db_path: str):
     """测试活动统计视图"""
@@ -136,39 +150,51 @@ def test_activity_stats(db_path: str):
     print("-" * 50)
     
     cursor.execute("""
-        SELECT activity_code, total_contracts, total_amount, total_performance_amount
+        SELECT activity_code, total_contracts, total_amount, total_performance_amount, avg_contract_amount
         FROM activity_stats
         ORDER BY activity_code
     """)
-    
+
     results = cursor.fetchall()
-    
-    print(f"{'活动':<8} {'总合同数':<8} {'总金额':<10} {'总业绩金额':<10}")
-    print("-" * 50)
-    
+
+    print(f"{'活动':<8} {'总合同数':<8} {'总金额':<10} {'总业绩金额':<10} {'平均金额':<10}")
+    print("-" * 60)
+
     for row in results:
-        activity, contracts, total, performance = row
-        print(f"{activity:<8} {contracts:<8} {total:<10.0f} {performance:<10.0f}")
-    
-    # 验证BJ-SEP的业绩金额
+        activity, contracts, total, performance, avg_amount = row
+        avg_display = f"{avg_amount:.0f}" if avg_amount else "0"
+        print(f"{activity:<8} {contracts:<8} {total:<10.0f} {performance:<10.0f} {avg_display:<10}")
+
+    # 验证BJ-SEP的各项金额
     cursor.execute("""
-        SELECT total_performance_amount FROM activity_stats 
+        SELECT total_amount, total_performance_amount, avg_contract_amount FROM activity_stats
         WHERE activity_code = 'BJ-SEP'
     """)
-    bj_performance = cursor.fetchone()[0]
-    
+    bj_data = cursor.fetchone()
+    bj_total, bj_performance, bj_avg = bj_data
+
+    expected_bj_total = 37000       # 新合同：10000 + 15000 + 12000
     expected_bj_performance = 37000  # 新合同：10000 + 15000 + 12000
-    
+    expected_bj_avg = 12333.33      # 平均：37000 / 3 ≈ 12333.33
+
     print(f"\n🔍 验证结果:")
+    print(f"BJ-SEP活动总金额: {bj_total} (期望: {expected_bj_total})")
     print(f"BJ-SEP活动业绩金额: {bj_performance} (期望: {expected_bj_performance})")
-    
-    if bj_performance == expected_bj_performance:
-        print("✅ 修复成功！活动统计只包含新合同的业绩金额")
+    print(f"BJ-SEP平均合同金额: {bj_avg:.2f} (期望: {expected_bj_avg:.2f})")
+
+    # 允许平均值有小的浮点误差
+    avg_correct = abs(bj_avg - expected_bj_avg) < 1
+    all_correct = (bj_total == expected_bj_total and
+                   bj_performance == expected_bj_performance and
+                   avg_correct)
+
+    if all_correct:
+        print("✅ 修复成功！活动统计的所有金额字段都只包含新合同")
     else:
-        print("❌ 修复失败！活动统计仍然包含历史合同的业绩金额")
-    
+        print("❌ 修复失败！活动统计仍然包含历史合同")
+
     conn.close()
-    return bj_performance == expected_bj_performance
+    return all_correct
 
 def main():
     """主函数"""
