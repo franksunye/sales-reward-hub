@@ -113,6 +113,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 reward_names TEXT,
                 is_historical BOOLEAN DEFAULT FALSE,
                 notification_sent BOOLEAN DEFAULT FALSE,
+                remarks TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 extensions TEXT,
@@ -273,16 +274,16 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 reward_types = json.dumps([r.reward_type for r in record.rewards], ensure_ascii=False)
                 reward_names = json.dumps([r.reward_name for r in record.rewards], ensure_ascii=False)
 
-                # 🔧 修复：确保备注字段被正确保存到extensions中
+                # 保存原始数据到extensions，备注字段单独存储
                 extensions_data = record.contract_data.raw_data.copy()
-                extensions_data['备注'] = record.remarks  # 添加备注字段
 
                 conn.execute("""
                     INSERT OR REPLACE INTO performance_data (
                         activity_code, contract_id, housekeeper, service_provider,
                         contract_amount, performance_amount, order_type, project_id,
-                        contract_sequence, reward_types, reward_names, is_historical, extensions
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        contract_sequence, reward_types, reward_names, is_historical,
+                        notification_sent, remarks, extensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     record.activity_code,
                     record.contract_data.contract_id,
@@ -296,7 +297,9 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     reward_types,
                     reward_names,
                     record.contract_data.is_historical,
-                    json.dumps(extensions_data, ensure_ascii=False)  # 包含备注字段
+                    record.notification_sent,
+                    record.remarks,
+                    json.dumps(extensions_data, ensure_ascii=False)
                 ))
                 
                 logging.debug(f"Saved performance record for contract {record.contract_data.contract_id}")

@@ -34,7 +34,11 @@ CREATE TABLE performance_data (
     
     -- 历史合同标记（北京9月特有）
     is_historical BOOLEAN DEFAULT FALSE,   -- 是否为历史合同
-    
+
+    -- 通知和备注字段
+    notification_sent BOOLEAN DEFAULT FALSE, -- 是否已发送通知
+    remarks TEXT DEFAULT '',               -- 备注信息
+
     -- 时间戳
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -52,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_contract_lookup ON performance_data(contract_id, 
 CREATE INDEX IF NOT EXISTS idx_project_activity ON performance_data(project_id, activity_code);
 CREATE INDEX IF NOT EXISTS idx_order_type ON performance_data(order_type, activity_code);
 CREATE INDEX IF NOT EXISTS idx_created_at ON performance_data(created_at);
+CREATE INDEX IF NOT EXISTS idx_notification_status ON performance_data(notification_sent, activity_code);
 
 -- 管家累计统计视图（替代复杂的内存计算）
 CREATE VIEW housekeeper_stats AS
@@ -117,3 +122,7 @@ CREATE TABLE schema_version (
 -- 插入初始版本信息
 INSERT OR IGNORE INTO schema_version (version, description)
 VALUES ('1.0.0', 'Initial schema for refactored incentive system');
+
+-- 插入当前版本信息
+INSERT OR IGNORE INTO schema_version (version, description)
+VALUES ('1.1.0', 'Added notification_sent and remarks fields for notification service');
