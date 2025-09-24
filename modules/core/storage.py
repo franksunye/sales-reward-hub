@@ -108,10 +108,13 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 performance_amount REAL NOT NULL,
                 order_type TEXT DEFAULT 'platform',
                 project_id TEXT,
+                contract_sequence INTEGER DEFAULT 0,
                 reward_types TEXT,
                 reward_names TEXT,
                 is_historical BOOLEAN DEFAULT FALSE,
+                notification_sent BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 extensions TEXT,
                 UNIQUE(activity_code, contract_id)
             )
@@ -269,7 +272,11 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
             with sqlite3.connect(self.db_path) as conn:
                 reward_types = json.dumps([r.reward_type for r in record.rewards], ensure_ascii=False)
                 reward_names = json.dumps([r.reward_name for r in record.rewards], ensure_ascii=False)
-                
+
+                # 🔧 修复：确保备注字段被正确保存到extensions中
+                extensions_data = record.contract_data.raw_data.copy()
+                extensions_data['备注'] = record.remarks  # 添加备注字段
+
                 conn.execute("""
                     INSERT OR REPLACE INTO performance_data (
                         activity_code, contract_id, housekeeper, service_provider,
@@ -289,7 +296,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     reward_types,
                     reward_names,
                     record.contract_data.is_historical,
-                    json.dumps(record.contract_data.raw_data, ensure_ascii=False)
+                    json.dumps(extensions_data, ensure_ascii=False)  # 包含备注字段
                 ))
                 
                 logging.debug(f"Saved performance record for contract {record.contract_data.contract_id}")
@@ -323,11 +330,62 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     WHERE activity_code = ?
                     ORDER BY created_at
                 """, (activity_code,))
-                
+
                 return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
             logging.error(f"Error getting all records: {e}")
             return []
+
+    def query_performance_records(self, conditions: Dict) -> List[Dict]:
+        """查询业绩记录"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+
+                # 构建查询条件
+                where_clauses = []
+                params = []
+
+                for key, value in conditions.items():
+                    if key == 'notification_sent':
+                        # 处理布尔值字段 - 数据库中存储为整数
+                        where_clauses.append("notification_sent = ?")
+                        params.append(1 if value else 0)
+                    elif key == 'is_historical':
+                        # 处理布尔值字段
+                        where_clauses.append("is_historical = ?")
+                        params.append(1 if value else 0)
+                    else:
+                        where_clauses.append(f"{key} = ?")
+                        params.append(value)
+
+                where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+                cursor = conn.execute(f"""
+                    SELECT * FROM performance_data
+                    WHERE {where_clause}
+                    ORDER BY created_at
+                """, params)
+
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logging.error(f"Error querying performance records: {e}")
+            return []
+
+    def update_notification_status(self, contract_id: str, activity_code: str, notification_sent: bool):
+        """更新通知发送状态"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    UPDATE performance_data
+                    SET notification_sent = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE contract_id = ? AND activity_code = ?
+                """, (1 if notification_sent else 0, contract_id, activity_code))
+                conn.commit()
+                logging.debug(f"Updated notification status for {contract_id}")
+        except Exception as e:
+            logging.error(f"Error updating notification status: {e}")
+            raise
 
 
 class CSVPerformanceDataStore(PerformanceDataStore):

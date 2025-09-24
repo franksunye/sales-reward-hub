@@ -167,7 +167,7 @@ class PerformanceRecord:
             '激活奖励状态': self.active_status,
             '奖励类型': ','.join([r.reward_type for r in self.rewards]),
             '奖励名称': ','.join([r.reward_name for r in self.rewards]),
-            '是否发送通知': 1 if self.notification_sent else 0,
+            '是否发送通知': 'Y' if self.notification_sent else 'N',
             '备注': self.remarks
         }
         
