@@ -32,7 +32,7 @@ class RewardCalculator:
         return ConfigAdapter.get_reward_config(config_key)
 
     def calculate(self, contract_data: ContractData, housekeeper_stats: HousekeeperStats,
-                  global_sequence: int = None, personal_sequence: int = None) -> List[RewardInfo]:
+                  global_sequence: int = None, personal_sequence: int = None) -> tuple:
         """计算奖励 - 完全按照旧架构逻辑
 
         Args:
@@ -40,6 +40,9 @@ class RewardCalculator:
             housekeeper_stats: 管家统计数据
             global_sequence: 全局合同签署序号
             personal_sequence: 管家个人合同签署序号
+
+        Returns:
+            tuple: (rewards, next_reward_gap)
         """
         try:
             # 计算奖励
@@ -62,11 +65,11 @@ class RewardCalculator:
                     ))
 
             logging.debug(f"Calculated {len(rewards)} rewards for contract {contract_data.contract_id}")
-            return rewards
+            return rewards, next_reward_gap
 
         except Exception as e:
             logging.error(f"Error calculating rewards: {e}")
-            return []
+            return [], ""
 
 
 

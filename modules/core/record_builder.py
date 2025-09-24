@@ -23,12 +23,13 @@ class RecordBuilder:
         self.config = config
         logging.info(f"Initialized record builder for {config.activity_code}")
 
-    def build(self, 
+    def build(self,
               contract_data: ContractData,
               housekeeper_stats: HousekeeperStats,
               rewards: List[RewardInfo],
               performance_amount: float,
-              contract_sequence: int = 0) -> PerformanceRecord:
+              contract_sequence: int = 0,
+              next_reward_gap: str = "") -> PerformanceRecord:
         """构建业绩记录"""
         
         # 创建基础记录
@@ -65,40 +66,22 @@ class RecordBuilder:
             contract_sequence=contract_sequence,
             active_status=active_status,
             notification_sent=False,
-            remarks=self._build_remarks(contract_data, rewards, performance_amount)
+            remarks=self._build_remarks(contract_data, rewards, performance_amount, next_reward_gap)
         )
         
         logging.debug(f"Built record for contract {contract_data.contract_id}")
         return record
 
-    def _build_remarks(self, contract_data: ContractData, rewards: List[RewardInfo], performance_amount: float) -> str:
-        """构建备注信息"""
-        remarks = []
-        
-        # 添加奖励相关备注
-        if rewards:
-            reward_names = [r.reward_name for r in rewards]
-            remarks.append(f"获得奖励: {', '.join(reward_names)}")
-        
-        # 添加订单类型备注（双轨统计）
-        if self.config.enable_dual_track:
-            order_type_text = "自引单" if contract_data.order_type == OrderType.SELF_REFERRAL else "平台单"
-            remarks.append(f"订单类型: {order_type_text}")
-        
-        # 添加历史合同备注
+    def _build_remarks(self, contract_data: ContractData, rewards: List[RewardInfo], performance_amount: float, next_reward_gap: str = "") -> str:
+        """构建备注信息 - 与旧架构逻辑完全一致"""
+
+        # 历史合同的备注
         if contract_data.is_historical:
-            # 历史合同使用固定格式，与旧系统保持一致
-            if rewards:
-                # 如果有奖励信息，先清空（历史合同不应该有奖励）
-                remarks = []
-            remarks.append("历史合同-仅计入业绩金额")
-        
-        # 添加工单上限备注（北京特有）
-        if self.config.enable_project_limit and contract_data.project_id:
-            if contract_data.contract_amount != performance_amount:
-                remarks.append(f"工单上限调整: {contract_data.contract_amount} -> {performance_amount}")
-        
-        return "; ".join(remarks) if remarks else ""
+            return "历史合同-仅计入业绩金额"
+
+        # 普通合同的备注：显示下一级奖励差距信息
+        # 这与旧架构的逻辑完全一致：备注字段不显示已获得的奖励，而是显示next_reward_gap
+        return next_reward_gap if next_reward_gap else "无"
 
     def build_csv_headers(self) -> List[str]:
         """构建CSV表头"""

@@ -152,9 +152,10 @@ class DataProcessingPipeline:
                     # 🔧 修复：重复项目地址的自引单不给奖励，与旧架构保持一致
                     if is_duplicate_address:
                         rewards = []  # 重复项目地址的自引单不给奖励
+                        next_reward_gap = ""
                         logging.debug(f"重复项目地址的自引单不给奖励: {contract_data.contract_id}")
                     else:
-                        rewards = self.reward_calculator.calculate(
+                        rewards, next_reward_gap = self.reward_calculator.calculate(
                             contract_data,
                             updated_hk_stats,
                             global_sequence=global_sequence,
@@ -174,7 +175,8 @@ class DataProcessingPipeline:
                     housekeeper_stats=updated_hk_stats,  # 使用更新后的统计数据
                     rewards=rewards,
                     performance_amount=performance_amount,
-                    contract_sequence=contract_sequence
+                    contract_sequence=contract_sequence,
+                    next_reward_gap=next_reward_gap
                 )
                 
                 # 10. 保存记录
