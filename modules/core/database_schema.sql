@@ -55,12 +55,13 @@ CREATE INDEX IF NOT EXISTS idx_created_at ON performance_data(created_at);
 
 -- 管家累计统计视图（替代复杂的内存计算）
 CREATE VIEW housekeeper_stats AS
-SELECT 
+SELECT
     housekeeper,
     activity_code,
     COUNT(*) as contract_count,
     SUM(contract_amount) as total_amount,
-    SUM(performance_amount) as performance_amount,
+    -- 🔧 修复：累计计入业绩金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount,
     -- 双轨统计（上海特有）
     SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END) as platform_count,
     SUM(CASE WHEN order_type = 'platform' THEN contract_amount ELSE 0 END) as platform_amount,
@@ -74,24 +75,26 @@ GROUP BY housekeeper, activity_code;
 
 -- 工单累计金额视图（北京特有的工单上限控制）
 CREATE VIEW project_stats AS
-SELECT 
+SELECT
     project_id,
     activity_code,
     COUNT(*) as contract_count,
     SUM(contract_amount) as total_amount,
-    SUM(performance_amount) as performance_amount
+    -- 🔧 修复：工单累计业绩金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount
 FROM performance_data
 WHERE project_id IS NOT NULL
 GROUP BY project_id, activity_code;
 
 -- 活动统计视图（整体数据概览）
 CREATE VIEW activity_stats AS
-SELECT 
+SELECT
     activity_code,
     COUNT(*) as total_contracts,
     COUNT(DISTINCT housekeeper) as unique_housekeepers,
     SUM(contract_amount) as total_amount,
-    SUM(performance_amount) as total_performance_amount,
+    -- 🔧 修复：活动总业绩金额仅计入新工单，不计入历史工单
+    SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as total_performance_amount,
     AVG(contract_amount) as avg_contract_amount,
     MIN(created_at) as first_contract_time,
     MAX(created_at) as last_contract_time
