@@ -1,6 +1,7 @@
 -- 销售激励系统重构 - 数据库Schema设计
--- 版本: v1.0
+-- 版本: v1.1.0
 -- 创建日期: 2025-01-08
+-- 更新日期: 2025-01-24
 
 -- 统一的业绩数据表，支持所有城市和月份
 CREATE TABLE performance_data (
@@ -119,10 +120,6 @@ CREATE TABLE schema_version (
     description TEXT
 );
 
--- 插入初始版本信息
-INSERT OR IGNORE INTO schema_version (version, description)
-VALUES ('1.0.0', 'Initial schema for refactored incentive system');
-
 -- 插入当前版本信息
 INSERT OR IGNORE INTO schema_version (version, description)
-VALUES ('1.1.0', 'Added notification_sent and remarks fields for notification service');
+VALUES ('1.1.0', 'Complete schema with notification_sent and remarks fields for notification service');
