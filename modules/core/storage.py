@@ -334,10 +334,48 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     ORDER BY created_at
                 """, (activity_code,))
 
-                return [dict(row) for row in cursor.fetchall()]
+                records = []
+                for row in cursor.fetchall():
+                    record = dict(row)
+                    # 确保备注字段的向后兼容性
+                    record = self._ensure_remarks_compatibility(record)
+                    records.append(record)
+
+                return records
         except Exception as e:
             logging.error(f"Error getting all records: {e}")
             return []
+
+    def _ensure_remarks_compatibility(self, record: Dict) -> Dict:
+        """确保备注字段的向后兼容性"""
+        # 如果remarks字段为空或None，尝试从extensions中获取
+        if not record.get('remarks'):
+            try:
+                extensions = record.get('extensions', '{}')
+                if extensions:
+                    ext_data = json.loads(extensions)
+                    remarks_from_ext = ext_data.get('备注', '')
+                    if remarks_from_ext:
+                        record['remarks'] = remarks_from_ext
+                        # 可选：同时更新数据库中的remarks字段
+                        self._migrate_remarks_from_extensions(record['id'], remarks_from_ext)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        return record
+
+    def _migrate_remarks_from_extensions(self, record_id: int, remarks: str):
+        """将备注从extensions迁移到独立字段（可选的数据迁移）"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    UPDATE performance_data
+                    SET remarks = ?
+                    WHERE id = ? AND (remarks IS NULL OR remarks = '')
+                """, (remarks, record_id))
+                conn.commit()
+        except Exception as e:
+            logging.debug(f"Failed to migrate remarks for record {record_id}: {e}")
 
     def query_performance_records(self, conditions: Dict) -> List[Dict]:
         """查询业绩记录"""
@@ -370,7 +408,14 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     ORDER BY created_at
                 """, params)
 
-                return [dict(row) for row in cursor.fetchall()]
+                records = []
+                for row in cursor.fetchall():
+                    record = dict(row)
+                    # 确保备注字段的向后兼容性
+                    record = self._ensure_remarks_compatibility(record)
+                    records.append(record)
+
+                return records
         except Exception as e:
             logging.error(f"Error querying performance records: {e}")
             return []
