@@ -276,9 +276,21 @@ class RewardCalculator:
                     housekeeper_stats.awarded.append(tier_name)
                     has_rewards = True
 
-            # 如果未达到任何奖励阈值，设置下一个奖励为最低等级
-            if not has_rewards:
-                next_reward = sorted_tiers[0]["name"]
+            # 🔧 修复：如果未达到任何奖励阈值，设置下一个奖励为最低等级
+            if not set(all_tier_names).intersection(housekeeper_stats.awarded):
+                next_reward = sorted_tiers[-1]["name"]
+
+            # 第三阶段：确定下一个奖励（与旧架构逻辑完全一致）
+            if not next_reward:
+                for i in range(len(sorted_tiers) - 1):
+                    current_tier = sorted_tiers[i+1]
+                    next_tier = sorted_tiers[i]
+
+                    if (current_tier["name"] in housekeeper_stats.awarded and
+                        amount < next_tier["threshold"] and
+                        next_tier["name"] not in housekeeper_stats.awarded):
+                        next_reward = next_tier["name"]
+                        break
 
             # 计算距离下一级奖励所需的金额差
             if next_reward:
@@ -399,18 +411,23 @@ class RewardCalculator:
         return 1.0
 
     def get_next_reward_gap(self, housekeeper_stats: HousekeeperStats) -> Optional[Dict]:
-        """计算距离下一个奖励的差距"""
+        """计算距离下一个奖励的差距 - 修复为与旧架构一致的逻辑"""
         tiered_config = self.config.get("tiered_rewards")
         if not tiered_config:
             return None
-        
+
         tiers = tiered_config.get("tiers", [])
         current_amount = housekeeper_stats.performance_amount
-        
-        for tier in tiers:
+
+        # 🔧 修复：按照旧架构逻辑，按阈值从低到高排序
+        sorted_tiers = sorted(tiers, key=lambda x: x["threshold"])
+
+        # 找到下一个未获得的奖励等级
+        for tier in sorted_tiers:
             threshold = tier.get("threshold", 0)
             reward_name = tier.get("name", "")
-            
+
+            # 如果当前金额小于阈值且未获得该奖励
             if current_amount < threshold and reward_name not in housekeeper_stats.awarded:
                 gap = threshold - current_amount
                 return {
@@ -419,7 +436,8 @@ class RewardCalculator:
                     'gap': gap,
                     'progress_percentage': (current_amount / threshold) * 100
                 }
-        
+
+        # 如果所有奖励都已达成，返回None（对应旧架构的空白显示）
         return None
 
 

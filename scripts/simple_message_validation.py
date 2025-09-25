@@ -234,34 +234,94 @@ def compare_task_messages(old_tasks: List[Dict], new_tasks: List[Dict]) -> bool:
     if not type_match:
         return False
 
-    # 抽样比较消息内容（比较前3条消息）
-    sample_match = True
+    # 精确比较消息内容（逐条完全匹配）
+    exact_match = True
+    total_compared = 0
+
     for task_type in old_types:
-        old_samples = old_by_type[task_type][:3]
-        new_samples = new_by_type[task_type][:3]
+        old_tasks_type = old_by_type[task_type]
+        new_tasks_type = new_by_type[task_type]
 
-        for i, (old_task, new_task) in enumerate(zip(old_samples, new_samples)):
-            old_msg = old_task.get('message', '')
-            new_msg = new_task.get('message', '')
+        # 按消息内容的关键信息排序，确保比较的是对应的消息
+        # 提取合同编号或其他关键信息作为排序依据
+        def extract_sort_key(task):
+            message = task.get('message', '')
+            import re
 
-            # 简单的消息相似度检查（去除时间戳等动态内容）
-            old_normalized = normalize_message(old_msg)
-            new_normalized = normalize_message(new_msg)
+            # 尝试提取合同编号
+            contract_match = re.search(r'YHWX-\w+-\w+-\d+', message)
+            if contract_match:
+                return contract_match.group()
 
-            if old_normalized != new_normalized:
-                print(f"     ❌ {task_type} 第{i+1}条消息不匹配")
-                print(f"        旧架构: {old_msg[:100]}...")
-                print(f"        新架构: {new_msg[:100]}...")
-                sample_match = False
+            # 如果没有合同编号，尝试提取人名
+            name_match = re.search(r'恭喜 (\S+) 签约', message)
+            if name_match:
+                return name_match.group(1)
+
+            # 如果都没有，使用消息的前50个字符
+            return message[:50]
+
+        old_tasks_sorted = sorted(old_tasks_type, key=extract_sort_key)
+        new_tasks_sorted = sorted(new_tasks_type, key=extract_sort_key)
+
+        for i, (old_task, new_task) in enumerate(zip(old_tasks_sorted, new_tasks_sorted)):
+            old_msg = old_task.get('message', '').strip()
+            new_msg = new_task.get('message', '').strip()
+            total_compared += 1
+
+            # 精确字符串匹配 - 消息内容必须完全相同
+            if old_msg != new_msg:
+                print(f"     ❌ {task_type} 第{i+1}条消息内容不完全匹配")
+                print(f"        旧架构消息:")
+                print(f"        {repr(old_msg)}")
+                print(f"        新架构消息:")
+                print(f"        {repr(new_msg)}")
+                print(f"        差异分析:")
+                show_message_diff(old_msg, new_msg)
+                exact_match = False
+                # 继续检查其他消息，不要立即break
+
+    if exact_match:
+        print(f"     ✅ 所有消息内容完全匹配 (共验证 {total_compared} 条消息)")
+    else:
+        print(f"     ❌ 发现消息内容差异 (共验证 {total_compared} 条消息)")
+
+    return exact_match
+
+def show_message_diff(old_msg: str, new_msg: str):
+    """显示两条消息的详细差异"""
+    import difflib
+
+    # 按行分割消息
+    old_lines = old_msg.split('\n')
+    new_lines = new_msg.split('\n')
+
+    # 生成差异
+    diff = list(difflib.unified_diff(
+        old_lines,
+        new_lines,
+        fromfile='旧架构',
+        tofile='新架构',
+        lineterm=''
+    ))
+
+    if diff:
+        for line in diff[:20]:  # 只显示前20行差异
+            print(f"        {line}")
+    else:
+        # 如果按行没有差异，可能是空白字符差异
+        if len(old_msg) != len(new_msg):
+            print(f"        长度差异: 旧架构 {len(old_msg)} 字符 vs 新架构 {len(new_msg)} 字符")
+
+        # 查找第一个不同的字符位置
+        for i, (old_char, new_char) in enumerate(zip(old_msg, new_msg)):
+            if old_char != new_char:
+                print(f"        第 {i+1} 个字符不同: '{old_char}' vs '{new_char}'")
+                print(f"        上下文: ...{old_msg[max(0,i-10):i+10]}...")
                 break
 
-    if sample_match:
-        print("     ✅ 抽样消息内容匹配")
-
-    return sample_match
-
 def normalize_message(message: str) -> str:
-    """标准化消息内容，去除动态部分"""
+    """标准化消息内容，去除动态部分 - 已弃用，改为精确匹配"""
     import re
 
     # 去除时间戳

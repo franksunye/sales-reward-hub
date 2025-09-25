@@ -191,10 +191,12 @@ class NotificationService:
             # 自引单统一显示固定消息（与旧架构保持一致）
             next_msg = '继续加油，争取更多奖励'
         else:
-            # 平台单按照备注字段动态生成
-            next_msg = ('恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉'
-                       if '无' in record.get("备注", "")
-                       else f'{record.get("备注", "")}')
+            # 🔧 修复：平台单按照备注字段动态生成，与旧架构完全一致
+            # 当备注为"无"时，显示空白（与旧架构保持一致）
+            if '无' in record.get("备注", ""):
+                next_msg = ''  # 空白显示，与旧架构保持一致
+            else:
+                next_msg = f'{record.get("备注", "")}'
 
         if self.config.city.value == "SH":
             # 上海群通知模板（与旧架构保持一致）
