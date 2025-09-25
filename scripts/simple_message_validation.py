@@ -25,25 +25,29 @@ sys.path.insert(0, project_root)
 def clean_test_environment(city: str, activity: str):
     """清理测试环境"""
     print("🧹 清理测试环境...")
-    
+
     # 清理数据库
     for db_file in ['performance_data.db', 'tasks.db']:
         if os.path.exists(db_file):
             os.remove(db_file)
             print(f"   删除: {db_file}")
-    
-    # 清理CSV文件
+
+    # 清理CSV文件和状态文件
     import glob
     patterns = [
         f"state/PerformanceData-{activity}.csv",
-        f"performance_data_{activity}_*.csv"
+        f"state/PerformanceData-{city}-Sep.csv",  # 旧架构格式
+        f"performance_data_{activity}_*.csv",
+        f"state/send_status_{city.lower()}*",  # 清理发送状态文件
+        f"state/*{activity}*",
+        f"state/*{city}*"
     ]
-    
+
     for pattern in patterns:
         for file_path in glob.glob(pattern):
             os.remove(file_path)
             print(f"   删除: {file_path}")
-    
+
     # 重新创建tasks.db
     from scripts.database_setup import create_tasks_table
     create_tasks_table()
@@ -62,11 +66,24 @@ def get_tasks_from_db() -> List[Dict]:
 
 def get_performance_data_from_csv(city: str, activity: str) -> List[Dict]:
     """从CSV文件读取PerformanceData"""
-    csv_file = f'state/PerformanceData-{activity}.csv'
-    
-    if not os.path.exists(csv_file):
+    # 尝试多种可能的文件名格式
+    possible_files = [
+        f'state/PerformanceData-{activity}.csv',
+        f'state/PerformanceData-{city}-Sep.csv',  # 旧架构使用的格式
+        f'state/PerformanceData-{city}-{activity.split("-")[1]}.csv'
+    ]
+
+    csv_file = None
+    for file_path in possible_files:
+        if os.path.exists(file_path):
+            csv_file = file_path
+            break
+
+    if not csv_file:
+        print(f"   ⚠️ 未找到CSV文件，尝试过: {possible_files}")
         return []
-    
+
+    print(f"   📄 找到CSV文件: {csv_file}")
     import csv
     with open(csv_file, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
@@ -153,27 +170,113 @@ def run_new_architecture(city: str, activity: str) -> Tuple[List[Dict], List[Dic
 def compare_tasks(old_tasks: List[Dict], new_tasks: List[Dict]) -> bool:
     """比较Task消息"""
     print("📨 Task消息对比:")
-    
+
     old_count = len(old_tasks)
     new_count = len(new_tasks)
     count_match = old_count == new_count
-    
+
     print(f"   旧架构任务数: {old_count}")
     print(f"   新架构任务数: {new_count}")
     print(f"   数量匹配: {'✅' if count_match else '❌'}")
-    
+
     if not count_match:
         return False
-    
+
     # 如果都是0，也算匹配
     if old_count == 0 and new_count == 0:
         print("   内容匹配: ✅ (都没有任务)")
         return True
-    
-    # TODO: 可以添加更详细的消息内容比较
-    print("   内容匹配: ✅ (数量相同)")
-    
-    return True
+
+    # 详细的消息内容比较
+    return compare_task_messages(old_tasks, new_tasks)
+
+def compare_task_messages(old_tasks: List[Dict], new_tasks: List[Dict]) -> bool:
+    """详细比较任务消息内容"""
+    print("   🔍 详细消息内容比较:")
+
+    # 按任务类型分组
+    old_by_type = {}
+    new_by_type = {}
+
+    for task in old_tasks:
+        task_type = task.get('task_type', 'unknown')
+        if task_type not in old_by_type:
+            old_by_type[task_type] = []
+        old_by_type[task_type].append(task)
+
+    for task in new_tasks:
+        task_type = task.get('task_type', 'unknown')
+        if task_type not in new_by_type:
+            new_by_type[task_type] = []
+        new_by_type[task_type].append(task)
+
+    # 比较任务类型分布
+    old_types = set(old_by_type.keys())
+    new_types = set(new_by_type.keys())
+
+    if old_types != new_types:
+        print(f"     ❌ 任务类型不匹配")
+        print(f"        旧架构: {sorted(old_types)}")
+        print(f"        新架构: {sorted(new_types)}")
+        return False
+
+    # 比较每种类型的任务数量
+    type_match = True
+    for task_type in old_types:
+        old_count = len(old_by_type[task_type])
+        new_count = len(new_by_type[task_type])
+        match = old_count == new_count
+
+        print(f"     {task_type}: {old_count} vs {new_count} {'✅' if match else '❌'}")
+        if not match:
+            type_match = False
+
+    if not type_match:
+        return False
+
+    # 抽样比较消息内容（比较前3条消息）
+    sample_match = True
+    for task_type in old_types:
+        old_samples = old_by_type[task_type][:3]
+        new_samples = new_by_type[task_type][:3]
+
+        for i, (old_task, new_task) in enumerate(zip(old_samples, new_samples)):
+            old_msg = old_task.get('message', '')
+            new_msg = new_task.get('message', '')
+
+            # 简单的消息相似度检查（去除时间戳等动态内容）
+            old_normalized = normalize_message(old_msg)
+            new_normalized = normalize_message(new_msg)
+
+            if old_normalized != new_normalized:
+                print(f"     ❌ {task_type} 第{i+1}条消息不匹配")
+                print(f"        旧架构: {old_msg[:100]}...")
+                print(f"        新架构: {new_msg[:100]}...")
+                sample_match = False
+                break
+
+    if sample_match:
+        print("     ✅ 抽样消息内容匹配")
+
+    return sample_match
+
+def normalize_message(message: str) -> str:
+    """标准化消息内容，去除动态部分"""
+    import re
+
+    # 去除时间戳
+    message = re.sub(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', '[TIMESTAMP]', message)
+
+    # 去除合同ID中的动态部分（保留格式）
+    message = re.sub(r'YHWX-\w+-\w+-\d+', '[CONTRACT_ID]', message)
+
+    # 去除具体金额（保留格式）
+    message = re.sub(r'\d{1,3}(,\d{3})*(\.\d+)?', '[AMOUNT]', message)
+
+    # 去除多余空白
+    message = re.sub(r'\s+', ' ', message).strip()
+
+    return message
 
 def compare_performance_data(old_perf: List[Dict], new_perf: List[Dict]) -> bool:
     """比较PerformanceData"""
