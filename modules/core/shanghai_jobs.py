@@ -373,20 +373,23 @@ def _generate_csv_output_with_dual_track(records: List[PerformanceRecord], confi
 
 
 def _send_notifications(records: List[PerformanceRecord], config):
-    """发送通知"""
-    # TODO: 集成现有的上海通知模块
-    # from modules.notification_module import notify_awards_shanghai_generic
-    # notify_awards_shanghai_generic(records, config)
-    
-    # 统计需要发送通知的记录
-    notification_records = [r for r in records if r.rewards]
-    logging.info(f"需要发送通知的记录: {len(notification_records)} 条")
-    
-    # 模拟通知发送
-    for record in notification_records:
-        reward_names = [r.reward_name for r in record.rewards]
-        housekeeper_key = f"{record.contract_data.housekeeper}_{record.contract_data.service_provider}"
-        logging.info(f"发送通知: {housekeeper_key} 获得奖励 {reward_names}")
+    """发送通知 - 使用新架构的通知服务"""
+    from .notification_service import create_notification_service
+    from .storage import create_data_store
+
+    # 创建存储实例
+    storage = create_data_store(
+        storage_type="sqlite",
+        db_path="performance_data.db"
+    )
+
+    # 创建通知服务
+    notification_service = create_notification_service(storage, config)
+
+    # 发送通知
+    stats = notification_service.send_notifications()
+
+    logging.info(f"通知发送完成 - 总计: {stats['total']}, 群通知: {stats['group_notifications']}, 奖励通知: {stats['award_notifications']}")
 
 
 # 兼容性函数 - 保持与现有调用方式的兼容

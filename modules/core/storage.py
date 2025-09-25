@@ -274,8 +274,19 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 reward_types = json.dumps([r.reward_type for r in record.rewards], ensure_ascii=False)
                 reward_names = json.dumps([r.reward_name for r in record.rewards], ensure_ascii=False)
 
-                # 保存原始数据到extensions，备注字段单独存储
-                extensions_data = record.contract_data.raw_data.copy()
+                # 保存完整数据到extensions，包括双轨统计字段
+                # 🔧 修复：使用record.to_dict()获取完整数据，而不是只保存原始数据
+                record_dict = record.to_dict()
+                extensions_data = record_dict.copy()
+
+                # 移除已经单独存储的字段，避免重复
+                fields_to_remove = [
+                    '合同ID(_id)', '管家(serviceHousekeeper)', '服务商(orgName)',
+                    '合同金额(adjustRefundMoney)', '管家累计业绩金额', '活动期内第几个合同',
+                    '激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注'
+                ]
+                for field in fields_to_remove:
+                    extensions_data.pop(field, None)
 
                 conn.execute("""
                     INSERT OR REPLACE INTO performance_data (

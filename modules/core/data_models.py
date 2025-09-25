@@ -174,15 +174,15 @@ class PerformanceRecord:
         # 添加原始数据字段
         base_dict.update(self.contract_data.raw_data)
         
-        # 添加双轨统计字段（如果启用）
-        if self.housekeeper_stats.platform_count > 0 or self.housekeeper_stats.self_referral_count > 0:
-            base_dict.update({
-                '工单类型': '自引单' if self.contract_data.order_type == OrderType.SELF_REFERRAL else '平台单',
-                '平台单累计数量': self.housekeeper_stats.platform_count,
-                '平台单累计金额': self.housekeeper_stats.platform_amount,
-                '自引单累计数量': self.housekeeper_stats.self_referral_count,
-                '自引单累计金额': self.housekeeper_stats.self_referral_amount
-            })
+        # 添加双轨统计字段（总是添加，确保通知消息能获取到这些字段）
+        # 🔧 修复：移除条件判断，确保双轨统计字段总是被添加到extensions中
+        base_dict.update({
+            '工单类型': '自引单' if self.contract_data.order_type == OrderType.SELF_REFERRAL else '平台单',
+            '平台单累计数量': self.housekeeper_stats.platform_count,
+            '平台单累计金额': self.housekeeper_stats.platform_amount,
+            '自引单累计数量': self.housekeeper_stats.self_referral_count,
+            '自引单累计金额': self.housekeeper_stats.self_referral_amount
+        })
         
         return base_dict
 

@@ -104,20 +104,54 @@ class NotificationService:
             except:
                 extensions = {}
 
+        # 解析奖励信息（JSON格式）
+        reward_types = ''
+        reward_names = ''
+        if record.get('reward_types'):
+            import json
+            try:
+                reward_types_list = json.loads(record['reward_types'])
+                reward_types = ', '.join(reward_types_list) if isinstance(reward_types_list, list) else str(reward_types_list)
+            except:
+                reward_types = str(record.get('reward_types', ''))
+
+        if record.get('reward_names'):
+            import json
+            try:
+                reward_names_list = json.loads(record['reward_names'])
+                reward_names = ', '.join(reward_names_list) if isinstance(reward_names_list, list) else str(reward_names_list)
+            except:
+                reward_names = str(record.get('reward_names', ''))
+
+        # 转换订单类型
+        order_type_display = "自引单" if record.get('order_type') == 'self_referral' else "平台单"
+
+        # 提取纯管家名称（去掉服务商后缀）
+        housekeeper_name = record['housekeeper']
+        if '_' in housekeeper_name:
+            housekeeper_name = housekeeper_name.split('_')[0]
+
         return {
             '合同ID(_id)': record['contract_id'],
-            '管家(serviceHousekeeper)': record['housekeeper'],
+            '管家(serviceHousekeeper)': housekeeper_name,
             '合同编号(contractdocNum)': extensions.get('合同编号(contractdocNum)', ''),
             '合同金额(adjustRefundMoney)': record['contract_amount'],
             '活动期内第几个合同': record.get('contract_sequence', 0),
             '管家累计单数': extensions.get('管家累计单数', 0),
             '管家累计金额': extensions.get('管家累计金额', 0),
             '管家累计业绩金额': extensions.get('管家累计业绩金额', record['performance_amount']),
-            '激活奖励状态': '1' if record.get('reward_names') else '0',
-            '奖励类型': record.get('reward_types', ''),
-            '奖励名称': record.get('reward_names', ''),
+            '激活奖励状态': '1' if reward_names else '0',
+            '奖励类型': reward_types,
+            '奖励名称': reward_names,
             '备注': extensions.get('备注', '无'),  # 🔧 修复：默认值改为'无'，与旧架构保持一致
             '是否发送通知': 'Y' if record.get('notification_sent') else 'N',
+            '工单类型': order_type_display,  # 🔧 新增：添加工单类型字段，用于消息模板
+            # 添加平台单和自引单的累计统计字段（从extensions中获取）
+            '平台单累计数量': extensions.get('平台单累计数量', 0),
+            '自引单累计数量': extensions.get('自引单累计数量', 0),
+            '平台单累计金额': extensions.get('平台单累计金额', 0),
+            '自引单累计金额': extensions.get('自引单累计金额', 0),
+            '转化率(conversion)': extensions.get('转化率(conversion)', ''),
             # 添加其他必要字段
             '支付金额(paidAmount)': extensions.get('支付金额(paidAmount)', 0),
             '服务商(orgName)': record.get('service_provider', ''),
@@ -150,12 +184,36 @@ class NotificationService:
         accumulated_amount = self._format_amount(record.get('管家累计金额', 0))
         performance_amount = self._format_amount(record.get('管家累计业绩金额', 0))
         
-        # 生成消息内容（与旧架构完全相同的模板）
-        next_msg = ('恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉' 
-                   if '无' in record.get("备注", "") 
+        # 生成群通知消息 - 根据城市使用不同的模板
+        next_msg = ('恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉'
+                   if '无' in record.get("备注", "")
                    else f'{record.get("备注", "")}')
-        
-        msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+        if self.config.city.value == "SH":
+            # 上海群通知模板（与旧架构保持一致）
+            order_type = record.get("工单类型", "平台单")
+            platform_count = record.get("平台单累计数量", 0)
+            self_referral_count = record.get("自引单累计数量", 0)
+            platform_amount = self._format_amount(record.get("平台单累计金额", 0))
+            self_referral_amount = self._format_amount(record.get("自引单累计金额", 0))
+            conversion_rate = self._format_rate(record.get("转化率(conversion)", ""))
+
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {record["管家(serviceHousekeeper)"]} 签约合同（{order_type}） {record.get("合同编号(contractdocNum)", "")} 并完成线上收款🎉🎉🎉
+
+🌻 本单为本月平台累计签约第 {record.get("活动期内第几个合同", 0)} 单，
+
+🌻 个人平台单累计签约第 {platform_count} 单， 自引单累计签约第 {self_referral_count} 单。
+🌻 个人平台单金额累计签约 {platform_amount} 元，自引单金额累计签约 {self_referral_amount}元
+
+🌻 个人平台单转化率 {conversion_rate}，
+
+👊 {next_msg} 🎉🎉🎉。
+'''
+        else:
+            # 北京群通知模板
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
 恭喜 {service_housekeeper} 签约合同 {record.get("合同编号(contractdocNum)", "")} 并完成线上收款🎉🎉🎉
 
 🌻 本单为活动期间平台累计签约第 {record.get("活动期内第几个合同", 0)} 单，个人累计签约第 {record.get("管家累计单数", 0)} 单。
@@ -203,6 +261,11 @@ class NotificationService:
             return f"{int(float(amount)):,d}"
         except (ValueError, TypeError):
             return "0"
+
+    def _format_rate(self, rate) -> str:
+        """格式化转化率显示"""
+        from modules.notification_module import preprocess_rate
+        return preprocess_rate(str(rate))
     
     def _update_notification_status(self, record: Dict):
         """更新通知发送状态"""
