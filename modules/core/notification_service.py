@@ -185,9 +185,16 @@ class NotificationService:
         performance_amount = self._format_amount(record.get('管家累计业绩金额', 0))
         
         # 生成群通知消息 - 根据城市使用不同的模板
-        next_msg = ('恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉'
-                   if '无' in record.get("备注", "")
-                   else f'{record.get("备注", "")}')
+        # 🔧 修复：与旧架构保持一致的订单类型处理逻辑
+        order_type = record.get("工单类型", "平台单")
+        if order_type == "自引单":
+            # 自引单统一显示固定消息（与旧架构保持一致）
+            next_msg = '继续加油，争取更多奖励'
+        else:
+            # 平台单按照备注字段动态生成
+            next_msg = ('恭喜已经达成所有奖励，祝愿再接再厉，再创佳绩 🎉🎉🎉'
+                       if '无' in record.get("备注", "")
+                       else f'{record.get("备注", "")}')
 
         if self.config.city.value == "SH":
             # 上海群通知模板（与旧架构保持一致）
@@ -232,15 +239,15 @@ class NotificationService:
     def _send_award_notification(self, record: Dict, awards_mapping: Dict[str, str]):
         """发送奖励通知 - 使用与旧架构相同的逻辑"""
         from modules.notification_module import generate_award_message
-        
+
         # 使用现有的奖励消息生成函数
         city_code = self.config.city.value
         jiangli_msg = generate_award_message(record, awards_mapping, city_code, self.config.config_key)
-        
+
         # 创建奖励通知任务
         contact = CAMPAIGN_CONTACT_BJ if city_code == "BJ" else CAMPAIGN_CONTACT_SH
         create_task('send_wechat_message', contact, jiangli_msg)
-        
+
         self.logger.info(f"奖励通知已创建: {record['管家(serviceHousekeeper)']} - {record.get('奖励名称', '')}")
     
     def _apply_badge_logic(self, housekeeper_name: str) -> str:

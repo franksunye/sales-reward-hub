@@ -280,10 +280,11 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 extensions_data = record_dict.copy()
 
                 # 移除已经单独存储的字段，避免重复
+                # 🔧 修复：保留"备注"字段在extensions中，因为通知服务需要从extensions中读取
                 fields_to_remove = [
                     '合同ID(_id)', '管家(serviceHousekeeper)', '服务商(orgName)',
                     '合同金额(adjustRefundMoney)', '管家累计业绩金额', '活动期内第几个合同',
-                    '激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注'
+                    '激活奖励状态', '奖励类型', '奖励名称', '是否发送通知'
                 ]
                 for field in fields_to_remove:
                     extensions_data.pop(field, None)
