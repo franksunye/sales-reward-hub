@@ -67,8 +67,8 @@ SELECT
     COUNT(*) as contract_count,
     -- 🔧 修复：累计合同金额仅计入新工单，不计入历史工单
     SUM(CASE WHEN is_historical = FALSE THEN contract_amount ELSE 0 END) as total_amount,
-    -- 🔧 修复：累计计入业绩金额仅计入新工单，不计入历史工单
-    SUM(CASE WHEN is_historical = FALSE THEN performance_amount ELSE 0 END) as performance_amount,
+    -- 🔧 修复：累计计入业绩金额包含历史合同（北京需要，上海无历史合同不受影响）
+    SUM(performance_amount) as performance_amount,
     -- 双轨统计（上海特有）
     SUM(CASE WHEN order_type = 'platform' THEN 1 ELSE 0 END) as platform_count,
     -- 🔧 修复：累计平台单金额仅计入新工单，不计入历史工单
