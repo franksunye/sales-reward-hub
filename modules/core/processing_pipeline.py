@@ -104,6 +104,7 @@ class DataProcessingPipeline:
                     updated_hk_stats = hk_stats  # 不更新统计数据
                     rewards = []  # 不计算奖励
                     contract_sequence = 0  # 🔧 修复：历史合同不计入活动期内合同序号
+                    next_reward_gap = ""  # 🔧 修复：历史合同没有下一个奖励差距
 
                     logging.debug(f"处理历史合同: {contract_data.contract_id}, 不参与累计统计和奖励计算")
                 else:
