@@ -99,7 +99,8 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
         logging.info(f"创建处理管道成功: {config.activity_code}")
 
         # 获取合同数据（从Metabase API获取真实数据）
-        contract_data = _get_shanghai_contract_data()
+        from modules.config import API_URL_SH_SEP
+        contract_data = _get_shanghai_contract_data(API_URL_SH_SEP)
         logging.info(f"获取到 {len(contract_data)} 个合同数据（支持双轨统计）")
 
         # 🔧 关键修复：获取管家历史奖励列表（参考旧系统逻辑）
@@ -123,6 +124,62 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
 
     except Exception as e:
         logging.error(f"上海9月任务执行失败: {e}")
+        raise
+
+
+def signing_and_sales_incentive_oct_shanghai_v2() -> List[PerformanceRecord]:
+    """
+    上海10月销售激励任务（重构版）
+
+    特点：
+    - 不启用自引单奖励
+    - 消息中不显示自引单信息
+    - 复用上海9月的核心逻辑
+    - 使用单轨激励（仅平台单）
+    """
+    logging.info("开始执行上海10月销售激励任务（重构版）")
+
+    try:
+        # 创建标准处理管道
+        pipeline, config, store = create_standard_pipeline(
+            config_key="SH-2025-10",
+            activity_code="SH-OCT",
+            city="SH",
+            housekeeper_key_format="管家_服务商",
+            storage_type="sqlite",
+            enable_dual_track=False,  # 不启用双轨统计显示
+            db_path="performance_data.db"
+        )
+
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+
+        # 获取合同数据（使用10月专用API）
+        from modules.config import API_URL_SH_OCT
+        contract_data = _get_shanghai_contract_data(API_URL_SH_OCT)
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+
+        # 获取管家历史奖励列表（防止重复发放奖励）
+        housekeeper_award_lists = _get_housekeeper_award_lists_for_shanghai(store, config.activity_code)
+        logging.info(f"获取到 {len(housekeeper_award_lists)} 个管家的历史奖励信息")
+
+        # 处理数据
+        processed_records = pipeline.process(contract_data, housekeeper_award_lists=housekeeper_award_lists)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+
+        # 生成输出和发送通知
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        else:
+            logging.info("CSV输出已禁用，数据仅保存到数据库")
+
+        # 发送通知
+        _send_notifications(processed_records, config)
+
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"上海10月销售激励任务执行失败: {e}")
         raise
 
 
@@ -163,8 +220,12 @@ def _get_housekeeper_award_lists_for_shanghai(store, activity_code: str) -> Dict
         return {}
 
 
-def _get_shanghai_contract_data() -> List[Dict]:
-    """获取上海合同数据（连接真实Metabase API）"""
+def _get_shanghai_contract_data(api_url: str = None) -> List[Dict]:
+    """获取上海合同数据（连接真实Metabase API）
+
+    Args:
+        api_url: API端点URL，如果不提供则使用默认的9月API
+    """
     logging.info("从Metabase获取上海合同数据...")
 
     try:
@@ -172,8 +233,12 @@ def _get_shanghai_contract_data() -> List[Dict]:
         from modules.request_module import send_request_with_managed_session
         from modules.config import API_URL_SH_SEP
 
+        # 使用提供的API URL或默认的9月API
+        target_api_url = api_url or API_URL_SH_SEP
+        logging.info(f"使用API端点: {target_api_url}")
+
         # 调用真实的Metabase API
-        response = send_request_with_managed_session(API_URL_SH_SEP)
+        response = send_request_with_managed_session(target_api_url)
 
         if response is None:
             logging.error("Metabase API调用失败")
@@ -335,6 +400,11 @@ def signing_and_sales_incentive_apr_shanghai():
 def signing_and_sales_incentive_sep_shanghai():
     """兼容性包装函数 - 上海9月"""
     return signing_and_sales_incentive_sep_shanghai_v2()
+
+
+def signing_and_sales_incentive_oct_shanghai():
+    """兼容性包装函数 - 上海10月"""
+    return signing_and_sales_incentive_oct_shanghai_v2()
 
 
 if __name__ == "__main__":

@@ -150,6 +150,57 @@ REWARD_CONFIGS = {
             }
         }
     },
+    # 上海2025年10月活动配置
+    "SH-2025-10": {
+        "lucky_number": "",  # 禁用幸运奖
+        "lucky_number_sequence_type": "global",  # 如果启用幸运奖，上海早期使用全局序号
+        "performance_limits": {
+            "enable_cap": False,  # 上海不启用业绩上限
+            "single_contract_cap": 40000
+        },
+        "tiered_rewards": {
+            "min_contracts": 5,  # 平台单需要5个合同
+            "tiers": [
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000},
+                {"name": "卓越奖", "threshold": 160000}
+            ]
+        },
+        "awards_mapping": {
+            # 平台单奖励（复用上海4月配置）
+            "基础奖": "200",
+            "达标奖": "300",
+            "优秀奖": "400",
+            "精英奖": "800",
+            "卓越奖": "1200",
+            # 自引单奖励（新增）
+            # "红包": "50"
+        },
+        # 新增：自引单奖励配置
+        "self_referral_rewards": {
+            "enable": False,  # 启用自引单奖励
+            "reward_type": "自引单",
+            "reward_name": "红包",
+            "deduplication_field": "projectAddress"  # 去重字段
+            # 注意：奖励金额统一在awards_mapping中定义，避免重复配置
+        },
+        # 奖励计算策略配置
+        "reward_calculation_strategy": {
+            "type": "single_track",  # 单轨激励：仅平台单
+            "rules": {
+                "platform": {
+                    "enable_tiered_rewards": True,
+                    "stats_source": "platform_only"  # 使用平台单统计数据
+                },
+                "self_referral": {
+                    "enable_tiered_rewards": False,  # 自引单不参与节节高奖励
+                    "stats_source": "self_referral_only"  # 使用自引单统计数据
+                }
+            }
+        }
+    },
 }
 
 # 归档文件夹
@@ -198,9 +249,15 @@ TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/ContractData-SH-Sep.csv'
 PERFORMANCE_DATA_FILENAME_SH_SEP = 'state/PerformanceData-SH-Sep.csv'
 STATUS_FILENAME_SH_SEP = 'state/send_status_shanghai_sep.json'
 
-# # 通知配置
-# WECOM_GROUP_NAME_SH_SEP = '（上海）运营群'
-# CAMPAIGN_CONTACT_SH_SEP = '满浩浩'
+
+## 上海地区，2025年10月活动
+API_URL_SH_OCT = METABASE_URL + "/api/card/1884/query"
+
+# 销售激励活动 JOB signing_and_sales_incentive_oct_shanghai
+TEMP_CONTRACT_DATA_FILE_SH_OCT = 'state/ContractData-SH-Oct.csv'
+PERFORMANCE_DATA_FILENAME_SH_OCT = 'state/PerformanceData-SH-Oct.csv'
+STATUS_FILENAME_SH_OCT = 'state/send_status_shanghai_oct.json'
+
 
 ## 上海的通用配置选项
 WECOM_GROUP_NAME_SH = '（上海）运营群'
@@ -230,10 +287,6 @@ TEMP_CONTRACT_DATA_FILE_BJ_SEP = 'state/ContractData-BJ-Sep.csv'
 PERFORMANCE_DATA_FILENAME_BJ_SEP = 'state/PerformanceData-BJ-Sep.csv'
 STATUS_FILENAME_BJ_SEP = 'state/send_status_bj_sep.json'
 
-# 通知配置
-# WECOM_GROUP_NAME_BJ_SEP = '（北京）修链服务运营'
-# CAMPAIGN_CONTACT_BJ_SEP = '王爽'
-
 ## 北京地区，2025年10月活动
 API_URL_BJ_OCT = METABASE_URL + "/api/card/1883/query"
 
@@ -242,13 +295,9 @@ TEMP_CONTRACT_DATA_FILE_BJ_OCT = 'state/ContractData-BJ-Oct.csv'
 PERFORMANCE_DATA_FILENAME_BJ_OCT = 'state/PerformanceData-BJ-Oct.csv'
 STATUS_FILENAME_BJ_OCT = 'state/send_status_bj_oct.json'
 
-# 通知配置
-WECOM_GROUP_NAME_BJ_OCT = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_OCT = '王爽'
-
 ## 北京的通用配置选项
 
-WECOM_GROUP_NAME_BJ = '北京运营中心系统通知群'
+WECOM_GROUP_NAME_BJ = '（北京）修链服务运营'
 CAMPAIGN_CONTACT_BJ = '王爽'
 
 # 销售激励活动 奖金池计算比例

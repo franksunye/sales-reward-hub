@@ -205,8 +205,28 @@ class NotificationService:
             else:
                 next_msg = f'{record.get("备注", "")}'
 
-        if self.config.city.value == "SH":
-            # 上海群通知模板（与旧架构保持一致）
+        if self.config.config_key == "SH-2025-10":
+            # 上海10月专用消息模板 - 不显示自引单信息，不显示业绩信息
+            order_type = record.get("工单类型", "平台单")
+            platform_count = record.get("平台单累计数量", 0)
+            platform_amount = self._format_amount(record.get("平台单累计金额", 0))
+            conversion_rate = self._format_rate(record.get("转化率(conversion)", ""))
+
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {record["管家(serviceHousekeeper)"]} 签约合同（{order_type}） {record.get("合同编号(contractdocNum)", "")} 并完成线上收款🎉🎉🎉
+
+🌻 本单为本月平台累计签约第 {record.get("活动期内第几个合同", 0)} 单，
+
+🌻 个人平台单累计签约第 {platform_count} 单。
+🌻 个人平台单金额累计签约 {platform_amount} 元
+
+🌻 个人平台单转化率 {conversion_rate}，
+
+👊 {next_msg} 🎉🎉🎉。
+'''
+        elif self.config.city.value == "SH":
+            # 上海群通知模板（与旧架构保持一致）- 其他上海活动使用
             order_type = record.get("工单类型", "平台单")
             platform_count = record.get("平台单累计数量", 0)
             self_referral_count = record.get("自引单累计数量", 0)
