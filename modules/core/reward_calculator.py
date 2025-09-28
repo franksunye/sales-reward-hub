@@ -128,6 +128,15 @@ class RewardCalculator:
             housekeeper_stats: 管家统计数据
             global_sequence: 全局合同签署序号
             personal_sequence: 管家个人合同签署序号
+
+        Returns:
+            tuple: (奖励类型, 奖励名称)
+
+        Note:
+            支持的 lucky_number_sequence_type 配置：
+            - "global": 使用全局序号
+            - "personal": 使用个人总序号
+            - "platform_only": 仅使用平台单个人序号（北京10月新增）
         """
         lucky_number_str = self.config.get("lucky_number", "5")
 
@@ -150,6 +159,12 @@ class RewardCalculator:
             sequence_to_check = global_sequence
         elif lucky_number_sequence_type == "personal" and personal_sequence is not None:
             sequence_to_check = personal_sequence
+        elif lucky_number_sequence_type == "platform_only":
+            # 北京10月新增：仅基于平台单个人序号
+            sequence_to_check = housekeeper_stats.platform_count
+            # 🔧 修复：添加边界检查，确保平台单数量大于0才计算幸运数字
+            if sequence_to_check <= 0:
+                return "", ""
         else:
             # 兜底：使用管家统计中的个人序号
             sequence_to_check = housekeeper_stats.contract_count

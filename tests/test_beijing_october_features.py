@@ -86,6 +86,34 @@ class TestPlatformOnlyLuckyNumber:
         # 验证结果
         assert reward_type == ""
         assert reward_name == ""
+
+    def test_platform_only_boundary_condition_fix(self):
+        """测试平台单数量为0时的边界条件修复（BUG修复验证）"""
+        # 创建测试数据：只有自引单，平台单数量为0
+        housekeeper_stats = HousekeeperStats(
+            housekeeper="马俊杰",
+            activity_code="BJ-OCT",
+            contract_count=1,  # 总数1个
+            platform_count=0,  # 平台单0个（边界条件）
+            self_referral_count=1  # 自引单1个
+        )
+
+        contract_data = ContractData(
+            contract_id="YHWX-BJ-BYHT-2025090001",
+            housekeeper="马俊杰",
+            service_provider="测试服务商",
+            contract_amount=5000,
+            order_type=OrderType.SELF_REFERRAL
+        )
+
+        # 执行测试
+        reward_type, reward_name = self.calculator._determine_lucky_number_reward(
+            contract_data, housekeeper_stats
+        )
+
+        # 验证结果：平台单数量为0时不应该获得幸运数字奖励
+        assert reward_type == ""
+        assert reward_name == ""
     
     def test_platform_only_ignores_self_referral_count(self):
         """测试 platform_only 模式忽略自引单数量"""
