@@ -197,6 +197,21 @@ reward_count = len([r for r in result if r.rewards])
 print(f'🏆 获得奖励的记录: {reward_count}条')
 "
 
+# 运行新架构上海10月（单轨统计）
+python -c "
+import sys
+sys.path.insert(0, '.')
+from modules.core.shanghai_jobs import signing_and_sales_incentive_oct_shanghai_v2
+print('🆕 开始执行新架构上海9月...')
+result = signing_and_sales_incentive_oct_shanghai_v2()
+print(f'✅ 新架构执行完成，处理了{len(result)}条记录')
+print('📊 数据已保存到数据库: performance_data.db')
+
+# 统计奖励记录
+reward_count = len([r for r in result if r.rewards])
+print(f'🏆 获得奖励的记录: {reward_count}条')
+"
+
 # 检查数据库文件
 echo "📊 检查新架构输出:"
 ls -la performance_data.db
