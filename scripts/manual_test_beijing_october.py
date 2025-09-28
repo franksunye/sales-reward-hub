@@ -64,7 +64,7 @@ def clean_environment():
     
     files_to_clean = [
         "performance_data.db",
-        "tasks.db",
+        # "tasks.db",
         "performance_data_BJ-OCT.csv",
         "beijing_october_test_output.csv"
     ]
@@ -169,10 +169,10 @@ def execute_beijing_october_job(enable_notifications=True):
             print(f"\n🎉 前5条奖励记录:")
             for i, record in enumerate(reward_records):
                 print(f"\n记录 {i+1}:")
-                print(f"  管家: {record.housekeeper}")
-                print(f"  合同ID: {record.contract_id}")
-                print(f"  合同金额: {record.contract_amount}")
-                print(f"  订单类型: {record.order_type}")
+                print(f"  管家: {record.contract_data.housekeeper}")
+                print(f"  合同ID: {record.contract_data.contract_id}")
+                print(f"  合同金额: {record.contract_data.contract_amount}")
+                print(f"  订单类型: {record.contract_data.order_type}")
                 print(f"  奖励: {[f'{r.reward_type}-{r.reward_name}' for r in record.rewards]}")
         
         return result
