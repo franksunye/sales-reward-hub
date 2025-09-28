@@ -60,9 +60,12 @@ REWARD_CONFIGS = {
             "high": {"name": "接好运", "threshold": 999999999}  # 统一奖励，不区分金额
         },
         "performance_limits": {
-            "single_project_limit": 50000,  # 调整为5万
+            "single_project_limit": 50000,  # 平台单工单上限5万
             "enable_cap": True,
-            "single_contract_cap": 50000
+            "single_contract_cap": 50000,  # 平台单合同上限5万
+            # 新增：差异化金额上限配置
+            "self_referral_contract_cap": 200000,  # 自引单合同上限20万
+            "self_referral_project_limit": 200000   # 自引单工单上限20万
         },
         "tiered_rewards": {
             "min_contracts": 10,  # 10个合同，“平台单”以及“自引单”，即所有合同累计

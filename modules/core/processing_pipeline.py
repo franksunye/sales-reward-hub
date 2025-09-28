@@ -240,15 +240,24 @@ class DataProcessingPipeline:
             # 从配置中获取工单上限
             from .config_adapter import get_reward_config
             config_data = get_reward_config(self.config.config_key)
-            project_limit = config_data.get('performance_limits', {}).get('single_project_limit', 500000)
+            performance_limits = config_data.get('performance_limits', {})
+
+            # 根据合同类型选择不同的工单上限
+            if contract_data.order_type.value == 'self_referral':
+                # 自引单使用专门的工单上限（如果配置了的话）
+                project_limit = performance_limits.get('self_referral_project_limit',
+                                                      performance_limits.get('single_project_limit', 500000))
+            else:
+                # 平台单使用默认工单上限
+                project_limit = performance_limits.get('single_project_limit', 500000)
 
             # 计算剩余可用额度
             remaining_limit = max(0, project_limit - project_usage)
             performance_amount = min(base_amount, remaining_limit)
 
-            logging.debug(f"Project {contract_data.project_id}: usage={project_usage}, "
-                         f"limit={project_limit}, remaining={remaining_limit}, "
-                         f"performance_amount={performance_amount}")
+            logging.debug(f"Project {contract_data.project_id} ({contract_data.order_type.value}): "
+                         f"usage={project_usage}, limit={project_limit}, "
+                         f"remaining={remaining_limit}, performance_amount={performance_amount}")
 
             return performance_amount
 
@@ -261,15 +270,36 @@ class DataProcessingPipeline:
         计算计入业绩的金额（带工单级别跟踪）
         参考旧架构的 process_historical_contract_with_project_limit 逻辑
         """
-        # 1. 先应用单合同上限
+        # 1. 先应用单合同上限（支持差异化上限）
         from .config_adapter import get_reward_config
         config_data = get_reward_config(self.config.config_key)
-        single_contract_cap = config_data.get('performance_limits', {}).get('single_contract_cap', 50000)
+        performance_limits = config_data.get('performance_limits', {})
+
+        # 根据工单类型选择不同的上限
+        if contract_data.order_type.value == 'self_referral':
+            # 自引单使用专门的上限（如果配置了的话）
+            single_contract_cap = performance_limits.get('self_referral_contract_cap',
+                                                       performance_limits.get('single_contract_cap', 50000))
+        else:
+            # 平台单使用默认上限
+            single_contract_cap = performance_limits.get('single_contract_cap', 50000)
+
         base_amount = min(contract_data.contract_amount, single_contract_cap)
+
+        logging.debug(f"Contract {contract_data.contract_id} ({contract_data.order_type.value}): "
+                     f"amount={contract_data.contract_amount}, cap={single_contract_cap}, "
+                     f"base_amount={base_amount}")
 
         # 2. 再考虑工单级别上限（北京特有）
         if self.config.enable_project_limit and contract_data.project_id:
-            project_limit = config_data.get('performance_limits', {}).get('single_project_limit', 50000)
+            # 根据合同类型选择不同的工单上限
+            if contract_data.order_type.value == 'self_referral':
+                # 自引单使用专门的工单上限（如果配置了的话）
+                project_limit = performance_limits.get('self_referral_project_limit',
+                                                      performance_limits.get('single_project_limit', 50000))
+            else:
+                # 平台单使用默认工单上限
+                project_limit = performance_limits.get('single_project_limit', 50000)
 
             # 获取当前工单的累计使用金额（包含本批次已处理的合同）
             current_project_total = project_performance_tracker.get(contract_data.project_id, 0)
@@ -281,9 +311,9 @@ class DataProcessingPipeline:
             # 更新工单累计跟踪器
             project_performance_tracker[contract_data.project_id] = current_project_total + performance_amount
 
-            logging.debug(f"Project {contract_data.project_id}: current_total={current_project_total}, "
-                         f"limit={project_limit}, remaining_quota={remaining_quota}, "
-                         f"performance_amount={performance_amount}")
+            logging.debug(f"Project {contract_data.project_id} ({contract_data.order_type.value}): "
+                         f"current_total={current_project_total}, limit={project_limit}, "
+                         f"remaining_quota={remaining_quota}, performance_amount={performance_amount}")
 
             return performance_amount
 

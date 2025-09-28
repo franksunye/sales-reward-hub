@@ -253,6 +253,8 @@ class NotificationService:
             self_referral_count = record.get("自引单累计数量", 0)
             platform_amount = self._format_amount(record.get("平台单累计金额", 0))
             self_referral_amount = self._format_amount(record.get("自引单累计金额", 0))
+            # 新增：业绩金额显示
+            performance_amount = self._format_amount(record.get("管家累计业绩金额", 0))
 
             # 🔧 修复：使用全局合同序号，而不是个人总数
             global_contract_sequence = record.get("活动期内第几个合同", 0)
@@ -265,6 +267,7 @@ class NotificationService:
 
 🌻 个人平台单累计签约第 {platform_count} 单，累计签约 {platform_amount} 元
 🌻 个人自引单累计签约第 {self_referral_count} 单，累计签约 {self_referral_amount}元
+🌻 个人累计业绩金额 {performance_amount} 元
 
 👊 {next_msg} 🎉🎉🎉
 '''
