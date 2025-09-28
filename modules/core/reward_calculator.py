@@ -160,7 +160,11 @@ class RewardCalculator:
         elif lucky_number_sequence_type == "personal" and personal_sequence is not None:
             sequence_to_check = personal_sequence
         elif lucky_number_sequence_type == "platform_only":
-            # 北京10月新增：仅基于平台单个人序号
+            # 北京10月新增：仅基于平台单个人序号，且只有平台单才能获得幸运数字奖励
+            # 🔧 修复：检查当前合同类型，自引单不能获得幸运数字奖励
+            if contract_data.order_type.value != 'platform':
+                return "", ""  # 自引单不能获得幸运数字奖励
+
             sequence_to_check = housekeeper_stats.platform_count
             # 🔧 修复：添加边界检查，确保平台单数量大于0才计算幸运数字
             if sequence_to_check <= 0:

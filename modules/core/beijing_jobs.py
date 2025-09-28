@@ -235,10 +235,80 @@ def _get_contract_data_from_metabase() -> List[Dict]:
         raise
 
 
+def _get_contract_data_with_source_type() -> List[Dict]:
+    """获取包含sourceType字段的合同数据（北京10月专用）"""
+    logging.info("从Metabase获取北京10月合同数据（包含双轨信息）...")
+
+    try:
+        # 导入真实的API模块
+        from modules.request_module import send_request_with_managed_session
+        from modules.config import API_URL_BJ_OCT  # 北京10月API端点
+
+        # 调用真实的Metabase API
+        response = send_request_with_managed_session(API_URL_BJ_OCT)
+
+        if not response or 'data' not in response:
+            logging.warning("API响应为空或格式不正确")
+            return []
+
+        data = response['data']
+        if not data or 'rows' not in data or 'cols' not in data:
+            logging.warning("API数据格式不正确")
+            return []
+
+        rows = data['rows']
+        columns = data['cols']
+
+        if not rows:
+            logging.warning("没有获取到合同数据")
+            return []
+
+        # 构建字段名映射
+        column_names = [col['name'] for col in columns]
+
+        # 转换为字典格式，确保包含sourceType字段
+        contract_data = []
+        for row in rows:
+            raw_dict = dict(zip(column_names, row))
+
+            # 映射到标准字段名，特别注意sourceType字段
+            contract_dict = {
+                '合同ID(_id)': raw_dict.get('_id', ''),
+                '活动城市(province)': raw_dict.get('province', ''),
+                '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
+                'Status': raw_dict.get('status', ''),
+                '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
+                '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
+                '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
+                '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
+                '差额(difference)': raw_dict.get('difference', 0),
+                'State': raw_dict.get('state', ''),
+                '创建时间(createTime)': raw_dict.get('createTime', ''),
+                '服务商(orgName)': raw_dict.get('orgName', ''),
+                '签约时间(signedDate)': raw_dict.get('signedDate', ''),
+                'Doorsill': raw_dict.get('Doorsill', 0),
+                '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
+                '转化率(conversion)': raw_dict.get('conversion', ''),
+                '平均客单价(average)': raw_dict.get('average', ''),
+                '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
+                '工单类型(sourceType)': raw_dict.get('sourceType', ''),  # 关键字段：1=自引单，2=平台单
+                '客户联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
+                '项目地址(projectAddress)': raw_dict.get('projectAddress', ''),  # 自引单去重用
+            }
+            contract_data.append(contract_dict)
+
+        logging.info(f"成功获取 {len(contract_data)} 个合同数据，包含sourceType字段")
+        return contract_data
+
+    except Exception as e:
+        logging.error(f"获取北京10月合同数据失败: {e}")
+        raise
+
+
 def _get_contract_data_with_historical() -> List[Dict]:
     """获取合同数据（包含历史合同）"""
     logging.info("从Metabase获取合同数据（包含历史合同）...")
-    
+
     # 获取基础数据
     contract_data = _get_contract_data_from_metabase()
     
@@ -323,14 +393,74 @@ def signing_and_sales_incentive_sep_beijing():
     return signing_and_sales_incentive_sep_beijing_v2()
 
 
+def signing_and_sales_incentive_oct_beijing_v2() -> List[PerformanceRecord]:
+    """
+    北京2025年10月销售激励任务
+
+    特性：
+    - 混合奖励策略：幸运数字基于平台单，节节高基于总业绩
+    - 双轨统计：支持平台单和自引单分别统计
+    - 专用消息模板：结合北京特色的消息格式
+    - 无自引单独立奖励：简化激励逻辑
+    """
+    logging.info("开始执行北京10月销售激励任务（重构版）")
+
+    try:
+        # 创建北京10月专用处理管道
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-10",  # 使用北京10月配置
+            activity_code="BJ-OCT",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_project_limit=True,  # 启用工单金额上限
+            enable_dual_track=True,  # 启用双轨统计
+            enable_historical_contracts=False,  # 不涉及历史工单
+            db_path="performance_data.db"
+        )
+
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+
+        # 获取合同数据（包含sourceType字段）
+        contract_data = _get_contract_data_with_source_type()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据（包含双轨信息）")
+
+        # 处理数据
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+
+        # 生成输出和发送通知
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        _send_notifications(processed_records, config)
+
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"北京10月任务执行失败: {e}")
+        import traceback
+        logging.error(f"详细错误: {traceback.format_exc()}")
+        raise
+
+
+def signing_and_sales_incentive_oct_beijing():
+    """兼容性包装函数 - 北京10月"""
+    return signing_and_sales_incentive_oct_beijing_v2()
+
+
 if __name__ == "__main__":
     # 测试北京Job函数
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
+
     print("测试北京6月Job函数...")
     records_jun = signing_and_sales_incentive_jun_beijing_v2()
     print(f"北京6月处理完成: {len(records_jun)} 条记录")
-    
+
     print("\n测试北京9月Job函数...")
     records_sep = signing_and_sales_incentive_sep_beijing_v2()
     print(f"北京9月处理完成: {len(records_sep)} 条记录")
+
+    print("\n测试北京10月Job函数...")
+    records_oct = signing_and_sales_incentive_oct_beijing_v2()
+    print(f"北京10月处理完成: {len(records_oct)} 条记录")

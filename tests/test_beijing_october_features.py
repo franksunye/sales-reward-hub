@@ -172,6 +172,7 @@ class TestBeijingOctoberMessageTemplate:
             '自引单累计数量': 3,
             '平台单累计金额': 125000,
             '自引单累计金额': 75000,
+            '活动期内第几个合同': 100,  # 全局序号
             '备注': '距离 精英奖 还需 100,000 元',
             '是否发送通知': 'N'
         }
@@ -189,7 +190,7 @@ class TestBeijingOctoberMessageTemplate:
         assert '张三' in message
         assert '平台单' in message
         assert 'BJ202510001' in message
-        assert '本单为平台本月累计签约第 8 单' in message  # 5+3=8
+        assert '本单为平台本月累计签约第 100 单' in message  # 使用全局序号
         assert '个人平台单累计签约第 5 单，累计签约 125,000 元' in message
         assert '个人自引单累计签约第 3 单，累计签约 75,000元' in message
         assert '距离 精英奖 还需 100,000 元' in message
