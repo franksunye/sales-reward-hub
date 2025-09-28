@@ -139,7 +139,7 @@ class NotificationService:
             '活动期内第几个合同': record.get('contract_sequence', 0),
             '管家累计单数': extensions.get('管家累计单数', 0),
             '管家累计金额': extensions.get('管家累计金额', 0),
-            '管家累计业绩金额': extensions.get('管家累计业绩金额', record['performance_amount']),
+            '管家累计业绩金额': extensions.get('管家累计业绩金额', 0),  # 🔧 修复：使用预计算的累计业绩金额
             '激活奖励状态': '1' if reward_names else '0',
             '奖励类型': reward_types,
             '奖励名称': reward_names,

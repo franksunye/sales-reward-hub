@@ -53,7 +53,12 @@ def signing_and_sales_incentive_apr_shanghai_v2() -> List[PerformanceRecord]:
         logging.info(f"处理完成: {len(processed_records)} 条记录")
         
         # 4. 生成CSV文件和发送通知
-        csv_file = _generate_csv_output(processed_records, config)
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        else:
+            logging.info("CSV输出已禁用，数据仅保存到数据库")
+
         _send_notifications(processed_records, config)
         
         # 5. 获取处理摘要
@@ -67,49 +72,6 @@ def signing_and_sales_incentive_apr_shanghai_v2() -> List[PerformanceRecord]:
         import traceback
         logging.error(f"详细错误: {traceback.format_exc()}")
         raise
-
-
-def signing_and_sales_incentive_aug_shanghai_v2() -> List[PerformanceRecord]:
-    """
-    重构后的上海8月Job函数
-    
-    替代原有的signing_and_sales_incentive_aug_shanghai函数
-    使用正确的配置，不再复用4月函数
-    """
-    logging.info("开始执行上海8月销售激励任务（重构版）")
-    
-    try:
-        # 使用正确的8月配置
-        pipeline, config, store = create_standard_pipeline(
-            config_key="SH-2025-08",  # 使用正确的8月配置
-            activity_code="SH-AUG",
-            city="SH",
-            housekeeper_key_format="管家_服务商",
-            storage_type="sqlite",
-            enable_dual_track=False,  # 8月还没有双轨统计
-            db_path="performance_data.db"
-        )
-        
-        logging.info(f"创建处理管道成功: {config.activity_code}")
-        
-        # 获取合同数据
-        contract_data = _get_shanghai_contract_data()
-        logging.info(f"获取到 {len(contract_data)} 个合同数据")
-        
-        # 处理数据
-        processed_records = pipeline.process(contract_data)
-        logging.info(f"处理完成: {len(processed_records)} 条记录")
-        
-        # 生成输出和发送通知
-        csv_file = _generate_csv_output(processed_records, config)
-        _send_notifications(processed_records, config)
-        
-        return processed_records
-        
-    except Exception as e:
-        logging.error(f"上海8月任务执行失败: {e}")
-        raise
-
 
 def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
     """
@@ -149,7 +111,12 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
         logging.info(f"处理完成: {len(processed_records)} 条记录")
 
         # 生成输出和发送通知
-        csv_file = _generate_csv_output_with_dual_track(processed_records, config)
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output_with_dual_track(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        else:
+            logging.info("CSV输出已禁用，数据仅保存到数据库")
+
         _send_notifications(processed_records, config)
 
         return processed_records
@@ -262,40 +229,6 @@ def _get_shanghai_contract_data() -> List[Dict]:
         # 在真实环境测试中，如果API失败应该抛出异常而不是返回空数据
         raise
 
-
-def _get_fixed_shanghai_contract_data() -> List[Dict]:
-    """获取固定的上海合同数据（与旧系统使用完全相同的输入数据）"""
-    logging.info("使用固定的上海合同数据（确保与旧系统输入一致）...")
-
-    import csv
-
-    # 使用从旧系统输出中提取的原始输入数据
-    data_file = "legacy_system_input_data.csv"
-
-    if not os.path.exists(data_file):
-        logging.error(f"固定输入数据文件不存在: {data_file}")
-        raise FileNotFoundError(f"需要固定输入数据文件: {data_file}")
-
-    contract_data = []
-    with open(data_file, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # 强制所有合同都分类为平台单（复制旧系统的实际行为）
-            # 旧系统实际上把所有合同都当作平台单处理，不管原始sourceType是什么
-            row['工单类型(sourceType)'] = '2'  # 强制设为平台单
-            contract_data.append(row)
-
-    logging.info(f"加载固定输入数据: {len(contract_data)} 条合同（强制所有合同为平台单）")
-    return contract_data
-
-def _get_shanghai_contract_data_with_dual_track() -> List[Dict]:
-    """获取上海合同数据（支持双轨统计）"""
-    logging.info("从Metabase获取上海合同数据（支持双轨统计）...")
-
-    # 上海9月的双轨统计使用相同的API，但需要特殊的数据处理
-    return _get_shanghai_contract_data()
-
-
 def _generate_csv_output(records: List[PerformanceRecord], config) -> str:
     """生成CSV输出文件"""
     import csv
@@ -397,11 +330,6 @@ def _send_notifications(records: List[PerformanceRecord], config):
 def signing_and_sales_incentive_apr_shanghai():
     """兼容性包装函数 - 上海4月"""
     return signing_and_sales_incentive_apr_shanghai_v2()
-
-
-def signing_and_sales_incentive_aug_shanghai():
-    """兼容性包装函数 - 上海8月"""
-    return signing_and_sales_incentive_aug_shanghai_v2()
 
 
 def signing_and_sales_incentive_sep_shanghai():

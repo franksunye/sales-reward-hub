@@ -57,6 +57,12 @@ class DataProcessingPipeline:
         processed_count = 0
         skipped_count = 0
 
+        # 🔧 新增：工单级别业绩金额跟踪器（用于工单上限控制）
+        project_performance_tracker = {}
+
+        # 🔧 新增：管家累计业绩金额跟踪器（用于累计业绩金额计算）
+        housekeeper_cumulative_performance = {}
+
         # 全局合同序号计数器（所有活动都需要用于"活动期内第几个合同"字段显示）
         # 🔧 修复：对于有历史合同的活动，只计算非历史合同的数量
         if self.config.enable_historical_contracts:
@@ -96,7 +102,8 @@ class DataProcessingPipeline:
                 hk_stats.awarded = all_awards
                 
                 # 4. 处理工单金额上限（北京特有）
-                performance_amount = self._calculate_performance_amount(contract_data)
+                performance_amount = self._calculate_performance_amount_with_tracking(
+                    contract_data, project_performance_tracker)
 
                 # 5. 历史合同特殊处理
                 if contract_data.is_historical and self.config.enable_historical_contracts:
@@ -170,6 +177,14 @@ class DataProcessingPipeline:
                         for reward in rewards:
                             self.runtime_awards[housekeeper_key].append(reward.reward_name)
 
+                # 8.5. 🔧 新增：计算并保存累计业绩金额
+                cumulative_performance_amount = self._calculate_cumulative_performance_amount(
+                    housekeeper_key, performance_amount, contract_data.is_historical,
+                    housekeeper_cumulative_performance)
+
+                # 将累计业绩金额保存到 contract_data 中，供通知服务使用
+                contract_data.cumulative_performance_amount = cumulative_performance_amount
+
                 # 9. 构建业绩记录
                 record = self.record_builder.build(
                     contract_data=contract_data,
@@ -212,33 +227,90 @@ class DataProcessingPipeline:
             return contract_data.housekeeper
 
     def _calculate_performance_amount(self, contract_data: ContractData) -> float:
-        """计算计入业绩的金额"""
+        """计算计入业绩的金额（原有方法，保持兼容性）"""
         base_amount = contract_data.contract_amount
-        
+
         # 北京特有：工单金额上限处理
         if self.config.enable_project_limit and contract_data.project_id:
             project_usage = self.store.get_project_usage(
-                contract_data.project_id, 
+                contract_data.project_id,
                 self.config.activity_code
             )
-            
+
             # 从配置中获取工单上限
             from .config_adapter import get_reward_config
             config_data = get_reward_config(self.config.config_key)
             project_limit = config_data.get('performance_limits', {}).get('single_project_limit', 500000)
-            
+
             # 计算剩余可用额度
             remaining_limit = max(0, project_limit - project_usage)
             performance_amount = min(base_amount, remaining_limit)
-            
+
             logging.debug(f"Project {contract_data.project_id}: usage={project_usage}, "
                          f"limit={project_limit}, remaining={remaining_limit}, "
                          f"performance_amount={performance_amount}")
-            
+
             return performance_amount
-        
+
         # 其他情况直接返回合同金额
         return base_amount
+
+    def _calculate_performance_amount_with_tracking(self, contract_data: ContractData,
+                                                   project_performance_tracker: Dict[str, float]) -> float:
+        """
+        计算计入业绩的金额（带工单级别跟踪）
+        参考旧架构的 process_historical_contract_with_project_limit 逻辑
+        """
+        # 1. 先应用单合同上限
+        from .config_adapter import get_reward_config
+        config_data = get_reward_config(self.config.config_key)
+        single_contract_cap = config_data.get('performance_limits', {}).get('single_contract_cap', 50000)
+        base_amount = min(contract_data.contract_amount, single_contract_cap)
+
+        # 2. 再考虑工单级别上限（北京特有）
+        if self.config.enable_project_limit and contract_data.project_id:
+            project_limit = config_data.get('performance_limits', {}).get('single_project_limit', 50000)
+
+            # 获取当前工单的累计使用金额（包含本批次已处理的合同）
+            current_project_total = project_performance_tracker.get(contract_data.project_id, 0)
+
+            # 计算剩余可用额度
+            remaining_quota = max(0, project_limit - current_project_total)
+            performance_amount = min(base_amount, remaining_quota)
+
+            # 更新工单累计跟踪器
+            project_performance_tracker[contract_data.project_id] = current_project_total + performance_amount
+
+            logging.debug(f"Project {contract_data.project_id}: current_total={current_project_total}, "
+                         f"limit={project_limit}, remaining_quota={remaining_quota}, "
+                         f"performance_amount={performance_amount}")
+
+            return performance_amount
+
+        # 其他情况直接返回应用单合同上限后的金额
+        return base_amount
+
+    def _calculate_cumulative_performance_amount(self, housekeeper_key: str, performance_amount: float,
+                                               is_historical: bool, housekeeper_cumulative_performance: Dict[str, float]) -> float:
+        """
+        计算管家累计业绩金额
+        参考旧架构的 add_housekeeper_cumulative_performance_amount 逻辑
+        """
+        # 历史合同不参与累计业绩金额计算
+        if is_historical:
+            return 0.0
+
+        # 获取管家当前累计业绩金额（包含数据库中已有的 + 本批次已处理的）
+        if housekeeper_key not in housekeeper_cumulative_performance:
+            # 首次处理该管家，从数据库获取已有的累计业绩金额
+            hk_stats = self.store.get_housekeeper_stats(housekeeper_key, self.config.activity_code)
+            housekeeper_cumulative_performance[housekeeper_key] = hk_stats.performance_amount
+
+        # 累加当前合同的业绩金额
+        housekeeper_cumulative_performance[housekeeper_key] += performance_amount
+
+        # 返回累计业绩金额
+        return housekeeper_cumulative_performance[housekeeper_key]
 
     def get_processing_summary(self) -> Dict:
         """获取处理摘要信息"""
