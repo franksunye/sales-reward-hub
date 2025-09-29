@@ -5,6 +5,17 @@
 PERFORMANCE_AMOUNT_CAP = 40000  # 单个合同计入业绩金额上限 - 已弃用
 ENABLE_PERFORMANCE_AMOUNT_CAP = False  # 是否启用业绩金额上限 - 已弃用
 
+
+## 北京的通用配置选项-运营群名称以及运营执行人
+
+WECOM_GROUP_NAME_BJ = '（北京）修链服务运营'
+CAMPAIGN_CONTACT_BJ = '王爽'
+
+## 上海的通用配置选项-运营群名称以及运营执行人
+WECOM_GROUP_NAME_SH = '（上海）运营群'
+CAMPAIGN_CONTACT_SH = '满浩浩'
+
+
 # 通用奖励配置
 REWARD_CONFIGS = {
     # 北京2025年9月活动配置
@@ -262,9 +273,7 @@ PERFORMANCE_DATA_FILENAME_SH_OCT = 'state/PerformanceData-SH-Oct.csv'
 STATUS_FILENAME_SH_OCT = 'state/send_status_shanghai_oct.json'
 
 
-## 上海的通用配置选项
-WECOM_GROUP_NAME_SH = '（上海）运营群'
-CAMPAIGN_CONTACT_SH = '满浩浩'
+
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO = 0.002  # 默认为0.2%,可根据需要调整
 
@@ -298,10 +307,6 @@ TEMP_CONTRACT_DATA_FILE_BJ_OCT = 'state/ContractData-BJ-Oct.csv'
 PERFORMANCE_DATA_FILENAME_BJ_OCT = 'state/PerformanceData-BJ-Oct.csv'
 STATUS_FILENAME_BJ_OCT = 'state/send_status_bj_oct.json'
 
-## 北京的通用配置选项
-
-WECOM_GROUP_NAME_BJ = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ = '王爽'
 
 # 销售激励活动 奖金池计算比例
 BONUS_POOL_RATIO_BJ_FEB = 0.002  # 默认为0.2%,可根据需要调整

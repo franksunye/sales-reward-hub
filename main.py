@@ -9,6 +9,10 @@ from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 import datetime
 import task_scheduler # 引入任务调度模块
 
+# 导入新架构下的10月job函数
+from modules.core.beijing_jobs import signing_and_sales_incentive_oct_beijing
+from modules.core.shanghai_jobs import signing_and_sales_incentive_oct_shanghai
+
 # 设置日志
 setup_logging()
 
@@ -17,24 +21,7 @@ def run_jobs_serially():
     current_month = datetime.datetime.now().month
     print("Current month is:", current_month)
 
-    if current_month == 8:
-        # 上海8月份
-        try:
-            signing_and_sales_incentive_aug_shanghai()
-            time.sleep(5)
-        except Exception as e:
-            logging.error(f"An error occurred while running signing_and_sales_incentive_aug_shanghai: {e}")
-            logging.error(traceback.format_exc())
-
-        # 北京8月份
-        try:
-            signing_and_sales_incentive_aug_beijing()
-            time.sleep(5)
-        except Exception as e:
-            logging.error(f"An error occurred while running signing_and_sales_incentive_aug_beijing: {e}")
-            logging.error(traceback.format_exc())
-
-    elif current_month == 9:
+    if current_month == 9:
         # 上海9月份
         try:
             signing_and_sales_incentive_sep_shanghai()
@@ -47,8 +34,30 @@ def run_jobs_serially():
             signing_and_sales_incentive_sep_beijing()
             time.sleep(5)
         except Exception as e:
-            logging.error(f"An error occurred while running signing_and_sales_incentive_july_beijing: {e}")
+            logging.error(f"An error occurred while running signing_and_sales_incentive_sep_beijing: {e}")
             logging.error(traceback.format_exc())
+
+    elif current_month == 10:
+        # 上海10月份（新架构）
+        try:
+            logging.info("开始执行上海10月销售激励任务（新架构）")
+            signing_and_sales_incentive_oct_shanghai()
+            time.sleep(5)
+            logging.info("上海10月销售激励任务执行完成")
+        except Exception as e:
+            logging.error(f"An error occurred while running signing_and_sales_incentive_oct_shanghai: {e}")
+            logging.error(traceback.format_exc())
+
+        # 北京10月份（新架构）
+        try:
+            logging.info("开始执行北京10月销售激励任务（新架构）")
+            signing_and_sales_incentive_oct_beijing()
+            time.sleep(5)
+            logging.info("北京10月销售激励任务执行完成")
+        except Exception as e:
+            logging.error(f"An error occurred while running signing_and_sales_incentive_oct_beijing: {e}")
+            logging.error(traceback.format_exc())
+
     else:
         logging.info("No tasks scheduled for this month.")
 
@@ -86,13 +95,15 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=task_scheduler.start)
     scheduler_thread.daemon = True  # 设置为守护线程
 
-    # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
+    # # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
     scheduler_thread.start()  # 测试期间禁用，避免发送真实消息
 
     # 单独测试任务
     # generate_daily_service_report()
-    # signing_and_sales_incentive_sep_shanghai()
-    # signing_and_sales_incentive_sep_beijing()
+    # signing_and_sales_incentive_sep_shanghai()  # 9月上海（旧架构）
+    # signing_and_sales_incentive_sep_beijing()   # 9月北京（旧架构）
+    # signing_and_sales_incentive_oct_shanghai()  # 10月上海（新架构）
+    # signing_and_sales_incentive_oct_beijing()   # 10月北京（新架构）
     # pending_orders_reminder_task()
 
     # 启动调度循环
