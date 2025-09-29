@@ -3,21 +3,18 @@
 版本: v1.0
 创建日期: 2025-01-08
 
-这个模块提供了统一的存储接口，支持SQLite和CSV两种实现方式。
+这个模块提供了统一的存储接口，使用SQLite实现。
 SQLite实现用于生产环境，提供高性能的查询和事务支持。
-CSV实现用于向后兼容和测试验证。
 """
 
 from abc import ABC, abstractmethod
-from typing import Set, List, Dict, Optional, Tuple
+from typing import List, Dict
 import sqlite3
-import csv
 import json
 import logging
 import os
-from datetime import datetime
 
-from .data_models import HousekeeperStats, ContractData, PerformanceRecord, OrderType
+from .data_models import HousekeeperStats, PerformanceRecord
 
 
 class PerformanceDataStore(ABC):
@@ -219,14 +216,19 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 awards = []
                 for row in cursor.fetchall():
                     if row[0]:
-                        # 处理逗号分隔的奖励名称
-                        reward_names = row[0].split(',')
-                        for reward_name in reward_names:
-                            reward_name = reward_name.strip()
-                            if reward_name:
-                                awards.append(reward_name)
+                        # 解析JSON格式的奖励数据
+                        import json
+                        try:
+                            reward_names = json.loads(row[0])
+                            if isinstance(reward_names, list):
+                                for reward_name in reward_names:
+                                    if reward_name and reward_name not in awards:
+                                        awards.append(reward_name)
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Failed to parse reward data as JSON: {row[0]}, error: {e}")
+                            continue
 
-                return list(set(awards))  # 去重
+                return awards
         except Exception as e:
             logging.error(f"Error getting housekeeper awards: {e}")
             return []
@@ -254,12 +256,17 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                         housekeeper_awards[housekeeper] = []
 
                     if reward_names_str:
-                        # 处理逗号分隔的奖励名称
-                        reward_names = reward_names_str.split(',')
-                        for reward_name in reward_names:
-                            reward_name = reward_name.strip()
-                            if reward_name and reward_name not in housekeeper_awards[housekeeper]:
-                                housekeeper_awards[housekeeper].append(reward_name)
+                        # 解析JSON格式的奖励数据
+                        import json
+                        try:
+                            reward_names = json.loads(reward_names_str)
+                            if isinstance(reward_names, list):
+                                for reward_name in reward_names:
+                                    if reward_name and reward_name not in housekeeper_awards[housekeeper]:
+                                        housekeeper_awards[housekeeper].append(reward_name)
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Failed to parse reward data as JSON for {housekeeper}: {reward_names_str}, error: {e}")
+                            continue
 
                 logging.info(f"Retrieved awards for {len(housekeeper_awards)} housekeepers from database")
                 return housekeeper_awards
@@ -405,198 +412,10 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
             logging.error(f"Error updating notification status: {e}")
             raise
 
-
-class CSVPerformanceDataStore(PerformanceDataStore):
-    """CSV实现 - 向后兼容现有系统"""
-
-    def __init__(self, performance_file: str):
-        self.performance_file = performance_file
-
-    def contract_exists(self, contract_id: str, activity_code: str) -> bool:
-        """检查合同是否已存在 - 兼容现有的CSV查询方式"""
-        if not os.path.exists(self.performance_file):
-            return False
-
-        try:
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if (row.get('合同ID(_id)') == contract_id and
-                        row.get('活动编号') == activity_code):
-                        return True
-            return False
-        except Exception as e:
-            logging.error(f"Error checking contract existence in CSV: {e}")
-            return False
-
-    def get_existing_contract_ids(self, activity_code: str) -> set:
-        """获取已存在的合同ID集合 - CSV实现"""
-        if not os.path.exists(self.performance_file):
-            return set()
-
-        try:
-            contract_ids = set()
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row.get('活动编号') == activity_code:
-                        contract_ids.add(row.get('合同ID(_id)', ''))
-            return contract_ids
-        except Exception as e:
-            logging.error(f"Error getting existing contract IDs from CSV: {e}")
-            return set()
-
-    def get_existing_non_historical_contract_count(self, activity_code: str) -> int:
-        """获取已存在的非历史合同数量（用于全局序号计算）- CSV实现"""
-        if not os.path.exists(self.performance_file):
-            return 0
-
-        try:
-            count = 0
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row.get('活动编号') == activity_code:
-                        # 检查是否为历史合同
-                        is_historical = row.get('是否历史合同', 'N') == 'Y'
-                        if not is_historical:
-                            count += 1
-            return count
-        except Exception as e:
-            logging.error(f"Error getting non-historical contract count from CSV: {e}")
-            return 0
-
-    def get_housekeeper_stats(self, housekeeper: str, activity_code: str) -> HousekeeperStats:
-        """从CSV文件计算管家统计 - 兼容现有逻辑"""
-        stats = HousekeeperStats(housekeeper=housekeeper, activity_code=activity_code)
-
-        if not os.path.exists(self.performance_file):
-            return stats
-
-        try:
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if (row.get('管家(serviceHousekeeper)') == housekeeper and
-                        row.get('活动编号') == activity_code):
-
-                        stats.contract_count += 1
-                        stats.total_amount += float(row.get('合同金额(adjustRefundMoney)', 0))
-                        stats.performance_amount += float(row.get('计入业绩金额', 0))
-
-                        # 双轨统计
-                        if row.get('工单类型') == '平台单':
-                            stats.platform_count += 1
-                            stats.platform_amount += float(row.get('合同金额(adjustRefundMoney)', 0))
-                        elif row.get('工单类型') == '自引单':
-                            stats.self_referral_count += 1
-                            stats.self_referral_amount += float(row.get('合同金额(adjustRefundMoney)', 0))
-
-                        # 收集奖励信息
-                        reward_types = row.get('奖励类型', '')
-                        if reward_types and reward_types not in stats.awarded:
-                            stats.awarded.append(reward_types)
-
-            return stats
-        except Exception as e:
-            logging.error(f"Error getting housekeeper stats from CSV: {e}")
-            return stats
-
-    def get_housekeeper_awards(self, housekeeper: str, activity_code: str) -> List[str]:
-        """获取管家历史奖励列表"""
-        awards = []
-
-        if not os.path.exists(self.performance_file):
-            return awards
-
-        try:
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if (row.get('管家(serviceHousekeeper)') == housekeeper and
-                        row.get('活动编号') == activity_code):
-                        reward_types = row.get('奖励类型', '')
-                        if reward_types and reward_types not in awards:
-                            awards.append(reward_types)
-
-            return awards
-        except Exception as e:
-            logging.error(f"Error getting housekeeper awards from CSV: {e}")
-            return []
-
-    def save_performance_record(self, record: PerformanceRecord) -> None:
-        """保存业绩记录到CSV - 兼容现有格式"""
-        try:
-            # 转换为字典格式
-            record_dict = record.to_dict()
-
-            # 检查文件是否存在，如果不存在则创建
-            file_exists = os.path.exists(self.performance_file)
-
-            with open(self.performance_file, 'a', newline='', encoding='utf-8') as f:
-                if record_dict:
-                    writer = csv.DictWriter(f, fieldnames=record_dict.keys())
-
-                    # 如果文件不存在，写入表头
-                    if not file_exists:
-                        writer.writeheader()
-
-                    writer.writerow(record_dict)
-
-            logging.debug(f"Saved performance record to CSV: {record.contract_data.contract_id}")
-        except Exception as e:
-            logging.error(f"Error saving performance record to CSV: {e}")
-            raise
-
-    def get_project_usage(self, project_id: str, activity_code: str) -> float:
-        """获取项目累计使用金额"""
-        total_usage = 0.0
-
-        if not os.path.exists(self.performance_file):
-            return total_usage
-
-        try:
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if (row.get('工单编号(serviceAppointmentNum)') == project_id and
-                        row.get('活动编号') == activity_code):
-                        total_usage += float(row.get('计入业绩金额', 0))
-
-            return total_usage
-        except Exception as e:
-            logging.error(f"Error getting project usage from CSV: {e}")
-            return 0.0
-
-    def get_all_records(self, activity_code: str) -> List[Dict]:
-        """获取指定活动的所有记录"""
-        records = []
-
-        if not os.path.exists(self.performance_file):
-            return records
-
-        try:
-            with open(self.performance_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row.get('活动编号') == activity_code:
-                        records.append(dict(row))
-
-            return records
-        except Exception as e:
-            logging.error(f"Error getting all records from CSV: {e}")
-            return []
-
-
 def create_data_store(storage_type: str = "sqlite", **kwargs) -> PerformanceDataStore:
-    """工厂函数：创建数据存储实例"""
+    """工厂函数：创建数据存储实例 - 仅支持SQLite"""
     if storage_type.lower() == "sqlite":
         db_path = kwargs.get('db_path', 'performance_data.db')
         return SQLitePerformanceDataStore(db_path)
-    elif storage_type.lower() == "csv":
-        performance_file = kwargs.get('performance_file')
-        if not performance_file:
-            raise ValueError("CSV storage requires 'performance_file' parameter")
-        return CSVPerformanceDataStore(performance_file)
     else:
-        raise ValueError(f"Unsupported storage type: {storage_type}")
+        raise ValueError(f"Unsupported storage type: {storage_type}. Only 'sqlite' is supported.")

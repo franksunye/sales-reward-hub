@@ -6,7 +6,7 @@
 这个包提供了重构后的核心功能：
 - 统一的数据处理管道
 - 配置驱动的奖励计算
-- 存储抽象层（SQLite + CSV）
+- SQLite存储层
 - 标准化的数据模型
 """
 
@@ -26,7 +26,6 @@ from .data_models import (
 from .storage import (
     PerformanceDataStore,
     SQLitePerformanceDataStore,
-    CSVPerformanceDataStore,
     create_data_store
 )
 
@@ -79,7 +78,6 @@ __all__ = [
     # 存储层
     'PerformanceDataStore',
     'SQLitePerformanceDataStore',
-    'CSVPerformanceDataStore',
     'create_data_store',
     
     # 处理管道

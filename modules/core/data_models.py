@@ -69,7 +69,7 @@ class ProcessingConfig:
     housekeeper_key_format: str        # "管家" 或 "管家_服务商"
     
     # 功能开关
-    storage_type: str = "sqlite"       # "sqlite" 或 "csv"
+    storage_type: str = "sqlite"       # 仅支持 "sqlite"
     enable_dual_track: bool = False    # 是否启用双轨统计
     enable_historical_contracts: bool = False  # 是否支持历史合同
     enable_project_limit: bool = False # 是否启用工单金额上限
