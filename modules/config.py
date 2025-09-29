@@ -1,4 +1,9 @@
 # config.py
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 上海的特殊配置选项（已弃用，请使用 REWARD_CONFIGS 中的配置）
 # @deprecated: 以下配置已被通用化配置替换，仅保留用于兼容性
@@ -224,9 +229,15 @@ ARCHIVE_DIR = 'archive'
 METABASE_URL = 'http://metabase.fsgo365.cn:3000'
 METABASE_SESSION = METABASE_URL + '/api/session/'
 
-# 获取数据 账号密码
-METABASE_USERNAME = 'wangshuang@xlink.bj.cn'
-METABASE_PASSWORD = 'xlink123456'
+# 获取数据 账号密码（从环境变量读取，必须配置）
+METABASE_USERNAME = os.getenv('METABASE_USERNAME')
+METABASE_PASSWORD = os.getenv('METABASE_PASSWORD')
+
+# 验证必需的环境变量
+if not METABASE_USERNAME:
+    raise ValueError("METABASE_USERNAME 环境变量未设置，请在 .env 文件中配置")
+if not METABASE_PASSWORD:
+    raise ValueError("METABASE_PASSWORD 环境变量未设置，请在 .env 文件中配置")
 
 RUN_JOBS_SERIALLY_SCHEDULE = 3 # 每3分钟执行一次
 
@@ -234,10 +245,15 @@ RUN_JOBS_SERIALLY_SCHEDULE = 3 # 每3分钟执行一次
 TASK_CHECK_INTERVAL = 10
 
 # 北京地区
-# 北京运营企微群机器人通讯地址
-# WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4fbae71d-8d83-479f-a2db-7690eeb37a5c'
-WEBHOOK_URL_DEFAULT = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=689cebff-3328-4150-9741-fed8b8ce4713'
-PHONE_NUMBER = '15327103039'
+# 北京运营企微群机器人通讯地址（从环境变量读取，必须配置）
+WEBHOOK_URL_DEFAULT = os.getenv('WECOM_WEBHOOK_DEFAULT')
+PHONE_NUMBER = os.getenv('CONTACT_PHONE_NUMBER')
+
+# 验证必需的环境变量
+if not WEBHOOK_URL_DEFAULT:
+    raise ValueError("WECOM_WEBHOOK_DEFAULT 环境变量未设置，请在 .env 文件中配置")
+if not PHONE_NUMBER:
+    raise ValueError("CONTACT_PHONE_NUMBER 环境变量未设置，请在 .env 文件中配置")
 
 # 第七个任务，待预约工单提醒
 API_URL_PENDING_ORDERS_REMINDER = METABASE_URL + "/api/card/1712/query"
