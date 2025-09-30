@@ -366,6 +366,7 @@ ORG_WEBHOOKS = {
     "北京建君盛华技术服务有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b72b9e1d-1c82-4be6-8b58-239b2f941570",
     "北京怀军防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=09a26589-f1b2-4d1c-b27d-01703ec32820",
     "北京盛达洪雨防水技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=32aedd2b-ec5a-4fd8-a1bf-8a1e1a16ed6c",
+    "北京吉柿建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=91a6546d-fbb8-43db-9650-4d2efcc4b78a",
     # 上海地区
     "上海国坦装潢设计工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4b25fb8e-b08f-4260-9f5c-eff87766ea2a",
     "上海昊炫建筑材料有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=daaf7c55-639c-4366-9d47-0909a4d8cf59",
