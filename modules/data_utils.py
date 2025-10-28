@@ -447,3 +447,143 @@ def should_enable_badge(config_key: str, badge_type: str) -> bool:
         return badge_config.get("enable_rising_star_badge", False)  # 默认禁用
 
     return False
+
+
+def get_awards_mapping(config_key):
+    """
+    从配置中获取奖励金额映射
+
+    Args:
+        config_key: 配置键，如 "SH-2025-04", "BJ-2025-08"
+
+    Returns:
+        dict: 奖励名称到金额的映射
+    """
+    from modules import config
+
+    if config_key in config.REWARD_CONFIGS:
+        return config.REWARD_CONFIGS[config_key].get("awards_mapping", {})
+    else:
+        # 如果配置不存在，返回默认映射（向后兼容）
+        return {
+            '接好运': '36',
+            '接好运万元以上': '66',
+            '基础奖': '200',
+            '达标奖': '300',
+            '优秀奖': '400',
+            '精英奖': '800',
+            '卓越奖': '1200',
+        }
+
+
+def generate_award_message(record, awards_mapping, city="BJ", config_key=None):
+    """生成奖励消息"""
+    from modules.config import ENABLE_BADGE_MANAGEMENT, ELITE_HOUSEKEEPER, ELITE_BADGE_NAME
+
+    service_housekeeper = record["管家(serviceHousekeeper)"]
+    contract_number = record["合同编号(contractdocNum)"]
+    award_messages = []
+
+    # 检查是否启用徽章功能
+    badge_enabled = ENABLE_BADGE_MANAGEMENT
+    if config_key:
+        badge_enabled = should_enable_badge(config_key, "elite")
+
+    # 只有启用徽章且是北京的精英管家才能获得奖励翻倍和显示徽章
+    if badge_enabled and (service_housekeeper in ELITE_HOUSEKEEPER) and city == "BJ":
+        # 如果是北京的精英管家，添加徽章
+        service_housekeeper = f'{ELITE_BADGE_NAME}{service_housekeeper}'
+
+        # 获取奖励类型和名称列表
+        reward_types = record["奖励类型"].split(', ') if record["奖励类型"] else []
+        reward_names = record["奖励名称"].split(', ') if record["奖励名称"] else []
+
+        # 创建奖励类型到奖励名称的映射
+        reward_type_map = {}
+        if len(reward_types) == len(reward_names):
+            for i in range(len(reward_types)):
+                if i < len(reward_names):
+                    reward_type_map[reward_names[i]] = reward_types[i]
+
+        for award in reward_names:
+            if award in awards_mapping:
+                award_info = awards_mapping[award]
+                # 检查奖励类型，只有节节高奖励才翻倍
+                reward_type = reward_type_map.get(award, "")
+
+                if reward_type == "节节高":
+                    # 节节高奖励翻倍
+                    try:
+                        award_info_double = str(int(award_info) * 2)
+                        award_messages.append(f'达成 {award} 奖励条件，奖励金额 {award_info} 元，同时触发"精英连击双倍奖励"，奖励金额🚀直升至 {award_info_double} 元！🧧🧧🧧')
+                    except ValueError:
+                        award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 🧧🧧🧧')
+                else:
+                    # 幸运数字奖励不翻倍
+                    award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 🧧🧧🧧')
+    else:
+        # 不启用徽章功能或非北京管家
+        reward_names = record["奖励名称"].split(', ') if record["奖励名称"] else []
+
+        for award in reward_names:
+            if award in awards_mapping:
+                award_info = awards_mapping[award]
+                award_messages.append(f'达成{award}奖励条件，获得签约奖励{award_info}元 🧧🧧🧧')
+
+    # 获取订单类型，默认为平台单
+    order_type = record.get("工单类型", "平台单")
+    final_message = f'{service_housekeeper}签约合同（{order_type}）{contract_number}\n\n' + '\n'.join(award_messages)
+
+    return final_message
+
+
+def preprocess_rate(rate):
+    """格式化转化率显示"""
+    # 检查比率数据是否为空或不是有效的浮点数
+    if rate.strip() and rate.replace('.', '', 1).isdigit():
+        # 将比率数据转换为浮点数
+        rate_float = float(rate)
+        # 如果rate大于等于1，返回"100%"
+        if rate_float >= 1:
+            return "100%"
+        else:
+            # 将比率数据转换为浮点数，然后乘以100得到百分比
+            return f"{int(rate_float * 100)}%"
+    else:
+        # 处理无效或空数据
+        return "-"
+
+
+def preprocess_amount(amount):
+    """格式化金额显示"""
+    # 检查金额数据是否为空或不是有效的浮点数
+    if amount.strip() and amount.replace('.', '', 1).isdigit():
+        # 将金额数据转换为浮点数，然后格式化为带有千位符号的整数字符串
+        return f"{int(float(amount)):,d}"
+    else:
+        # 处理无效或空数据
+        return "0"
+
+
+def post_text_to_webhook(message, webhook_url=None):
+    """发送文本消息到企业微信Webhook"""
+    import requests
+    from modules.config import WEBHOOK_URL_DEFAULT
+
+    if webhook_url is None:
+        webhook_url = WEBHOOK_URL_DEFAULT
+
+    post_data = {
+        'msgtype': "text",
+        'text': {
+            'content': message,
+        },
+    }
+
+    try:
+        # 发送POST请求
+        response = requests.post(webhook_url, json=post_data)
+        response.raise_for_status()
+        logging.info(f"sendToWebhook: Response status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"sendToWebhook: 发送到Webhook时发生错误: {e}")

@@ -4,7 +4,7 @@ import traceback
 from datetime import datetime, timedelta
 import logging
 from modules.config import SLA_VIOLATIONS_RECORDS_FILE, SLA_CONFIG, ORG_WEBHOOKS, WEBHOOK_URL_DEFAULT  # 引入配置中的文件路径和webhook配置
-from modules.notification_module import post_text_to_webhook
+from modules.data_utils import post_text_to_webhook
 
 # 假设SLA违规记录存储在这个文件中
 # SLA_VIOLATIONS_RECORDS_FILE = 'sla_violations.json'

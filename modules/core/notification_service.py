@@ -159,7 +159,7 @@ class NotificationService:
     
     def _get_awards_mapping(self) -> Dict[str, str]:
         """获取奖励金额映射配置"""
-        from modules.notification_module import get_awards_mapping
+        from modules.data_utils import get_awards_mapping
         return get_awards_mapping(self.config.config_key)
     
     def _should_send_group_notification(self, record: Dict) -> bool:
@@ -323,7 +323,7 @@ class NotificationService:
     
     def _send_award_notification(self, record: Dict, awards_mapping: Dict[str, str]):
         """发送奖励通知 - 使用与旧架构相同的逻辑"""
-        from modules.notification_module import generate_award_message
+        from modules.data_utils import generate_award_message
 
         # 使用现有的奖励消息生成函数
         city_code = self.config.city.value
@@ -356,7 +356,7 @@ class NotificationService:
 
     def _format_rate(self, rate) -> str:
         """格式化转化率显示"""
-        from modules.notification_module import preprocess_rate
+        from modules.data_utils import preprocess_rate
         return preprocess_rate(str(rate))
     
     def _update_notification_status(self, record: Dict):
