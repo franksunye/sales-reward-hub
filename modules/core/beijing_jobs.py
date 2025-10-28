@@ -449,6 +449,75 @@ def signing_and_sales_incentive_oct_beijing():
     return signing_and_sales_incentive_oct_beijing_v2()
 
 
+def signing_and_sales_incentive_nov_beijing_v2() -> List[PerformanceRecord]:
+    """
+    北京2025年11月销售激励任务（新架构）
+
+    特点：
+    - 仅播报模式：不计算任何奖励
+    - 仅处理平台单
+    - 不处理历史合同
+    - 简化消息模板
+    """
+    logging.info("开始执行北京11月销售激励任务（仅播报模式）")
+
+    try:
+        # 创建处理管道
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-11",
+            activity_code="BJ-NOV",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_dual_track=False,  # 不启用双轨统计
+            enable_project_limit=False,  # 不启用工单上限
+            enable_historical_contracts=False,  # 不处理历史合同
+            db_path="performance_data.db"
+        )
+
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+
+        # 获取合同数据
+        contract_data = _get_contract_data_from_metabase_nov()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+
+        # 处理数据（会自动过滤平台单）
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+
+        # 生成输出和发送通知
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        _send_notifications(processed_records, config)
+
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"北京11月任务执行失败: {e}")
+        raise
+
+
+def _get_contract_data_from_metabase_nov() -> List[Dict]:
+    """获取北京11月合同数据"""
+    from modules.config import API_URL_BJ_NOV
+    from modules.data_utils import send_request_with_managed_session
+
+    response = send_request_with_managed_session(API_URL_BJ_NOV)
+
+    if not response or not isinstance(response, list):
+        logging.error("获取合同数据失败或数据格式错误")
+        return []
+
+    logging.info(f"从Metabase获取到 {len(response)} 条合同数据")
+    return response
+
+
+def signing_and_sales_incentive_nov_beijing():
+    """兼容性包装函数 - 北京11月"""
+    return signing_and_sales_incentive_nov_beijing_v2()
+
+
 if __name__ == "__main__":
     # 测试北京Job函数
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -464,3 +533,7 @@ if __name__ == "__main__":
     print("\n测试北京10月Job函数...")
     records_oct = signing_and_sales_incentive_oct_beijing_v2()
     print(f"北京10月处理完成: {len(records_oct)} 条记录")
+
+    print("\n测试北京11月Job函数...")
+    records_nov = signing_and_sales_incentive_nov_beijing_v2()
+    print(f"北京11月处理完成: {len(records_nov)} 条记录")

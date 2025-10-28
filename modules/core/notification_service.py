@@ -168,7 +168,12 @@ class NotificationService:
     
     def _should_send_award_notification(self, record: Dict) -> bool:
         """判断是否应该发送奖励通知"""
-        return (record.get('激活奖励状态') == '1' and 
+        # 🔧 新增：检查通知配置
+        notification_config = self.config.config.get("notification_config", {})
+        if not notification_config.get("enable_award_notification", True):
+            return False
+
+        return (record.get('激活奖励状态') == '1' and
                 record.get('是否发送通知') == 'N')
     
     def _send_group_notification(self, record: Dict):
@@ -188,7 +193,24 @@ class NotificationService:
         order_type = record.get("工单类型", "平台单")
 
         # 根据配置决定备注逻辑
-        if self.config.config_key == "BJ-2025-10":
+        if self.config.config_key == "BJ-2025-11":
+            # 🔧 新增：北京11月专用消息模板（仅播报模式）
+            contract_num = record.get("合同编号(contractdocNum)", "")
+            global_sequence = record.get("活动期内第几个合同", 0)
+            personal_count = record.get("管家累计单数", 0)
+            accumulated_amount = self._format_amount(record.get('管家累计金额', 0))
+
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {service_housekeeper} 签约合同 {contract_num} 并完成线上收款🎉🎉🎉
+
+🌻 本单为平台本月累计签约第 {global_sequence} 单
+
+🌻 个人累计签约第 {personal_count} 单，累计签约 {accumulated_amount} 元
+
+👊 继续加油，再接再厉！🎉🎉🎉
+'''
+        elif self.config.config_key == "BJ-2025-10":
             # 北京10月：自引单和平台单都使用节节高奖励进度
             remarks = record.get("备注", "")
             if '无' in remarks:

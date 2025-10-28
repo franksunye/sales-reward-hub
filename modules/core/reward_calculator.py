@@ -83,6 +83,12 @@ class RewardCalculator:
             global_sequence: 全局合同签署序号
             personal_sequence: 管家个人合同签署序号
         """
+        # 🔧 新增：检查是否为仅播报模式
+        strategy = self.config.get("reward_calculation_strategy", {})
+        if strategy.get("type") == "announcement_only":
+            logging.debug("仅播报模式，跳过所有奖励计算")
+            return "", "", ""
+
         reward_types = []
         reward_names = []
         next_reward_gap = ""
@@ -247,6 +253,11 @@ class RewardCalculator:
         tiered_rewards = self.config.get("tiered_rewards", {})
         min_contracts = tiered_rewards.get("min_contracts", 10)
         tiers = tiered_rewards.get("tiers", [])
+
+        # 🔧 新增：如果 tiers 为空，直接返回空列表（仅播报模式）
+        if not tiers:
+            logging.debug("节节高奖励已禁用（tiers为空）")
+            return [], [], ""
 
         reward_types = []
         reward_names = []

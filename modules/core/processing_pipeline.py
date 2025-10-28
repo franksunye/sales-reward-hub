@@ -49,6 +49,20 @@ class DataProcessingPipeline:
         """
         logging.info(f"Starting to process {len(contract_data_list)} contracts for {self.config.activity_code}")
 
+        # 🔧 新增：检查是否仅处理平台单
+        processing_config = self.config.config.get("processing_config", {})
+        process_platform_only = processing_config.get("process_platform_only", False)
+
+        if process_platform_only:
+            # 过滤：仅保留平台单
+            original_count = len(contract_data_list)
+            contract_data_list = [
+                c for c in contract_data_list
+                if c.get('工单类型(sourceType)', 2) == 2
+            ]
+            filtered_count = original_count - len(contract_data_list)
+            logging.info(f"平台单过滤：原始 {original_count} 个，过滤掉 {filtered_count} 个自引单，保留 {len(contract_data_list)} 个平台单")
+
         # 🔧 关键修复：保存历史奖励信息
         self.housekeeper_award_lists = housekeeper_award_lists or {}
         logging.info(f"Loaded historical awards for {len(self.housekeeper_award_lists)} housekeepers")

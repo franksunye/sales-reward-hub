@@ -9,8 +9,8 @@ from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 import datetime
 import task_scheduler # 引入任务调度模块
 
-# 导入新架构下的10月job函数
-from modules.core.beijing_jobs import signing_and_sales_incentive_oct_beijing
+# 导入新架构下的10月和11月job函数
+from modules.core.beijing_jobs import signing_and_sales_incentive_oct_beijing, signing_and_sales_incentive_nov_beijing
 from modules.core.shanghai_jobs import signing_and_sales_incentive_oct_shanghai
 
 # 设置日志
@@ -56,6 +56,17 @@ def run_jobs_serially():
             logging.info("北京10月销售激励任务执行完成")
         except Exception as e:
             logging.error(f"An error occurred while running signing_and_sales_incentive_oct_beijing: {e}")
+            logging.error(traceback.format_exc())
+
+    elif current_month == 11:
+        # 北京11月份（新架构 - 仅播报模式）
+        try:
+            logging.info("开始执行北京11月销售激励任务（仅播报模式）")
+            signing_and_sales_incentive_nov_beijing()
+            time.sleep(5)
+            logging.info("北京11月销售激励任务执行完成")
+        except Exception as e:
+            logging.error(f"An error occurred while running signing_and_sales_incentive_nov_beijing: {e}")
             logging.error(traceback.format_exc())
 
     else:
