@@ -423,3 +423,27 @@ def format_pending_orders_message(org_name, orders):
     message = header + table_header + "\n" + "\n".join(table_rows) + footer
 
     return message
+
+
+def should_enable_badge(config_key: str, badge_type: str) -> bool:
+    """
+    检查是否启用指定徽章
+
+    Args:
+        config_key: 配置键
+        badge_type: 徽章类型 ("elite" 或 "rising_star")
+
+    Returns:
+        bool: 是否启用徽章
+    """
+    from modules import config
+
+    reward_config = config.REWARD_CONFIGS.get(config_key, {})
+    badge_config = reward_config.get("badge_config", {})
+
+    if badge_type == "elite":
+        return badge_config.get("enable_elite_badge", True)  # 默认启用
+    elif badge_type == "rising_star":
+        return badge_config.get("enable_rising_star_badge", False)  # 默认禁用
+
+    return False

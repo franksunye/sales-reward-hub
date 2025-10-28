@@ -52,7 +52,7 @@ def generate_award_message(record, awards_mapping, city="BJ", config_key=None):
     # 检查是否启用徽章功能
     badge_enabled = ENABLE_BADGE_MANAGEMENT
     if config_key:
-        from modules.data_processing_module import should_enable_badge
+        from modules.data_utils import should_enable_badge
         badge_enabled = should_enable_badge(config_key, "elite")
 
     # logging.info(f"[DEBUG] - badge_enabled: {badge_enabled}")

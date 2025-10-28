@@ -338,7 +338,7 @@ class NotificationService:
     def _apply_badge_logic(self, housekeeper_name: str) -> str:
         """应用徽章逻辑（与旧架构保持一致）"""
         # 复用现有的徽章逻辑
-        from modules.data_processing_module import should_enable_badge
+        from modules.data_utils import should_enable_badge
         
         if ENABLE_BADGE_MANAGEMENT:
             elite_badge_enabled = should_enable_badge(self.config.config_key, "elite")

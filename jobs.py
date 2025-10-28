@@ -1,7 +1,6 @@
 # jobs.py
 import logging
 from modules.request_module import send_request_with_managed_session
-from modules.data_processing_module import *
 from modules.data_utils import *
 from modules.notification_module import *
 from modules.config import *
