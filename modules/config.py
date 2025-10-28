@@ -407,7 +407,7 @@ PERFORMANCE_DATA_FILENAME_SH_OCT = 'state/PerformanceData-SH-Oct.csv'
 STATUS_FILENAME_SH_OCT = 'state/send_status_shanghai_oct.json'
 
 ## 上海地区，2025年11月活动
-API_URL_SH_NOV = METABASE_URL + "/api/card/1886/query"  # 待确认具体卡片ID
+API_URL_SH_NOV = METABASE_URL + "/api/card/1884/query"
 
 # 销售激励活动 JOB signing_and_sales_incentive_nov_shanghai
 TEMP_CONTRACT_DATA_FILE_SH_NOV = 'state/ContractData-SH-Nov.csv'
@@ -450,7 +450,7 @@ PERFORMANCE_DATA_FILENAME_BJ_OCT = 'state/PerformanceData-BJ-Oct.csv'
 STATUS_FILENAME_BJ_OCT = 'state/send_status_bj_oct.json'
 
 ## 北京地区，2025年11月活动
-API_URL_BJ_NOV = METABASE_URL + "/api/card/1885/query"  # 待确认具体卡片ID
+API_URL_BJ_NOV = METABASE_URL + "/api/card/1864/query"
 
 # 北京销售激励活动 JOB signing_and_sales_incentive_nov_beijing_v2
 TEMP_CONTRACT_DATA_FILE_BJ_NOV = 'state/ContractData-BJ-Nov.csv'

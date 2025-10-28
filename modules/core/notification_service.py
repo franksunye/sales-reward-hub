@@ -169,7 +169,10 @@ class NotificationService:
     def _should_send_award_notification(self, record: Dict) -> bool:
         """判断是否应该发送奖励通知"""
         # 🔧 新增：检查通知配置
-        notification_config = self.config.config.get("notification_config", {})
+        # 🐛 修复：从 REWARD_CONFIGS 中获取配置，而不是从 ProcessingConfig 对象中获取
+        from .config_adapter import ConfigAdapter
+        reward_config = ConfigAdapter.get_reward_config(self.config.config_key)
+        notification_config = reward_config.get("notification_config", {})
         if not notification_config.get("enable_award_notification", True):
             return False
 
@@ -210,7 +213,14 @@ class NotificationService:
 
 👊 继续加油，再接再厉！🎉🎉🎉
 '''
-        elif self.config.config_key == "BJ-2025-10":
+            # 创建群通知任务
+            group_name = WECOM_GROUP_NAME_BJ if self.config.city.value == "BJ" else WECOM_GROUP_NAME_SH
+            create_task('send_wecom_message', group_name, msg)
+            self.logger.info(f"群通知已创建: {record['管家(serviceHousekeeper)']}")
+            return  # ✅ 北京11月消息已完整生成，直接返回
+
+        # 其他活动的备注逻辑
+        if self.config.config_key == "BJ-2025-10":
             # 北京10月：自引单和平台单都使用节节高奖励进度
             remarks = record.get("备注", "")
             if '无' in remarks:

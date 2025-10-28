@@ -452,10 +452,10 @@ def signing_and_sales_incentive_nov_shanghai_v2() -> List[PerformanceRecord]:
             csv_file = generate_csv_output(processed_records, config)
             logging.info(f"生成CSV文件: {csv_file}")
 
-        from modules.core.notification_service import NotificationService
-        notification_service = NotificationService(store, config)
-        notification_service.send_notifications(processed_records)
-        logging.info("通知发送完成")
+        from modules.core.notification_service import create_notification_service
+        notification_service = create_notification_service(store, config)
+        stats = notification_service.send_notifications()
+        logging.info(f"通知发送完成 - 总计: {stats['total']}, 群通知: {stats['group_notifications']}, 奖励通知: {stats['award_notifications']}")
 
         return processed_records
 

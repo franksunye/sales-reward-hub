@@ -50,7 +50,10 @@ class DataProcessingPipeline:
         logging.info(f"Starting to process {len(contract_data_list)} contracts for {self.config.activity_code}")
 
         # 🔧 新增：检查是否仅处理平台单
-        processing_config = self.config.config.get("processing_config", {})
+        # 🐛 修复：从 REWARD_CONFIGS 中获取配置，而不是从 ProcessingConfig 对象中获取
+        from .config_adapter import ConfigAdapter
+        reward_config = ConfigAdapter.get_reward_config(self.config.config_key)
+        processing_config = reward_config.get("processing_config", {})
         process_platform_only = processing_config.get("process_platform_only", False)
 
         if process_platform_only:

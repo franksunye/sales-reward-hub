@@ -167,9 +167,84 @@ def signing_and_sales_incentive_sep_beijing_v2() -> List[PerformanceRecord]:
 
 # 辅助函数 - 保持与现有系统的兼容性
 
+def _parse_metabase_response(response: dict) -> List[Dict]:
+    """
+    通用的Metabase API响应解析函数
+
+    将Metabase API返回的原始数据（英文字段名）转换为标准格式（中文字段名）
+
+    Args:
+        response: Metabase API返回的响应字典
+
+    Returns:
+        转换后的合同数据列表，每个元素是包含中文字段名的字典
+    """
+    if not response or not isinstance(response, dict) or 'data' not in response:
+        logging.warning("API响应为空或格式不正确")
+        return []
+
+    data = response['data']
+    if not data or 'rows' not in data or 'cols' not in data:
+        logging.warning("API数据格式不正确：缺少rows或cols字段")
+        return []
+
+    rows = data['rows']
+    columns = data['cols']
+
+    if not rows:
+        logging.warning("没有获取到合同数据")
+        return []
+
+    # 构建字段名映射
+    column_names = [col['name'] for col in columns]
+
+    # 转换为字典格式，并映射到标准字段名
+    contract_data = []
+    for row in rows:
+        raw_dict = dict(zip(column_names, row))
+
+        # 🔧 关键修复：sourceType 字段处理
+        # API 返回的 sourceType 可能是字符串或数字，需要转换为数字
+        # 默认值为 2（平台单）
+        source_type = raw_dict.get('sourceType', 2)
+        if isinstance(source_type, str):
+            try:
+                source_type = int(source_type)
+            except (ValueError, TypeError):
+                source_type = 2  # 转换失败时默认为平台单
+
+        # 映射到标准字段名（中文）
+        contract_dict = {
+            '合同ID(_id)': raw_dict.get('_id', ''),
+            '活动城市(province)': raw_dict.get('province', ''),
+            '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
+            'Status': raw_dict.get('status', ''),
+            '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
+            '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
+            '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
+            '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
+            '差额(difference)': raw_dict.get('difference', 0),
+            'State': raw_dict.get('state', ''),
+            '创建时间(createTime)': raw_dict.get('createTime', ''),
+            '服务商(orgName)': raw_dict.get('orgName', ''),
+            '签约时间(signedDate)': raw_dict.get('signedDate', ''),
+            'Doorsill': raw_dict.get('Doorsill', 0),
+            '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
+            '转化率(conversion)': raw_dict.get('conversion', 0),
+            '平均客单价(average)': raw_dict.get('average', 0),
+            '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
+            '工单类型(sourceType)': source_type,  # ✅ 使用转换后的数字值
+            '联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
+            '项目地址(projectAddress)': raw_dict.get('projectAddress', ''),
+        }
+        contract_data.append(contract_dict)
+
+    return contract_data
+
+
 def _get_contract_data_from_metabase() -> List[Dict]:
-    """获取合同数据（连接真实Metabase API）"""
-    logging.info("从Metabase获取北京合同数据...")
+    """获取合同数据（连接真实Metabase API）- 北京9月"""
+    logging.info("从Metabase获取北京9月合同数据...")
 
     try:
         # 导入真实的API模块
@@ -183,51 +258,11 @@ def _get_contract_data_from_metabase() -> List[Dict]:
             logging.error("Metabase API调用失败")
             return []
 
-        # 解析API响应
-        if 'data' in response and 'rows' in response['data']:
-            rows = response['data']['rows']
-            columns = response['data']['cols']
-
-            # 构建字段名映射 - 使用实际的字段名
-            column_names = [col['name'] for col in columns]
-
-            # 转换为字典格式，并映射到标准字段名
-            contract_data = []
-            for row in rows:
-                raw_dict = dict(zip(column_names, row))
-
-                # 映射到标准字段名
-                contract_dict = {
-                    '合同ID(_id)': raw_dict.get('_id', ''),
-                    '活动城市(province)': raw_dict.get('province', ''),
-                    '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
-                    'Status': raw_dict.get('status', ''),
-                    '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
-                    '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
-                    '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
-                    '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
-                    '差额(difference)': raw_dict.get('difference', 0),
-                    'State': raw_dict.get('state', ''),
-                    '创建时间(createTime)': raw_dict.get('createTime', ''),
-                    '服务商(orgName)': raw_dict.get('orgName', ''),
-                    '签约时间(signedDate)': raw_dict.get('signedDate', ''),
-                    'Doorsill': raw_dict.get('Doorsill', 0),
-                    '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
-                    '转化率(conversion)': raw_dict.get('conversion', ''),
-                    '平均客单价(average)': raw_dict.get('average', ''),
-                    '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
-                    '工单类型(sourceType)': raw_dict.get('sourceType', ''),
-                    '客户联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
-                    '项目地址(projectAddress)': raw_dict.get('projectAddress', ''),
-                    'pcContractdocNum': raw_dict.get('pcContractdocNum', '')  # 历史合同编号
-                }
-                contract_data.append(contract_dict)
-
+        # 使用通用的解析函数
+        contract_data = _parse_metabase_response(response)
+        if contract_data:
             logging.info(f"从Metabase获取到 {len(contract_data)} 条合同数据")
-            return contract_data
-        else:
-            logging.warning("Metabase API响应格式异常")
-            return []
+        return contract_data
 
     except Exception as e:
         logging.error(f"获取Metabase数据失败: {e}")
@@ -247,57 +282,14 @@ def _get_contract_data_with_source_type() -> List[Dict]:
         # 调用真实的Metabase API
         response = send_request_with_managed_session(API_URL_BJ_OCT)
 
-        if not response or 'data' not in response:
-            logging.warning("API响应为空或格式不正确")
+        if response is None:
+            logging.error("Metabase API调用失败")
             return []
 
-        data = response['data']
-        if not data or 'rows' not in data or 'cols' not in data:
-            logging.warning("API数据格式不正确")
-            return []
-
-        rows = data['rows']
-        columns = data['cols']
-
-        if not rows:
-            logging.warning("没有获取到合同数据")
-            return []
-
-        # 构建字段名映射
-        column_names = [col['name'] for col in columns]
-
-        # 转换为字典格式，确保包含sourceType字段
-        contract_data = []
-        for row in rows:
-            raw_dict = dict(zip(column_names, row))
-
-            # 映射到标准字段名，特别注意sourceType字段
-            contract_dict = {
-                '合同ID(_id)': raw_dict.get('_id', ''),
-                '活动城市(province)': raw_dict.get('province', ''),
-                '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
-                'Status': raw_dict.get('status', ''),
-                '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
-                '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
-                '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
-                '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
-                '差额(difference)': raw_dict.get('difference', 0),
-                'State': raw_dict.get('state', ''),
-                '创建时间(createTime)': raw_dict.get('createTime', ''),
-                '服务商(orgName)': raw_dict.get('orgName', ''),
-                '签约时间(signedDate)': raw_dict.get('signedDate', ''),
-                'Doorsill': raw_dict.get('Doorsill', 0),
-                '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
-                '转化率(conversion)': raw_dict.get('conversion', ''),
-                '平均客单价(average)': raw_dict.get('average', ''),
-                '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
-                '工单类型(sourceType)': raw_dict.get('sourceType', ''),  # 关键字段：1=自引单，2=平台单
-                '客户联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
-                '项目地址(projectAddress)': raw_dict.get('projectAddress', ''),  # 自引单去重用
-            }
-            contract_data.append(contract_dict)
-
-        logging.info(f"成功获取 {len(contract_data)} 个合同数据，包含sourceType字段")
+        # 使用通用的解析函数
+        contract_data = _parse_metabase_response(response)
+        if contract_data:
+            logging.info(f"成功获取 {len(contract_data)} 个合同数据，包含sourceType字段")
         return contract_data
 
     except Exception as e:
@@ -500,17 +492,27 @@ def signing_and_sales_incentive_nov_beijing_v2() -> List[PerformanceRecord]:
 
 def _get_contract_data_from_metabase_nov() -> List[Dict]:
     """获取北京11月合同数据"""
-    from modules.config import API_URL_BJ_NOV
-    from modules.data_utils import send_request_with_managed_session
+    logging.info("从Metabase获取北京11月合同数据...")
 
-    response = send_request_with_managed_session(API_URL_BJ_NOV)
+    try:
+        from modules.config import API_URL_BJ_NOV
+        from modules.request_module import send_request_with_managed_session
 
-    if not response or not isinstance(response, list):
-        logging.error("获取合同数据失败或数据格式错误")
-        return []
+        response = send_request_with_managed_session(API_URL_BJ_NOV)
 
-    logging.info(f"从Metabase获取到 {len(response)} 条合同数据")
-    return response
+        if response is None:
+            logging.error("Metabase API调用失败")
+            return []
+
+        # 使用通用的解析函数
+        contract_data = _parse_metabase_response(response)
+        if contract_data:
+            logging.info(f"从Metabase获取到 {len(contract_data)} 条合同数据")
+        return contract_data
+
+    except Exception as e:
+        logging.error(f"获取北京11月合同数据失败: {e}")
+        raise
 
 
 def signing_and_sales_incentive_nov_beijing():
