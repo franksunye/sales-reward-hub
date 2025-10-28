@@ -220,6 +220,57 @@ REWARD_CONFIGS = {
             }
         }
     },
+    # 上海2025年11月活动配置（规则与10月完全一致）
+    "SH-2025-11": {
+        "lucky_number": "",  # 禁用幸运奖
+        "lucky_number_sequence_type": "global",  # 如果启用幸运奖，上海早期使用全局序号
+        "performance_limits": {
+            "enable_cap": False,  # 上海不启用业绩上限
+            "single_contract_cap": 40000
+        },
+        "tiered_rewards": {
+            "min_contracts": 5,  # 平台单需要5个合同
+            "tiers": [
+                {"name": "基础奖", "threshold": 40000},
+                {"name": "达标奖", "threshold": 60000},
+                {"name": "优秀奖", "threshold": 80000},
+                {"name": "精英奖", "threshold": 120000},
+                {"name": "卓越奖", "threshold": 160000}
+            ]
+        },
+        "awards_mapping": {
+            # 平台单奖励（复用上海4月配置）
+            "基础奖": "200",
+            "达标奖": "300",
+            "优秀奖": "400",
+            "精英奖": "800",
+            "卓越奖": "1200",
+            # 自引单奖励（新增）
+            # "红包": "50"
+        },
+        # 新增：自引单奖励配置
+        "self_referral_rewards": {
+            "enable": False,  # 启用自引单奖励
+            "reward_type": "自引单",
+            "reward_name": "红包",
+            "deduplication_field": "projectAddress"  # 去重字段
+            # 注意：奖励金额统一在awards_mapping中定义，避免重复配置
+        },
+        # 奖励计算策略配置
+        "reward_calculation_strategy": {
+            "type": "single_track",  # 单轨激励：仅平台单
+            "rules": {
+                "platform": {
+                    "enable_tiered_rewards": True,
+                    "stats_source": "platform_only"  # 使用平台单统计数据
+                },
+                "self_referral": {
+                    "enable_tiered_rewards": False,  # 自引单不参与节节高奖励
+                    "stats_source": "self_referral_only"  # 使用自引单统计数据
+                }
+            }
+        }
+    },
     # 北京2025年11月活动配置
     "BJ-2025-11": {
         # 禁用幸运数字
@@ -354,6 +405,14 @@ API_URL_SH_OCT = METABASE_URL + "/api/card/1884/query"
 TEMP_CONTRACT_DATA_FILE_SH_OCT = 'state/ContractData-SH-Oct.csv'
 PERFORMANCE_DATA_FILENAME_SH_OCT = 'state/PerformanceData-SH-Oct.csv'
 STATUS_FILENAME_SH_OCT = 'state/send_status_shanghai_oct.json'
+
+## 上海地区，2025年11月活动
+API_URL_SH_NOV = METABASE_URL + "/api/card/1886/query"  # 待确认具体卡片ID
+
+# 销售激励活动 JOB signing_and_sales_incentive_nov_shanghai
+TEMP_CONTRACT_DATA_FILE_SH_NOV = 'state/ContractData-SH-Nov.csv'
+PERFORMANCE_DATA_FILENAME_SH_NOV = 'state/PerformanceData-SH-Nov.csv'
+STATUS_FILENAME_SH_NOV = 'state/send_status_shanghai_nov.json'
 
 
 
