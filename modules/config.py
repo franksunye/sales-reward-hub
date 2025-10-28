@@ -377,27 +377,6 @@ if not PHONE_NUMBER:
 API_URL_PENDING_ORDERS_REMINDER = METABASE_URL + "/api/card/1712/query"
 STATUS_FILENAME_PENDING_ORDERS = './state/pending_orders_reminder_status.json'
 
-## 上海地区，2025年8月活动
-API_URL_SH_AUG = METABASE_URL + "/api/card/1801/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_aug_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_AUG = 'state/ContractData-SH-Aug.csv'
-PERFORMANCE_DATA_FILENAME_SH_AUG = 'state/PerformanceData-SH-Aug.csv'
-STATUS_FILENAME_SH_AUG = 'state/send_status_sh_aug.json'
-
-# Pro
-WECOM_GROUP_NAME_SH_AUG = '（上海）运营群'
-CAMPAIGN_CONTACT_SH_AUG = '满浩浩'
-
-## 上海地区，2025年9月活动
-API_URL_SH_SEP = METABASE_URL + "/api/card/1838/query"
-
-# 销售激励活动 JOB signing_and_sales_incentive_sep_shanghai
-TEMP_CONTRACT_DATA_FILE_SH_SEP = 'state/ContractData-SH-Sep.csv'
-PERFORMANCE_DATA_FILENAME_SH_SEP = 'state/PerformanceData-SH-Sep.csv'
-STATUS_FILENAME_SH_SEP = 'state/send_status_shanghai_sep.json'
-
-
 ## 上海地区，2025年10月活动
 API_URL_SH_OCT = METABASE_URL + "/api/card/1884/query"
 
@@ -420,26 +399,6 @@ STATUS_FILENAME_SH_NOV = 'state/send_status_shanghai_nov.json'
 BONUS_POOL_RATIO = 0.002  # 默认为0.2%,可根据需要调整
 
 # 注意：业绩金额上限配置和是否启用业绩金额上限已移至文件顶部
-
-## 北京地区，2025年8月活动
-API_URL_BJ_AUG = METABASE_URL + "/api/card/1800/query"
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_aug_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_AUG = 'state/ContractData-BJ-Aug.csv'
-PERFORMANCE_DATA_FILENAME_BJ_AUG = 'state/PerformanceData-BJ-Aug.csv'
-STATUS_FILENAME_BJ_AUG = 'state/send_status_bj_aug.json'
-
-# Pro
-WECOM_GROUP_NAME_BJ_AUG = '（北京）修链服务运营'
-CAMPAIGN_CONTACT_BJ_AUG = '王爽'
-
-## 北京地区，2025年9月活动
-API_URL_BJ_SEP = METABASE_URL + "/api/card/1864/query"  # 新的API端点
-
-# 北京销售激励活动 JOB signing_and_sales_incentive_sep_beijing
-TEMP_CONTRACT_DATA_FILE_BJ_SEP = 'state/ContractData-BJ-Sep.csv'
-PERFORMANCE_DATA_FILENAME_BJ_SEP = 'state/PerformanceData-BJ-Sep.csv'
-STATUS_FILENAME_BJ_SEP = 'state/send_status_bj_sep.json'
 
 ## 北京地区，2025年10月活动
 API_URL_BJ_OCT = METABASE_URL + "/api/card/1883/query"
