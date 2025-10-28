@@ -99,8 +99,8 @@ def signing_and_sales_incentive_sep_shanghai_v2() -> List[PerformanceRecord]:
         logging.info(f"创建处理管道成功: {config.activity_code}")
 
         # 获取合同数据（从Metabase API获取真实数据）
-        from modules.config import API_URL_SH_SEP
-        contract_data = _get_shanghai_contract_data(API_URL_SH_SEP)
+        from modules.config import API_URL_SH_NOV
+        contract_data = _get_shanghai_contract_data(API_URL_SH_NOV)
         logging.info(f"获取到 {len(contract_data)} 个合同数据（支持双轨统计）")
 
         # 🔧 关键修复：获取管家历史奖励列表（参考旧系统逻辑）
@@ -224,17 +224,17 @@ def _get_shanghai_contract_data(api_url: str = None) -> List[Dict]:
     """获取上海合同数据（连接真实Metabase API）
 
     Args:
-        api_url: API端点URL，如果不提供则使用默认的9月API
+        api_url: API端点URL，如果不提供则使用默认的11月API
     """
     logging.info("从Metabase获取上海合同数据...")
 
     try:
         # 导入真实的API模块
         from modules.request_module import send_request_with_managed_session
-        from modules.config import API_URL_SH_SEP
+        from modules.config import API_URL_SH_NOV
 
-        # 使用提供的API URL或默认的9月API
-        target_api_url = api_url or API_URL_SH_SEP
+        # 使用提供的API URL或默认的11月API
+        target_api_url = api_url or API_URL_SH_NOV
         logging.info(f"使用API端点: {target_api_url}")
 
         # 调用真实的Metabase API

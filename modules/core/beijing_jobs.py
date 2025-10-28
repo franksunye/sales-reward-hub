@@ -243,16 +243,16 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
 
 
 def _get_contract_data_from_metabase() -> List[Dict]:
-    """获取合同数据（连接真实Metabase API）- 北京9月"""
-    logging.info("从Metabase获取北京9月合同数据...")
+    """获取合同数据（连接真实Metabase API）- 北京11月"""
+    logging.info("从Metabase获取北京11月合同数据...")
 
     try:
         # 导入真实的API模块
         from modules.request_module import send_request_with_managed_session
-        from modules.config import API_URL_BJ_SEP
+        from modules.config import API_URL_BJ_NOV
 
         # 调用真实的Metabase API
-        response = send_request_with_managed_session(API_URL_BJ_SEP)
+        response = send_request_with_managed_session(API_URL_BJ_NOV)
 
         if response is None:
             logging.error("Metabase API调用失败")
