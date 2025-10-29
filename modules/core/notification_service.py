@@ -237,8 +237,8 @@ class NotificationService:
             else:
                 next_msg = f'{record.get("备注", "")}'
 
-        if self.config.config_key == "SH-2025-10":
-            # 上海10月专用消息模板 - 不显示自引单信息，不显示业绩信息
+        if self.config.config_key in ["SH-2025-10", "SH-2025-11"]:
+            # 上海10月和11月专用消息模板 - 不显示自引单信息，不显示业绩信息
             order_type = record.get("工单类型", "平台单")
             platform_count = record.get("平台单累计数量", 0)
             platform_amount = self._format_amount(record.get("平台单累计金额", 0))
