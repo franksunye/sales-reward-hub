@@ -3,8 +3,8 @@ import os
 import traceback
 from datetime import datetime, timedelta
 import logging
-from modules.config import SERVICE_PROVIDER_MAPPING, SLA_VIOLATIONS_RECORDS_FILE, SLA_CONFIG  # 引入配置中的服务商映射和文件路径
-from modules.message_sender import send_wecom_message as original_send_wecom_message  # 导入已有的发送消息函数并重命名
+from modules.config import SLA_VIOLATIONS_RECORDS_FILE, SLA_CONFIG, ORG_WEBHOOKS, WEBHOOK_URL_DEFAULT  # 引入配置中的文件路径和webhook配置
+from modules.data_utils import post_text_to_webhook
 
 # 假设SLA违规记录存储在这个文件中
 # SLA_VIOLATIONS_RECORDS_FILE = 'sla_violations.json'
@@ -113,24 +113,22 @@ def _send_compliance_notifications(compliant_providers):
     """发送合规通知给达标的服务商"""
     compliance_msg = "上周无超时工单，请继续保持。👍"
     for provider_name in compliant_providers:
-        receiver_name = SERVICE_PROVIDER_MAPPING.get(provider_name, "sunye")
         try:
-            send_wecom_message_wrapper(receiver_name, compliance_msg)
-            logging.info(f"已向服务商 {provider_name}({receiver_name}) 发送SLA达标通知")
+            send_wecom_message_wrapper(provider_name, compliance_msg)
+            logging.info(f"已向服务商 {provider_name} 发送SLA达标通知")
         except Exception as e:
-            logging.error(f"发送SLA达标通知给 {receiver_name} 时出错: {e}")
+            logging.error(f"发送SLA达标通知给 {provider_name} 时出错: {e}")
 
 def _send_violation_reports(violating_providers):
     """发送违规报告给违规的服务商"""
     for provider_name in violating_providers:
         sla_performance_report = generate_sla_performance_report(provider_name)
         logging.debug(f"生成{provider_name}的SLA表现周报:\n{sla_performance_report}")
-        receiver_name = SERVICE_PROVIDER_MAPPING.get(provider_name, "sunye")
         try:
-            send_wecom_message_wrapper(receiver_name, sla_performance_report)
+            send_wecom_message_wrapper(provider_name, sla_performance_report)
             logging.info(f"已完成服务商 {provider_name} 的SLA周报发送")
         except Exception as e:
-            logging.error(f"发送SLA周报给 {receiver_name} 时出错: {e}")
+            logging.error(f"发送SLA周报给 {provider_name} 时出错: {e}")
 
 def has_sla_violations_yesterday(sla_data):
     return len(sla_data) > 0
@@ -170,7 +168,8 @@ def get_weekly_sla_violations():
     return list(last_week_services)
 
 def get_sla_compliant_providers(non_compliant_providers):
-    all_providers = set(SERVICE_PROVIDER_MAPPING.keys())
+    # 使用 ORG_WEBHOOKS 中的服务商作为全部服务商列表
+    all_providers = set(ORG_WEBHOOKS.keys())
     logging.debug("正在统计符合SLA要求的服务商")
     compliant_providers = all_providers - set(non_compliant_providers)
 
@@ -179,29 +178,75 @@ def get_sla_compliant_providers(non_compliant_providers):
 def send_sla_violation_notifications(violation_data):
     for record in violation_data:
         msg = construct_sla_violation_message(record)
-        receiver_name = SERVICE_PROVIDER_MAPPING.get(record['orgName'], "sunye")
+        org_name = record['orgName']
         try:
-            send_wecom_message_wrapper(receiver_name, msg)  # 发送消息
-            logging.info(f"已向 {record['orgName']} 发送超时通知")
+            send_wecom_message_wrapper(org_name, msg)  # 发送消息
+            logging.info(f"已向 {org_name} 发送超时通知")
             logging.info(f"消息内容: {msg}")
         except Exception as e:
-            logging.error(f"发送消息给 {receiver_name} 时出错: {e}")
+            logging.error(f"发送消息给 {org_name} 时出错: {e}")
+
+def safe_parse_datetime(time_str):
+    """
+    安全解析时间字符串，兼容Python 3.7.2
+    处理微秒位数不足的问题
+
+    Args:
+        time_str: 时间字符串
+
+    Returns:
+        datetime: 解析后的时间对象
+    """
+    import re
+
+    # 移除可能的Z后缀
+    time_str = time_str.replace("Z", "")
+
+    # 正则表达式匹配时间格式
+    # 匹配: YYYY-MM-DDTHH:MM:SS.微秒+时区 或 YYYY-MM-DDTHH:MM:SS+时区
+    pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?([\+\-]\d{2}:\d{2})'
+    match = re.match(pattern, time_str)
+
+    if not match:
+        # 如果正则匹配失败，尝试直接解析
+        return datetime.fromisoformat(time_str)
+
+    base_time = match.group(1)      # 基础时间部分
+    microseconds = match.group(2)   # 微秒部分
+    timezone = match.group(3)       # 时区部分
+
+    if microseconds:
+        # 将微秒部分标准化为6位
+        if len(microseconds) < 6:
+            # 不足6位，右侧补0
+            microseconds = microseconds.ljust(6, '0')
+        elif len(microseconds) > 6:
+            # 超过6位，截断到6位
+            microseconds = microseconds[:6]
+
+        # 重新组装标准格式的时间字符串
+        standard_time_str = f"{base_time}.{microseconds}{timezone}"
+    else:
+        # 没有微秒部分，直接使用
+        standard_time_str = f"{base_time}{timezone}"
+
+    return datetime.fromisoformat(standard_time_str)
 
 def construct_sla_violation_message(violation_record):
     try:
-        # 解析建单时间并格式化
-        create_time = datetime.fromisoformat(violation_record['saCreateTime'].replace("Z", ""))  # 处理时区
-        # formatted_time = create_time.strftime("%Y年%m月%d日 %H:%M")  # 格式化为 YYYY年MM月DD日 HH:MM
+        # 使用安全的时间解析方法，兼容Python 3.7.2
+        create_time = safe_parse_datetime(violation_record['saCreateTime'])
+        formatted_time = create_time.strftime("%Y-%m-%d %H:%M")  # 格式化为 YYYY-MM-DD HH:MM
 
         # 使用 str.format() 构建消息内容
         msg = (
             f"超时通知:\n"
             f"工单编号：{violation_record['orderNum']}\n"
-            f"建单时间：{create_time}\n"
+            f"建单时间：{formatted_time}\n"
             f"管家：{violation_record['supervisorName']}\n"
             f"违规类型：{violation_record['msg']}\n"
             f"违规描述：{violation_record['memo']}\n"
-            f"说明：以上数据为服务商昨日工单超时统计，如有异议请于下周一十二点前联系运营人员王金申诉。"
+            f"说明：以上数据为服务商昨日工单超时统计，如有异议请于下周一十二点前联系运营申诉。"
         )
         return msg
     except Exception as e:
@@ -224,12 +269,26 @@ def is_monday():
         return True
     return datetime.now().weekday() == 0
 
-def send_wecom_message_wrapper(receiver_name, msg):
-    # 调用已存在的 send_wecom_message 函数
+def send_wecom_message_wrapper(org_name, msg):
+    """
+    发送企业微信消息的包装函数 - 使用 webhook 方式
+
+    Args:
+        org_name: 服务商名称（直接使用ORG_WEBHOOKS中的键）
+        msg: 消息内容
+    """
     try:
-        original_send_wecom_message(receiver_name, msg)  # 使用导入的函数发送消息
+        # 直接使用服务商名称获取webhook URL
+        webhook_url = ORG_WEBHOOKS.get(org_name, WEBHOOK_URL_DEFAULT)
+        post_text_to_webhook(msg, webhook_url)
+
+        if org_name in ORG_WEBHOOKS:
+            logging.info(f"已通过webhook向 {org_name} 发送消息")
+        else:
+            logging.warning(f"服务商 {org_name} 未配置专属webhook，使用默认webhook发送")
+
     except Exception as e:
-        logging.error(f"发送消息给 {receiver_name} 时出错: {e}")
+        logging.error(f"通过webhook发送消息给 {org_name} 时出错: {e}")
 
 def generate_sla_performance_report(provider):
     # 构建指定服务商的一周内超时记录的汇总消息
@@ -247,7 +306,7 @@ def generate_sla_performance_report(provider):
     for record in records:
         report += f"- 工单编号：{record['orderNum']} 管家：{record['supervisorName']} 违规类型：{record['msg']}\n"
 
-    report += f"\n如有异议，请于 {appeal_deadline} 24 时前，联系运营人员王金申诉"
+    report += f"\n如有异议，请于 {appeal_deadline} 24 时前，联系运营人员申诉"
     return report
 
 def get_provider_sla_violations(provider_name):

@@ -1,196 +1,11 @@
 # jobs.py
 import logging
 from modules.request_module import send_request_with_managed_session
-from modules.data_processing_module import *
-from modules.file_utils import *
-from modules.notification_module import *
+from modules.data_utils import *
 from modules.config import *
 from modules.service_provider_sla_monitor import process_sla_violations
 
-# 2025年5月，北京. 
-# 幸运数字6，单合同金额1万以上和以下幸运奖励不同；节节高三档；
-# 单个项目（工单）签约合同金额大于10万时，参与累计合同金额计算时均按10万计入。
-def signing_and_sales_incentive_may_beijing():
-    contract_data_filename = TEMP_CONTRACT_DATA_FILE_BJ_MAY
-    performance_data_filename = PERFORMANCE_DATA_FILENAME_BJ_MAY
-    status_filename = STATUS_FILENAME_BJ_MAY
-    api_url = API_URL_BJ_MAY
-
-    logging.info('BEIJING 2025 5月, Job started ...')
-
-    response = send_request_with_managed_session(api_url)
- 
-    logging.info('BEIJING 2025 5月, Request sent')
-
-    rows = response['data']['rows']
-
-    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
-    save_to_csv_with_headers(rows,contract_data_filename,columns)
-
-    logging.info(f'BEIJING 2025 5月, Data saved to {contract_data_filename}')
-
-    contract_data = read_contract_data(contract_data_filename)
-
-    existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
-
-    housekeeper_award_lists = get_housekeeper_award_list(performance_data_filename)
-
-    # 当月的数据处理逻辑
-    processed_data = process_data_may_beijing(contract_data, existing_contract_ids,housekeeper_award_lists)
-    logging.info('BEIJING 2025 5月, Data processed')
-
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
-
-    write_performance_data(performance_data_filename, processed_data, performance_data_headers)
-
-    # 当月的数据处理逻辑
-    notify_awards_may_beijing(performance_data_filename, status_filename)
-
-    archive_file(contract_data_filename)
-    logging.info('BEIJING 2025 5月, Data archived')
-
-    logging.info('BEIJING 2025 5月, Job ended')
-
-# 2025年4月，北京. 
-# 幸运数字8，单合同金额1万以上和以下幸运奖励不同；节节高三档；
-# 单个项目（工单）签约合同金额大于10万时，参与累计合同金额计算时均按10万计入。
-def signing_and_sales_incentive_apr_beijing():
-    contract_data_filename = TEMP_CONTRACT_DATA_FILE_BJ_APR
-    performance_data_filename = PERFORMANCE_DATA_FILENAME_BJ_APR
-    status_filename = STATUS_FILENAME_BJ_APR
-    api_url = API_URL_BJ_APR
-
-    logging.info('BEIJING 2025 4月, Job started ...')
-
-    response = send_request_with_managed_session(api_url)
- 
-    logging.info('BEIJING 2025 4月, Request sent')
-
-    rows = response['data']['rows']
-
-    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
-    save_to_csv_with_headers(rows,contract_data_filename,columns)
-
-    logging.info(f'BEIJING 2025 4月, Data saved to {contract_data_filename}')
-
-    contract_data = read_contract_data(contract_data_filename)
-
-    existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
-
-    housekeeper_award_lists = get_housekeeper_award_list(performance_data_filename)
-
-    # 当月的数据处理逻辑
-    processed_data = process_data_apr_beijing(contract_data, existing_contract_ids,housekeeper_award_lists,use_generic=True)
-    logging.info('BEIJING 2025 4月, Data processed')
-
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池','计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
-
-    write_performance_data(performance_data_filename, processed_data, performance_data_headers)
-
-    # 当月的数据处理逻辑
-    notify_awards_apr_beijing(performance_data_filename, status_filename)
-
-    archive_file(contract_data_filename)
-    logging.info('BEIJING 2025 4月, Data archived')
-
-    logging.info('BEIJING 2025 4月, Job ended')
-
-# 2025年5月，上海. 签约和奖励播报，规则与4月相同
-def signing_and_sales_incentive_may_shanghai():
-    contract_data_filename = TEMP_CONTRACT_DATA_FILE_SH_MAY
-    performance_data_filename = PERFORMANCE_DATA_FILENAME_SH_MAY
-    status_filename = STATUS_FILENAME_SH_MAY
-    api_url = API_URL_SH_MAY
-
-    logging.info('SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Job started ...')
-    response = send_request_with_managed_session(api_url)
-    logging.info('SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Request sent')
-
-    rows = response['data']['rows']
-
-    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
-    save_to_csv_with_headers(rows,contract_data_filename,columns)
-
-    logging.info(f'SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Data saved to {contract_data_filename}')
-
-    contract_data = read_contract_data(contract_data_filename)
-
-    existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
-
-    # 获取管家奖励列表，升级唯一奖励列表
-    housekeeper_award_lists = get_unique_housekeeper_award_list(performance_data_filename)
-
-    # 当月的数据处理逻辑，奖励规则按照3月份的，与4月保持一致
-    processed_data = process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_award_lists)
-
-    logging.info('SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Data processed')
-
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池', '计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
-
-    write_performance_data(performance_data_filename, processed_data, performance_data_headers)
-
-    # 当月的通知数据处理逻辑（与三月一致），与4月保持一致
-    notify_awards_shanghai_generate_message_march(performance_data_filename, status_filename, contract_data)
-
-    archive_file(contract_data_filename)
-    logging.info('SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Data archived')
-
-    logging.info('SHANGHAI 2025 5月 Conq & triumph, take 1 more city, Job ended')   
-
-# 2025年4月，上海. 签约和奖励播报
-def signing_and_sales_incentive_apr_shanghai():
-    contract_data_filename = TEMP_CONTRACT_DATA_FILE_SH_APR
-    performance_data_filename = PERFORMANCE_DATA_FILENAME_SH_APR
-    status_filename = STATUS_FILENAME_SH_APR
-    api_url = API_URL_SH_APR
-
-    logging.info('SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Job started ...')
-    response = send_request_with_managed_session(api_url)
-    logging.info('SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Request sent')
-
-    rows = response['data']['rows']
-
-    columns = ["合同ID(_id)", "活动城市(province)", "工单编号(serviceAppointmentNum)", "Status", "管家(serviceHousekeeper)", "合同编号(contractdocNum)", "合同金额(adjustRefundMoney)", "支付金额(paidAmount)", "差额(difference)", "State", "创建时间(createTime)", "服务商(orgName)", "签约时间(signedDate)", "Doorsill", "款项来源类型(tradeIn)", "转化率(conversion)", "平均客单价(average)"]
-    save_to_csv_with_headers(rows,contract_data_filename,columns)
-
-    logging.info(f'SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Data saved to {contract_data_filename}')
-
-    contract_data = read_contract_data(contract_data_filename)
-
-    existing_contract_ids = collect_unique_contract_ids_from_file(performance_data_filename)
-
-    # 获取管家奖励列表，升级唯一奖励列表
-    housekeeper_award_lists = get_unique_housekeeper_award_list(performance_data_filename)
-
-    # 当月的数据处理逻辑，奖励规则按照3月份的
-    processed_data = process_data_shanghai_apr(contract_data, existing_contract_ids, housekeeper_award_lists)
-
-    logging.info('SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Data processed')
-
-    performance_data_headers = ['活动编号', '合同ID(_id)', '活动城市(province)', '工单编号(serviceAppointmentNum)', 'Status', '管家(serviceHousekeeper)', '合同编号(contractdocNum)', '合同金额(adjustRefundMoney)', '支付金额(paidAmount)', '差额(difference)', 'State', '创建时间(createTime)', '服务商(orgName)', '签约时间(signedDate)', 'Doorsill', '款项来源类型(tradeIn)', '转化率(conversion)', '平均客单价(average)','活动期内第几个合同','管家累计金额','管家累计单数','奖金池', '计入业绩金额','激活奖励状态', '奖励类型', '奖励名称', '是否发送通知', '备注', '登记时间']
-
-    write_performance_data(performance_data_filename, processed_data, performance_data_headers)
-
-    # 当月的通知数据处理逻辑（与三月一致）
-    notify_awards_shanghai_generate_message_march(performance_data_filename, status_filename, contract_data)
-
-    archive_file(contract_data_filename)
-    logging.info('SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Data archived')
-
-    logging.info('SHANGHAI 2025 4月 Conq & triumph, take 1 more city, Job ended')   
-
-def check_technician_status():
-    api_url = API_URL_TS
-    status_filename = STATUS_FILENAME_TS
-
-    logging.info('BEIJING, Technician Status Check Job started')
-
-    response = send_request_with_managed_session(api_url)    
-    status_changes = response['data']['rows']
-
-    notify_technician_status_changes(status_changes, status_filename)
-
-    logging.info('BEIJING, Technician Status Check Job ended') 
+# [已移除 - 旧架构代码已备份到 backup/legacy-code 分支]
 
 def generate_daily_service_report():
     logging.info('Daily service report generation started...')
@@ -230,22 +45,82 @@ def generate_daily_service_report():
 
     logging.info('Daily service report generation completed.')
 
-def check_contact_timeout():
-    api_url = API_URL_CONTACT_TIMEOUT
-    # notify_status_filename = STATUS_FILENAME_CONTACT_TIMEOUT
+def send_pending_orders_reminder():
+    """待预约工单提醒任务"""
+    from modules.data_utils import (
+        filter_orders_by_time_threshold,
+        group_orders_by_org,
+        format_pending_orders_message_text
+    )
 
-    logging.info('Contact Timeout Check, Job started ...')
+    logging.info('待预约工单提醒任务开始...')
 
-    response = send_request_with_managed_session(api_url)
-    
-    if response is None:
-        logging.error('Failed to get response for contact timeout check')
-        return
+    try:
+        # 1. 获取数据
+        api_url = API_URL_PENDING_ORDERS_REMINDER
+        logging.info('正在获取待预约工单数据...')
+        response = send_request_with_managed_session(api_url)
 
-    contact_timeout_data = response['data']['rows']
-    print(contact_timeout_data)  # 打印 status_changes
+        if not response or 'data' not in response:
+            logging.error('API请求失败或数据格式异常')
+            return
 
-    notify_contact_timeout_changes_template_card(contact_timeout_data)
+        orders_data = response['data']['rows']
+        total_orders = len(orders_data)
+        logging.info(f'获取到 {total_orders} 条原始工单数据')
 
-    logging.info('Contact Timeout Check, Job ended')
-    
+        if total_orders == 0:
+            logging.info('没有待预约工单，任务结束')
+            return
+
+        # 2. 应用时间过滤
+        logging.info('正在应用时间过滤规则...')
+        logging.info('- 排除待预约状态48小时之内的工单')
+        logging.info('- 排除暂不上门状态48小时之内的工单')
+        filtered_orders_data = filter_orders_by_time_threshold(orders_data)
+        filtered_count = len(filtered_orders_data)
+        logging.info(f'过滤后剩余 {filtered_count} 条工单数据')
+
+        if filtered_count == 0:
+            logging.info('过滤后没有符合条件的工单，任务结束')
+            return
+
+        # 3. 数据处理和分组
+        logging.info('正在按服务商分组工单数据...')
+        grouped_orders = group_orders_by_org(filtered_orders_data)
+        org_count = len(grouped_orders)
+        logging.info(f'共分为 {org_count} 个服务商组')
+
+        # 4. 发送通知
+        success_count = 0
+        failed_count = 0
+
+        for org_name, orders in grouped_orders.items():
+            try:
+                logging.info(f'正在为 {org_name} 发送提醒，工单数量: {len(orders)}')
+
+                # 格式化消息（使用文字版格式）
+                message = format_pending_orders_message_text(org_name, orders)
+
+                # 获取webhook地址
+                webhook_url = ORG_WEBHOOKS.get(org_name, WEBHOOK_URL_DEFAULT)
+
+                # 发送消息（使用文字格式）
+                post_text_to_webhook(message, webhook_url)
+
+                success_count += 1
+                logging.info(f'✓ {org_name} 提醒发送成功')
+
+            except Exception as e:
+                failed_count += 1
+                logging.error(f'✗ {org_name} 提醒发送失败: {e}')
+
+        # 5. 任务总结
+        logging.info(f'待预约工单提醒任务完成 - 成功: {success_count}, 失败: {failed_count}')
+
+    except Exception as e:
+        logging.error(f'待预约工单提醒任务执行失败: {e}')
+        import traceback
+        logging.error(traceback.format_exc())
+
+# [已移除 - 旧架构代码已备份到 backup/legacy-code 分支]

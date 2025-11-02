@@ -13,15 +13,25 @@ class Task:
         self.updated_at = self.created_at
 
     def save(self):
-        conn = sqlite3.connect('tasks.db')
-        cursor = conn.cursor()
-        sql = '''
-        INSERT INTO tasks (task_type, recipient, message, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        '''
-        cursor.execute(sql, (self.task_type, self.recipient, self.message, self.status, self.created_at, self.updated_at))
-        conn.commit()
-        conn.close()
+        import logging
+        logging.info(f"[DEBUG] Task.save() called for {self.task_type} to {self.recipient}")
+        try:
+            conn = sqlite3.connect('tasks.db')
+            cursor = conn.cursor()
+            sql = '''
+            INSERT INTO tasks (task_type, recipient, message, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            '''
+            cursor.execute(sql, (self.task_type, self.recipient, self.message, self.status, self.created_at, self.updated_at))
+            self.id = cursor.lastrowid  # Get the inserted row ID
+            conn.commit()
+            conn.close()
+            logging.info(f"[DEBUG] Task saved successfully with ID: {self.id}")
+        except Exception as e:
+            logging.error(f"[DEBUG] Failed to save task: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            raise
 
     def update_status(self, status):
         self.status = status
@@ -38,9 +48,18 @@ class Task:
         conn.close()
 
 def create_task(task_type, recipient, message):
-    task = Task(task_type, recipient, message)
-    task.save()
-    return task
+    import logging
+    # logging.info(f"[DEBUG] create_task called: type={task_type}, recipient={recipient}, message_length={len(message)}")
+    try:
+        task = Task(task_type, recipient, message)
+        task.save()
+        # logging.info(f"[DEBUG] Task created successfully: {task}")
+        return task
+    except Exception as e:
+        logging.error(f"[DEBUG] Failed to create task: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        raise
 
 def update_task(task_id, status):
     conn = sqlite3.connect('tasks.db')

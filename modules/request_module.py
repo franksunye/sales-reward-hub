@@ -100,4 +100,12 @@ def send_request_with_managed_session(api_url=None):
     logging.debug(f"send_request_with_managed_session called at {datetime.datetime.now()}")
 
     session_id = get_valid_session()
-    return _send_request_with_session(session_id, api_url)
+    response = _send_request_with_session(session_id, api_url)
+
+    # 如果返回None（可能是401错误），尝试重新获取session并重试一次
+    if response is None:
+        logging.info("First request failed, attempting to get new session and retry...")
+        session_id = get_metabase_session()  # 强制获取新session
+        response = _send_request_with_session(session_id, api_url)
+
+    return response

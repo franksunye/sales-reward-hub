@@ -1,49 +1,60 @@
-# Python bytecode files
+# ===== 环境变量文件（重要！包含敏感信息） =====
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+!.env.example
+
+# ===== Python项目忽略规则 =====
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# Log files
+# 虚拟环境和依赖
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 日志和数据库
 *.log
 logs/
-
-# Data files
-*.csv
-state/
-archive/
-
-# Environment files
-.env
-.env.*
-!.env.example
-
-# Database files
 *.db
 *.sqlite
 *.sqlite3
+tasks.db
+performance_data.db
 
-# Session files
-metabase_session.json
-*_session.json
-
-# Temporary files
-*.tmp
+# 配置和临时文件
+*.ini
+*.cfg
 *.bak
 *.swp
 *.swo
+*.tmp
+.DS_Store
+metabase_session.json
+*_session.json
 
-# IDE files
+# IDE文件
 .vscode/
 .idea/
 .VSCodeCounter/
 
-# Test files
-test_*.py
-tests/data/
-tests/test_utils/
-
-# Report files
+# 项目特有目录
+archive/
+state/
+config/
 weekly_reports/
 
-# Zip files
+# 数据文件
+*.csv
+
+# Zip文件
 *.zip
