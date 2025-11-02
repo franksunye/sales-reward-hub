@@ -169,8 +169,8 @@ METABASE_URL = 'http://metabase.fsgo365.cn:3000'
 METABASE_SESSION = METABASE_URL + '/api/session/'
 
 # 获取数据 账号密码
-METABASE_USERNAME = 'wangshuang@xlink.bj.cn'
-METABASE_PASSWORD = 'xlink123456'
+METABASE_USERNAME = '****@xlink.bj.cn'
+METABASE_PASSWORD = '****'
 
 RUN_JOBS_SERIALLY_SCHEDULE = 3 # 每3分钟执行一次
 
@@ -329,4 +329,5 @@ RISING_STAR_HOUSEKEEPER = [
     "黄佳鑫", "秦博文", "翁庭峰", "刘文强", "平树伟", "王巍", "户郭红", "刘铭", 
     "曹铁伟", "曹洪伟", "李高伟", "姜东升", "韩军华", "马保歌", "曹振锋", "李会强", 
     "黄永辉", "薛敏娃"
+
 ]
