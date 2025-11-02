@@ -203,33 +203,35 @@ def test_platform_filter():
     print("\n" + "=" * 60)
     print("测试平台单过滤逻辑")
     print("=" * 60)
-    
+
     # 模拟合同数据
     test_contracts = [
-        {'合同ID(_id)': 'BJ-NOV-001', '工单类型(sourceType)': 2, '管家(serviceHousekeeper)': '张三'},  # 平台单
+        {'合同ID(_id)': 'BJ-NOV-001', '工单类型(sourceType)': 2, '管家(serviceHousekeeper)': '张三'},  # 雨虹平台单
         {'合同ID(_id)': 'BJ-NOV-002', '工单类型(sourceType)': 1, '管家(serviceHousekeeper)': '李四'},  # 自引单
-        {'合同ID(_id)': 'BJ-NOV-003', '工单类型(sourceType)': 2, '管家(serviceHousekeeper)': '王五'},  # 平台单
+        {'合同ID(_id)': 'BJ-NOV-003', '工单类型(sourceType)': 4, '管家(serviceHousekeeper)': '王五'},  # 修链平台单
+        {'合同ID(_id)': 'BJ-NOV-004', '工单类型(sourceType)': 5, '管家(serviceHousekeeper)': '赵六'},  # 修链自获客
     ]
-    
-    # 模拟过滤逻辑
+
+    # 模拟过滤逻辑（支持 sourceType=2、4、5 的平台单）
     filtered_contracts = [
-        c for c in test_contracts 
-        if c.get('工单类型(sourceType)', 2) == 2
+        c for c in test_contracts
+        if c.get('工单类型(sourceType)', 2) in [2, 4, 5]
     ]
     
     original_count = len(test_contracts)
     filtered_count = len(filtered_contracts)
     removed_count = original_count - filtered_count
-    
+
     print(f"原始合同数: {original_count}")
     print(f"过滤后合同数: {filtered_count}")
-    print(f"过滤掉的自引单数: {removed_count}")
-    
-    if filtered_count == 2 and removed_count == 1:
-        print("✅ 平台单过滤逻辑正确")
+    print(f"过滤掉的非平台单数: {removed_count}")
+
+    # 验证：应该保留 3 个平台单（2个雨虹平台单 + 1个修链平台单），过滤掉 1 个自引单
+    if filtered_count == 3 and removed_count == 1:
+        print("✅ 平台单过滤逻辑正确（支持 sourceType=2 和 sourceType=5）")
         return True
     else:
-        print("❌ 平台单过滤逻辑错误")
+        print(f"❌ 平台单过滤逻辑错误（期望保留3个，实际保留{filtered_count}个）")
         return False
 
 

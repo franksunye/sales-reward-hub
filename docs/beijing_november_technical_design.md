@@ -311,14 +311,14 @@ def process(self, contract_data_list: List[Dict],
     process_platform_only = processing_config.get("process_platform_only", False)
 
     if process_platform_only:
-        # 过滤：仅保留平台单
+        # 过滤：仅保留平台单（sourceType=2 雨虹平台单，sourceType=4 修链平台单，sourceType=5 修链自获客）
         original_count = len(contract_data_list)
         contract_data_list = [
             c for c in contract_data_list
-            if c.get('工单类型(sourceType)', 2) == 2
+            if c.get('工单类型(sourceType)', 2) in [2, 4, 5]
         ]
         filtered_count = original_count - len(contract_data_list)
-        logging.info(f"平台单过滤：原始 {original_count} 个，过滤掉 {filtered_count} 个自引单，保留 {len(contract_data_list)} 个平台单")
+        logging.info(f"平台单过滤：原始 {original_count} 个，过滤掉 {filtered_count} 个非平台单，保留 {len(contract_data_list)} 个平台单")
 
     # 原有处理逻辑...
     # ...
