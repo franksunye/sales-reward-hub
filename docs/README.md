@@ -1,6 +1,45 @@
 # 销售激励系统项目文档
 
-本目录包含与销售激励系统项目相关的各种文档，用于指导开发、维护和管理项目。该系统主要用于管理销售签约奖励活动，通过计算销售业绩确定奖励发放，并自动发送通知。
+## 版本说明
+
+当前项目有两个主要版本：
+
+### 📋 v1.0.1-stable (生产稳定版)
+- **状态**: 生产环境运行中
+- **特点**: 文件存储、硬编码配置、城市特定处理
+- **文档**: [v1.0.1文档索引](#v101-stable-文档)
+
+### 🚀 v2.0.0 (重构版)
+- **状态**: 测试验证中
+- **特点**: 双存储模式、环境变量、通用化架构
+- **文档**: [v2.0文档索引](#v20-文档)
+
+---
+
+## v1.0.1-stable 文档
+
+### 核心文档
+- [`README_v1.0.1.md`](README_v1.0.1.md) - 稳定版概述和快速启动
+- [`architecture_v1.0.1.md`](architecture_v1.0.1.md) - 系统架构和模块说明
+- [`configuration_v1.0.1.md`](configuration_v1.0.1.md) - 配置指南和安全注意事项
+- [`testing_v1.0.1.md`](testing_v1.0.1.md) - 测试方法和故障排除
+
+### 升级指南
+- [`upgrade_guide_v1_to_v2.md`](upgrade_guide_v1_to_v2.md) - v1.0.1到v2.0升级指南
+
+## v2.0 文档
+
+### 核心文档
+- [`00_backlog.md`](00_backlog.md) - 当前待办事项
+- [`03_system_architecture.md`](03_system_architecture.md) - v2.0系统架构
+- [`06_configuration_guide.md`](06_configuration_guide.md) - v2.0配置指南
+- [`05_testing_approach.md`](05_testing_approach.md) - v2.0测试方法
+
+### 业务文档
+- [`01_business_rules.md`](01_business_rules.md) - 业务规则和奖励计算逻辑
+
+### 项目管理
+- [`project_management/`](project_management/) - 项目管理文档和已完成项目归档
 
 ## 项目概述
 
@@ -9,105 +48,51 @@
 1. **数据获取**：从Metabase API自动获取合同数据
 2. **奖励计算**：基于配置的规则计算管家奖励
 3. **SLA监控**：监控服务商SLA违规情况并发送通知
-4. **通知发送**：自动向相关人员发送各类通知，通过GUI操作微信、企微以及通过企微的API多个渠道发送不同的通知
+4. **通知发送**：自动向相关人员发送各类通知
 5. **数据可视化**：通过Streamlit仪表板展示业绩数据
 
-## 目录结构
+## 技术栈
 
-- `01_business_rules.md`: 业务规则参考，详细说明奖励计算规则
-- `02_business_objects_design.md`: 业务对象设计，提炼系统中的核心业务对象
-- `03_system_architecture.md`: 系统架构概览，描述系统组件和数据流
-- `04_roadmap.md`: 开发路线图，列出短期、中期和长期目标
-- `05_testing_approach.md`: 测试策略简述，描述测试重点和方法
-- `06_configuration_guide.md`: 配置指南，说明系统配置项和最佳实践
-- `project_management/`: 项目管理文档，包括计划、进度跟踪和风险管理
-  - `reward_system_refactoring_plan.md`: 奖励系统重构计划
-  - `task_checklist.md`: 重构任务清单
-  - `scrum_task_board.md`: Scrum任务板
+- **Python 3.8+** - 核心开发语言
+- **CSV文件** - 数据存储 (v1.0.1)
+- **SQLite** - 任务管理和数据存储 (v2.0)
+- **Schedule** - 任务调度
+- **企业微信API** - 通知发送
 
-## 核心技术栈
+## 快速启动
 
-系统使用以下技术构建：
+### v1.0.1-stable (当前生产版本)
+```bash
+# 启动主程序
+python main.py
 
-- **Python**: 核心开发语言
-- **SQLite**: 任务管理数据库
-- **Streamlit**: 数据可视化仪表板
-- **Schedule**: 任务调度
-- **Threading**: 多线程处理
-- **Pandas**: 数据处理和分析
-- **企业微信API**: 通知发送
+# 启动仪表板
+streamlit run streamlit_app/app.py
+```
 
-## 系统架构
+### v2.0.0 (测试版本)
+```bash
+# 配置环境变量后启动
+python main.py --env dev
 
-系统采用模块化架构，主要组件包括：
+# 或指定特定任务
+python main.py --task beijing-may --run-once
+```
 
-1. **作业系统**: 定义并执行定时任务
-2. **数据处理模块**: 处理合同数据，计算奖励
-3. **配置系统**: 集中管理所有配置项
-4. **通知模块**: 发送奖励通知
-5. **任务调度器**: 管理和执行任务队列
-6. **任务管理系统**: 管理任务的创建和更新
-7. **日志系统**: 配置和管理系统日志
-8. **SLA监控系统**: 监控服务商SLA违规情况
+## 版本选择指南
 
-详细架构请参考 `03_system_architecture.md`。
+### 使用 v1.0.1-stable 如果：
+- 需要生产环境稳定运行
+- 偏好文件存储方式
+- 不需要复杂的配置管理
+- 希望快速部署和维护
 
-## 文档用途
-
-这些文档旨在：
-
-1. 提供项目的清晰架构和设计思路
-2. 记录业务规则和配置指南
-3. 跟踪项目进度和里程碑
-4. 指导系统重构和升级
-5. 促进开发者对系统的理解
-
-## 业务对象
-
-系统中的核心业务对象包括：
-
-1. **活动(Campaign)**: 销售激励活动，具有特定时间范围、地区和奖励规则
-2. **合同(Contract)**: 客户签约的服务协议，奖励计算的基础单位
-3. **管家(Housekeeper)**: 负责客户服务和合同签约的服务人员
-4. **奖励(Reward)**: 根据业绩规则发放给管家的奖励
-5. **服务商(ServiceProvider)**: 提供服务的公司，管理多个管家
-6. **工单(ServiceAppointment)**: 服务请求单，可能对应多个合同
-
-详细业务对象设计请参考 `02_business_objects_design.md`。
-
-## 当前重构重点
-
-当前正在进行奖励系统重构，主要目标是：
-
-1. 统一北京和上海的数据处理函数
-2. 创建通用数据处理框架
-3. 提高代码可维护性和可扩展性
-4. 优化数据库使用
-
-详细重构计划请参考 `project_management/reward_system_refactoring_plan.md`。
-
-## 文档维护
-
-- 所有文档应保持最新，并在发生变更时及时更新
-- 每个文档应包含版本号和最后更新日期
-- 重大变更应通过版本控制系统跟踪
-- 定期审查文档以确保其准确性和相关性
-
-## 如何使用
-
-1. 在开始新任务前，首先查阅 `01_business_rules.md` 了解业务规则
-2. 参考 `02_business_objects_design.md` 理解系统的核心业务对象
-3. 通过 `03_system_architecture.md` 了解系统架构
-4. 按照 `04_roadmap.md` 规划功能开发
-5. 遵循 `05_testing_approach.md` 进行功能测试
-6. 参考 `06_configuration_guide.md` 进行系统配置
-7. 使用项目管理文档跟踪进度
-
-## 启动项目
-
-- 主程序: 运行 `python main.py` 或 `start.bat`
-- 仪表板: 运行 `streamlit run streamlit_app/app.py` 或 `run_streamlit.bat`
+### 升级到 v2.0.0 如果：
+- 需要更好的安全性（环境变量）
+- 希望使用数据库存储
+- 需要更灵活的配置管理
+- 计划扩展到更多城市/活动
 
 ---
 
-**注意**: 请确保所有敏感信息（如密码、API密钥等）不要包含在这些文档中。
+**文档版本**: 双版本支持 | **更新日期**: 2025-05-17 | **维护者**: Frank & AI助手
