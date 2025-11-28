@@ -9,9 +9,9 @@ from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 import datetime
 import task_scheduler # 引入任务调度模块
 
-# 导入新架构下的10月和11月job函数
-from modules.core.beijing_jobs import signing_and_sales_incentive_oct_beijing, signing_and_sales_incentive_nov_beijing
-from modules.core.shanghai_jobs import signing_and_sales_incentive_oct_shanghai, signing_and_sales_incentive_nov_shanghai
+# 导入新架构下的10月、11月和12月job函数
+from modules.core.beijing_jobs import signing_and_sales_incentive_oct_beijing, signing_and_sales_incentive_nov_beijing, signing_and_sales_incentive_dec_beijing
+from modules.core.shanghai_jobs import signing_and_sales_incentive_oct_shanghai, signing_and_sales_incentive_nov_shanghai, signing_and_sales_incentive_dec_shanghai
 
 # 设置日志
 setup_logging()
@@ -63,6 +63,27 @@ def run_jobs_serially():
             logging.error(f"An error occurred while running signing_and_sales_incentive_nov_beijing: {e}")
             logging.error(traceback.format_exc())
 
+    elif current_month == 12:
+        # 上海12月份（新架构 - 仅播报模式）
+        try:
+            logging.info("开始执行上海12月销售激励任务（仅播报模式）")
+            signing_and_sales_incentive_dec_shanghai()
+            time.sleep(5)
+            logging.info("上海12月销售激励任务执行完成")
+        except Exception as e:
+            logging.error(f"An error occurred while running signing_and_sales_incentive_dec_shanghai: {e}")
+            logging.error(traceback.format_exc())
+
+        # 北京12月份（新架构 - 规则与11月一致，仅播报模式）
+        try:
+            logging.info("开始执行北京12月销售激励任务（仅播报模式）")
+            signing_and_sales_incentive_dec_beijing()
+            time.sleep(5)
+            logging.info("北京12月销售激励任务执行完成")
+        except Exception as e:
+            logging.error(f"An error occurred while running signing_and_sales_incentive_dec_beijing: {e}")
+            logging.error(traceback.format_exc())
+
     else:
         logging.info("No tasks scheduled for this month.")
 
@@ -100,23 +121,25 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=task_scheduler.start)
     scheduler_thread.daemon = True  # 设置为守护线程
 
-    # # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
-    # scheduler_thread.start()  # 测试期间禁用，避免发送真实消息
+    # 启动任务调度器线程，注释后可单独测试任务且不会触发GUI操作
+    scheduler_thread.start()  # 测试期间禁用，避免发送真实消息
 
     # 单独测试任务
     # generate_daily_service_report()
     # signing_and_sales_incentive_oct_shanghai()  # 10月上海（新架构）
     # signing_and_sales_incentive_oct_beijing()   # 10月北京（新架构）
     # signing_and_sales_incentive_nov_beijing()  # 11月北京（新架构）
-    signing_and_sales_incentive_nov_shanghai()  # 11月上海（新架构）
+    # signing_and_sales_incentive_dec_beijing()  # 12月北京（新架构）
+    # signing_and_sales_incentive_nov_shanghai()  # 11月上海（新架构）
+    # signing_and_sales_incentive_dec_shanghai()  # 12月上海（新架构）
     # pending_orders_reminder_task()
 
-    # # 启动调度循环
-    # while True:
-    #     try:
-    #         schedule.run_pending()  # 这里也在运行schedule的任务
-    #         time.sleep(1)
-    #     except Exception as e:
-    #         logging.error(f"Job failed with exception: {e}")
-    #         logging.error(traceback.format_exc())
-    #         time.sleep(5)
+    # 启动调度循环
+    while True:
+        try:
+            schedule.run_pending()  # 这里也在运行schedule的任务
+            time.sleep(1)
+        except Exception as e:
+            logging.error(f"Job failed with exception: {e}")
+            logging.error(traceback.format_exc())
+            time.sleep(5)

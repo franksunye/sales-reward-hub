@@ -520,6 +520,85 @@ def signing_and_sales_incentive_nov_beijing():
     return signing_and_sales_incentive_nov_beijing_v2()
 
 
+def signing_and_sales_incentive_dec_beijing_v2() -> List[PerformanceRecord]:
+    """
+    北京2025年12月销售激励任务（新架构）
+
+    特点（规则与11月一致）：
+    - 仅播报模式：不计算任何奖励
+    - 仅处理平台单
+    - 不处理历史合同
+    - 简化消息模板
+    """
+    logging.info("开始执行北京12月销售激励任务（仅播报模式）")
+
+    try:
+        # 创建处理管道（复用11月配置）
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-11",  # 复用11月配置
+            activity_code="BJ-DEC",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_dual_track=False,  # 不启用双轨统计
+            enable_project_limit=False,  # 不启用工单上限
+            enable_historical_contracts=False,  # 不处理历史合同
+            db_path="performance_data.db"
+        )
+
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+
+        # 获取合同数据
+        contract_data = _get_contract_data_from_metabase_dec()
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+
+        # 处理数据（会自动过滤平台单）
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+
+        # 生成输出和发送通知
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+        _send_notifications(processed_records, config)
+
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"北京12月任务执行失败: {e}")
+        raise
+
+
+def _get_contract_data_from_metabase_dec() -> List[Dict]:
+    """获取北京12月合同数据（沿用11月API）"""
+    logging.info("从Metabase获取北京12月合同数据...")
+
+    try:
+        from modules.config import API_URL_BJ_DEC
+        from modules.request_module import send_request_with_managed_session
+
+        response = send_request_with_managed_session(API_URL_BJ_DEC)
+
+        if response is None:
+            logging.error("Metabase API调用失败")
+            return []
+
+        # 使用通用的解析函数
+        contract_data = _parse_metabase_response(response)
+        if contract_data:
+            logging.info(f"从Metabase获取到 {len(contract_data)} 条合同数据")
+        return contract_data
+
+    except Exception as e:
+        logging.error(f"获取北京12月合同数据失败: {e}")
+        raise
+
+
+def signing_and_sales_incentive_dec_beijing():
+    """兼容性包装函数 - 北京12月"""
+    return signing_and_sales_incentive_dec_beijing_v2()
+
+
 if __name__ == "__main__":
     # 测试北京Job函数
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

@@ -469,6 +469,62 @@ def signing_and_sales_incentive_nov_shanghai():
     return signing_and_sales_incentive_nov_shanghai_v2()
 
 
+def signing_and_sales_incentive_dec_shanghai_v2() -> List[PerformanceRecord]:
+    """
+    上海2025年12月销售激励任务（新架构）
+
+    特点（仅播报模式）：
+    - 不计算任何奖励
+    - 仅处理平台单
+    - 不处理历史合同
+    - 简化消息模板
+    """
+    logging.info("开始执行上海12月销售激励任务（仅播报模式）")
+
+    try:
+        # 创建处理管道（使用12月专用配置）
+        pipeline, config, store = create_standard_pipeline(
+            config_key="SH-2025-12",  # 使用12月仅播报配置
+            activity_code="SH-DEC",
+            city="SH",
+            housekeeper_key_format="管家_服务商",
+            storage_type="sqlite",
+            enable_dual_track=False,  # 不启用双轨统计
+            enable_project_limit=False,  # 不启用工单上限
+            enable_historical_contracts=False,  # 不处理历史合同
+            db_path="performance_data.db"
+        )
+
+        logging.info(f"创建处理管道成功: {config.activity_code}")
+
+        # 获取合同数据（使用12月API）
+        from modules.config import API_URL_SH_DEC
+        contract_data = _get_shanghai_contract_data(API_URL_SH_DEC)
+        logging.info(f"获取到 {len(contract_data)} 个合同数据")
+
+        # 处理数据（会自动过滤平台单）
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"处理完成: {len(processed_records)} 条记录")
+
+        # 生成输出和发送通知
+        if config.enable_csv_output:
+            csv_file = _generate_csv_output(processed_records, config)
+            logging.info(f"生成CSV文件: {csv_file}")
+
+        _send_notifications(processed_records, config)
+
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"上海12月任务执行失败: {e}")
+        raise
+
+
+def signing_and_sales_incentive_dec_shanghai():
+    """兼容性包装函数 - 上海12月"""
+    return signing_and_sales_incentive_dec_shanghai_v2()
+
+
 if __name__ == "__main__":
     # 测试上海Job函数
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

@@ -271,6 +271,71 @@ REWARD_CONFIGS = {
             }
         }
     },
+    # 上海2025年12月活动配置（仅播报模式，不计算奖励）
+    "SH-2025-12": {
+        # 禁用幸运数字
+        "lucky_number": "",
+        "lucky_number_sequence_type": "global",
+
+        # 禁用幸运数字奖励
+        "lucky_rewards": {
+            "base": {"name": "", "threshold": 0},
+            "high": {"name": "", "threshold": 999999999}
+        },
+
+        # 性能限制配置（可选，因为无奖励计算）
+        "performance_limits": {
+            "enable_cap": False,  # 不启用上限
+            "single_contract_cap": 40000
+        },
+
+        # 禁用节节高奖励
+        "tiered_rewards": {
+            "min_contracts": 0,  # 无门槛
+            "tiers": []  # 空奖励列表
+        },
+
+        # 空奖励映射
+        "awards_mapping": {},
+
+        # 禁用自引单奖励
+        "self_referral_rewards": {
+            "enable": False
+        },
+
+        # 奖励计算策略：仅播报模式
+        "reward_calculation_strategy": {
+            "type": "announcement_only",  # 仅播报策略
+            "rules": {
+                "default": {
+                    "enable_tiered_rewards": False,
+                    "stats_source": "platform_only"
+                }
+            }
+        },
+
+        # 通知配置：仅播报模式
+        "notification_config": {
+            "template_type": "announcement_only",  # 消息模板类型
+            "enable_award_notification": False,  # 禁用个人奖励通知
+            "show_order_type": False,  # 不显示工单类型
+            "show_dual_track_stats": False,  # 不显示双轨统计
+            "show_reward_progress": False,  # 不显示奖励进度
+            "closing_message": "继续加油，再接再厉！"  # 固定结束语
+        },
+
+        # 数据处理配置
+        "processing_config": {
+            "process_platform_only": True,  # 仅处理平台单（修复后支持字符串类型的sourceType）
+            "enable_historical_contracts": False  # 不处理历史合同
+        },
+
+        # 徽章配置
+        "badge_config": {
+            "enable_elite_badge": False,
+            "enable_rising_star_badge": False
+        }
+    },
     # 北京2025年11月活动配置
     "BJ-2025-11": {
         # 禁用幸运数字
@@ -393,6 +458,9 @@ TEMP_CONTRACT_DATA_FILE_SH_NOV = 'state/ContractData-SH-Nov.csv'
 PERFORMANCE_DATA_FILENAME_SH_NOV = 'state/PerformanceData-SH-Nov.csv'
 STATUS_FILENAME_SH_NOV = 'state/send_status_shanghai_nov.json'
 
+## 上海地区，2025年12月活动（仅播报模式，API沿用11月）
+API_URL_SH_DEC = METABASE_URL + "/api/card/1884/query"
+
 
 
 # 销售激励活动 奖金池计算比例
@@ -415,6 +483,9 @@ API_URL_BJ_NOV = METABASE_URL + "/api/card/1864/query"
 TEMP_CONTRACT_DATA_FILE_BJ_NOV = 'state/ContractData-BJ-Nov.csv'
 PERFORMANCE_DATA_FILENAME_BJ_NOV = 'state/PerformanceData-BJ-Nov.csv'
 STATUS_FILENAME_BJ_NOV = 'state/send_status_bj_nov.json'
+
+## 北京地区，2025年12月活动（规则与11月一致，API沿用11月）
+API_URL_BJ_DEC = METABASE_URL + "/api/card/1864/query"
 
 
 # 销售激励活动 奖金池计算比例
