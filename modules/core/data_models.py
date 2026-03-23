@@ -8,6 +8,66 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set
 from enum import Enum
 import json
+import os
+import sqlite3
+
+
+def _query_cumulative_performance_amount(contract_id: str) -> float:
+    """按当前 DB_SOURCE 读取累计业绩金额，查询失败时返回 0。"""
+    db_source = os.getenv("DB_SOURCE", "").strip().lower()
+
+    if db_source == "cloud":
+        db_url = os.getenv("TURSO_DB_URL", "").strip()
+        auth_token = os.getenv("TURSO_AUTH_TOKEN", "").strip()
+        if db_url and auth_token:
+            try:
+                import requests
+                base = db_url.replace("libsql://", "https://").replace("wss://", "https://").rstrip("/")
+                payload = {
+                    "requests": [
+                        {
+                            "type": "execute",
+                            "stmt": {
+                                "sql": "SELECT cumulative_performance_amount FROM performance_data WHERE contract_id = ? LIMIT 1",
+                                "args": [{"type": "text", "value": contract_id}],
+                            },
+                        },
+                        {"type": "close"},
+                    ]
+                }
+                response = requests.post(
+                    f"{base}/v2/pipeline",
+                    headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=15,
+                )
+                response.raise_for_status()
+                result = response.json().get("results", [{}])[0]
+                if result.get("type") == "ok":
+                    rows = result.get("response", {}).get("result", {}).get("rows", [])
+                    if rows and rows[0]:
+                        cell = rows[0][0]
+                        value = cell.get("value")
+                        if value is None:
+                            return 0.0
+                        return float(value)
+            except Exception:
+                return 0.0
+        return 0.0
+
+    db_path = os.getenv("LOCAL_DB_PATH", "performance_data.db")
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT cumulative_performance_amount FROM performance_data WHERE contract_id = ? LIMIT 1",
+                (contract_id,),
+            )
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                return float(result[0])
+    except Exception:
+        return 0.0
+    return 0.0
 
 
 class OrderType(Enum):
@@ -69,7 +129,7 @@ class ProcessingConfig:
     housekeeper_key_format: str        # "管家" 或 "管家_服务商"
     
     # 功能开关
-    storage_type: str = "sqlite"       # 仅支持 "sqlite"
+    storage_type: str = "sqlite"       # 支持 "sqlite" 或 "turso"
     enable_dual_track: bool = False    # 是否启用双轨统计
     enable_historical_contracts: bool = False  # 是否支持历史合同
     enable_project_limit: bool = False # 是否启用工单金额上限
@@ -106,21 +166,7 @@ class ContractData:
     def from_dict(cls, data: Dict) -> 'ContractData':
         """从字典创建合同数据"""
         contract_id = str(data['合同ID(_id)'])
-
-        # 🔧 修复：从数据库中读取累计业绩金额（如果存在）
-        cumulative_performance_amount = 0.0
-        try:
-            import sqlite3
-            with sqlite3.connect('performance_data.db') as conn:
-                cursor = conn.execute(
-                    "SELECT cumulative_performance_amount FROM performance_data WHERE contract_id = ? LIMIT 1",
-                    (contract_id,)
-                )
-                result = cursor.fetchone()
-                if result:
-                    cumulative_performance_amount = result[0]
-        except Exception:
-            pass  # 如果数据库不存在或查询失败，使用默认值0
+        cumulative_performance_amount = _query_cumulative_performance_amount(contract_id)
 
         return cls(
             contract_id=contract_id,

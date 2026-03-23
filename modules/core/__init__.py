@@ -114,15 +114,26 @@ def get_version_info():
 
 def create_standard_pipeline(config_key: str, activity_code: str, city: str, **kwargs):
     """创建标准处理管道的便捷函数"""
+    import os
     from .data_models import City, ProcessingConfig
     
+    # DB_SOURCE 优先于调用方硬编码，确保本地/云端可统一切换
+    db_source = os.getenv("DB_SOURCE", "").strip().lower()
+    requested_storage = kwargs.get("storage_type", "sqlite")
+    if db_source == "cloud":
+        resolved_storage = "turso"
+    elif db_source == "local":
+        resolved_storage = "sqlite"
+    else:
+        resolved_storage = requested_storage
+
     # 创建处理配置
     config = ProcessingConfig(
         config_key=config_key,
         activity_code=activity_code,
         city=City(city),
         housekeeper_key_format=kwargs.get('housekeeper_key_format', '管家'),
-        storage_type=kwargs.get('storage_type', 'sqlite'),
+        storage_type=resolved_storage,
         enable_dual_track=kwargs.get('enable_dual_track', False),
         enable_historical_contracts=kwargs.get('enable_historical_contracts', False),
         enable_project_limit=kwargs.get('enable_project_limit', False),
@@ -131,6 +142,12 @@ def create_standard_pipeline(config_key: str, activity_code: str, city: str, **k
     
     # 创建存储实例
     storage_kwargs = {k: v for k, v in kwargs.items() if k not in ['housekeeper_key_format', 'storage_type', 'enable_dual_track', 'enable_historical_contracts', 'enable_project_limit', 'enable_csv_output']}
+    if config.storage_type == "sqlite":
+        storage_kwargs.setdefault("db_path", os.getenv("LOCAL_DB_PATH", kwargs.get("db_path", "performance_data.db")))
+    elif config.storage_type == "turso":
+        storage_kwargs.setdefault("db_url", os.getenv("TURSO_DB_URL"))
+        storage_kwargs.setdefault("auth_token", os.getenv("TURSO_AUTH_TOKEN"))
+
     store = create_data_store(
         storage_type=config.storage_type,
         **storage_kwargs

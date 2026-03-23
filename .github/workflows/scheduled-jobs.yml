@@ -1,0 +1,34 @@
+name: Beijing Signing Broadcast
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC 00:00-11:30 every 30m -> Asia/Shanghai 08:00-19:30
+    - cron: "0,30 0-11 * * *"
+    # UTC 12:00 -> Asia/Shanghai 20:00
+    - cron: "0 12 * * *"
+
+concurrency:
+  group: beijing-signing-broadcast
+  cancel-in-progress: false
+
+jobs:
+  run-broadcast:
+    runs-on: ubuntu-latest
+    env:
+      DB_SOURCE: cloud
+      TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
+      METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
+      WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run Beijing signing broadcast once
+        run: PYTHONPATH=. python scripts/run_scheduled_task.py --task beijing-sign-broadcast

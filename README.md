@@ -11,13 +11,23 @@
 
 ## 🚀 快速开始
 
+### 环境准备
+```bash
+cp .env.example .env
+pip install -r requirements.txt
+```
+
+数据库模式切换：
+- 本地开发：`DB_SOURCE=local`（默认，使用 `LOCAL_DB_PATH`）
+- 线上生产：`DB_SOURCE=cloud`（使用 `TURSO_DB_URL` + `TURSO_AUTH_TOKEN`）
+
 ### 新架构（推荐）
 ```bash
-# 北京9月签约激励
-python -c "from modules.core.beijing_jobs import signing_and_sales_incentive_sep_beijing_v2; signing_and_sales_incentive_sep_beijing_v2()"
+# 北京签约播报（常驻，无月份限制）
+python -c "from modules.core.beijing_jobs import signing_broadcast_beijing_v2; signing_broadcast_beijing_v2()"
 
 # 导出结果到CSV
-python scripts/export_database_to_csv.py --activity BJ-SEP --compatible
+python scripts/export_database_to_csv.py --activity BJ-SIGN-BROADCAST --compatible
 ```
 
 ### 旧架构（对比验证）
@@ -60,7 +70,7 @@ cat docs/manual_validation_guide.md
 
 ## 🎯 主要功能
 
-- **签约激励计算**: 自动计算管家签约奖励
+- **北京签约播报**: 自动播报签约数据（仅播报，无奖励）
 - **服务监控**: SLA违规监控和通知
 - **工单提醒**: 待预约工单自动提醒
 - **数据处理**: 合同数据自动化处理
@@ -95,6 +105,23 @@ python tests/test_jobs_simple.py
 1. **修改代码后**: 运行 `python tests/test_jobs_simple.py` 快速验证
 2. **重要变更前**: 在测试环境运行真实任务验证
 3. **部署前**: 确保所有测试通过
+
+## 🤖 GitHub Actions 定时任务
+
+项目已提供工作流：`.github/workflows/scheduled-jobs.yml`。
+
+默认计划：
+- 每10分钟：执行北京签约播报任务（无月份限制）
+
+请在 GitHub 仓库 `Settings -> Secrets and variables -> Actions` 配置：
+- `TURSO_DB_URL`
+- `TURSO_AUTH_TOKEN`
+- `METABASE_USERNAME`
+- `METABASE_PASSWORD`
+- `WECOM_WEBHOOK_DEFAULT`
+- `CONTACT_PHONE_NUMBER`
+- `API_URL_BJ_SIGN_BROADCAST`（可选，不填则使用默认值）
+- `METABASE_URL`（可选，不填则使用默认值）
 
 ## 📞 支持
 

@@ -198,7 +198,13 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
     # 构建字段名映射
     column_names = [col['name'] for col in columns]
 
-    # 转换为字典格式，并映射到标准字段名
+    def pick_value(raw: Dict, *keys, default=''):
+        for key in keys:
+            if key in raw and raw.get(key) not in (None, ''):
+                return raw.get(key)
+        return default
+
+    # 转换为字典格式，并映射到标准字段名（兼容不同字段命名）
     contract_data = []
     for row in rows:
         raw_dict = dict(zip(column_names, row))
@@ -206,7 +212,7 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
         # 🔧 关键修复：sourceType 字段处理
         # API 返回的 sourceType 可能是字符串或数字，需要转换为数字
         # 默认值为 2（平台单）
-        source_type = raw_dict.get('sourceType', 2)
+        source_type = pick_value(raw_dict, 'sourceType', '工单类型(sourceType)', 'orderType', default=2)
         if isinstance(source_type, str):
             try:
                 source_type = int(source_type)
@@ -215,27 +221,27 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
 
         # 映射到标准字段名（中文）
         contract_dict = {
-            '合同ID(_id)': raw_dict.get('_id', ''),
-            '活动城市(province)': raw_dict.get('province', ''),
-            '工单编号(serviceAppointmentNum)': raw_dict.get('serviceAppointmentNum', ''),
-            'Status': raw_dict.get('status', ''),
-            '管家(serviceHousekeeper)': raw_dict.get('serviceHousekeeper', ''),
-            '合同编号(contractdocNum)': raw_dict.get('contractdocNum', ''),
-            '合同金额(adjustRefundMoney)': raw_dict.get('adjustRefundMoney', 0),
-            '支付金额(paidAmount)': raw_dict.get('paidAmount', 0),
-            '差额(difference)': raw_dict.get('difference', 0),
-            'State': raw_dict.get('state', ''),
-            '创建时间(createTime)': raw_dict.get('createTime', ''),
-            '服务商(orgName)': raw_dict.get('orgName', ''),
-            '签约时间(signedDate)': raw_dict.get('signedDate', ''),
-            'Doorsill': raw_dict.get('Doorsill', 0),
-            '款项来源类型(tradeIn)': raw_dict.get('tradeIn', ''),
-            '转化率(conversion)': raw_dict.get('conversion', 0),
-            '平均客单价(average)': raw_dict.get('average', 0),
-            '管家ID(serviceHousekeeperId)': raw_dict.get('serviceHousekeeperId', ''),
+            '合同ID(_id)': pick_value(raw_dict, '_id', '合同ID(_id)', 'contract_id'),
+            '活动城市(province)': pick_value(raw_dict, 'province', '活动城市(province)', 'city'),
+            '工单编号(serviceAppointmentNum)': pick_value(raw_dict, 'serviceAppointmentNum', '工单编号(serviceAppointmentNum)', 'appointmentNum'),
+            'Status': pick_value(raw_dict, 'status', 'Status', default=''),
+            '管家(serviceHousekeeper)': pick_value(raw_dict, 'serviceHousekeeper', '管家(serviceHousekeeper)', 'housekeeper'),
+            '合同编号(contractdocNum)': pick_value(raw_dict, 'contractdocNum', '合同编号(contractdocNum)', 'contractNum'),
+            '合同金额(adjustRefundMoney)': pick_value(raw_dict, 'adjustRefundMoney', '合同金额(adjustRefundMoney)', 'contractAmount', default=0),
+            '支付金额(paidAmount)': pick_value(raw_dict, 'paidAmount', '支付金额(paidAmount)', default=0),
+            '差额(difference)': pick_value(raw_dict, 'difference', '差额(difference)', default=0),
+            'State': pick_value(raw_dict, 'state', 'State', default=''),
+            '创建时间(createTime)': pick_value(raw_dict, 'createTime', '创建时间(createTime)', default=''),
+            '服务商(orgName)': pick_value(raw_dict, 'orgName', '服务商(orgName)', 'serviceProvider', default=''),
+            '签约时间(signedDate)': pick_value(raw_dict, 'signedDate', '签约时间(signedDate)', 'signTime', default=''),
+            'Doorsill': pick_value(raw_dict, 'Doorsill', default=0),
+            '款项来源类型(tradeIn)': pick_value(raw_dict, 'tradeIn', '款项来源类型(tradeIn)', default=''),
+            '转化率(conversion)': pick_value(raw_dict, 'conversion', '转化率(conversion)', default=0),
+            '平均客单价(average)': pick_value(raw_dict, 'average', '平均客单价(average)', default=0),
+            '管家ID(serviceHousekeeperId)': pick_value(raw_dict, 'serviceHousekeeperId', '管家ID(serviceHousekeeperId)', default=''),
             '工单类型(sourceType)': source_type,  # ✅ 使用转换后的数字值
-            '联系地址(contactsAddress)': raw_dict.get('contactsAddress', ''),
-            '项目地址(projectAddress)': raw_dict.get('projectAddress', ''),
+            '联系地址(contactsAddress)': pick_value(raw_dict, 'contactsAddress', '联系地址(contactsAddress)', default=''),
+            '项目地址(projectAddress)': pick_value(raw_dict, 'projectAddress', '项目地址(projectAddress)', default=''),
         }
         contract_data.append(contract_dict)
 
@@ -364,8 +370,14 @@ def _send_notifications(records: List[PerformanceRecord], config):
 
     # 发送通知
     stats = notification_service.send_notifications()
-
-    logging.info(f"通知发送完成 - 总计: {stats['total']}, 群通知: {stats['group_notifications']}, 奖励通知: {stats['award_notifications']}")
+    logging.info(
+        "通知发送完成 - records=%s, enqueued=%s, sent=%s, failed=%s, dead_letter=%s",
+        stats.get("records", 0),
+        stats.get("enqueued", 0),
+        stats.get("sent", 0),
+        stats.get("failed", 0),
+        stats.get("dead_letter", 0),
+    )
 
 
 # 兼容性函数 - 保持与现有调用方式的兼容
@@ -518,6 +530,68 @@ def _get_contract_data_from_metabase_nov() -> List[Dict]:
 def signing_and_sales_incentive_nov_beijing():
     """兼容性包装函数 - 北京11月"""
     return signing_and_sales_incentive_nov_beijing_v2()
+
+
+def signing_broadcast_beijing_v2() -> List[PerformanceRecord]:
+    """
+    北京签约播报（常驻任务，无月份限制）
+    - 仅播报签约数据
+    - 不计算奖励
+    - 仅平台单
+    """
+    logging.info("开始执行北京签约播报任务（常驻）")
+
+    try:
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-2025-11",  # 复用仅播报配置
+            activity_code="BJ-SIGN-BROADCAST",
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_dual_track=False,
+            enable_project_limit=False,
+            enable_historical_contracts=False,
+            db_path="performance_data.db"
+        )
+
+        contract_data = _get_contract_data_from_metabase_broadcast()
+        logging.info(f"北京签约播报：获取到 {len(contract_data)} 条合同数据")
+
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"北京签约播报：处理完成 {len(processed_records)} 条记录")
+
+        _send_notifications(processed_records, config)
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"北京签约播报任务执行失败: {e}")
+        raise
+
+
+def _get_contract_data_from_metabase_broadcast() -> List[Dict]:
+    """获取北京签约播报数据（新 Metabase 地址）。"""
+    logging.info("从Metabase获取北京签约播报数据...")
+    try:
+        from modules.config import API_URL_BJ_SIGN_BROADCAST
+        from modules.request_module import send_request_with_managed_session
+
+        response = send_request_with_managed_session(API_URL_BJ_SIGN_BROADCAST)
+        if response is None:
+            logging.error("Metabase API调用失败")
+            return []
+
+        contract_data = _parse_metabase_response(response)
+        if contract_data:
+            logging.info(f"从Metabase获取到 {len(contract_data)} 条签约播报数据")
+        return contract_data
+    except Exception as e:
+        logging.error(f"获取北京签约播报数据失败: {e}")
+        raise
+
+
+def signing_broadcast_beijing():
+    """兼容性包装函数 - 北京签约播报"""
+    return signing_broadcast_beijing_v2()
 
 
 def signing_and_sales_incentive_dec_beijing_v2() -> List[PerformanceRecord]:

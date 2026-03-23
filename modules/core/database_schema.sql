@@ -120,6 +120,27 @@ CREATE TABLE schema_version (
     description TEXT
 );
 
+-- webhook 发送外发箱（生产可观测、可重试、可补发）
+CREATE TABLE notification_outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_code TEXT NOT NULL,
+    contract_id TEXT NOT NULL,
+    message_type TEXT NOT NULL DEFAULT 'group_broadcast',
+    webhook_url TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    dedupe_key TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending | failed | sent | dead_letter
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    response_code INTEGER DEFAULT 0,
+    response_body TEXT DEFAULT '',
+    last_error TEXT DEFAULT '',
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(activity_code, dedupe_key)
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_retry ON notification_outbox(activity_code, status, attempt_count, created_at);
+
 -- 插入当前版本信息
 INSERT OR IGNORE INTO schema_version (version, description)
 VALUES ('1.1.0', 'Complete schema with notification_sent and remarks fields for notification service');

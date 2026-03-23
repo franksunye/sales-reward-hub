@@ -409,7 +409,8 @@ REWARD_CONFIGS = {
 ARCHIVE_DIR = 'archive'
 
 # 业务数据源服务器配置
-METABASE_URL = 'http://metabase.fsgo365.cn:3000'
+# 默认切换为北京签约播报新源，可通过环境变量 METABASE_URL 覆盖
+METABASE_URL = os.getenv('METABASE_URL', 'http://112.126.77.6:3000')
 METABASE_SESSION = METABASE_URL + '/api/session/'
 
 # 获取数据 账号密码（从环境变量读取，必须配置）
@@ -428,8 +429,11 @@ RUN_JOBS_SERIALLY_SCHEDULE = 3 # 每3分钟执行一次
 TASK_CHECK_INTERVAL = 10
 
 # 北京地区
-# 北京运营企微群机器人通讯地址（从环境变量读取，必须配置）
-WEBHOOK_URL_DEFAULT = os.getenv('WECOM_WEBHOOK_DEFAULT')
+# 北京运营企微群机器人通讯地址（默认值为测试 webhook，可通过环境变量覆盖）
+WEBHOOK_URL_DEFAULT = os.getenv(
+    'WECOM_WEBHOOK_DEFAULT',
+    'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4fbae71d-8d83-479f-a2db-7690eeb37a5c'
+)
 PHONE_NUMBER = os.getenv('CONTACT_PHONE_NUMBER')
 
 # 验证必需的环境变量
@@ -475,6 +479,12 @@ API_URL_BJ_OCT = METABASE_URL + "/api/card/1883/query"
 TEMP_CONTRACT_DATA_FILE_BJ_OCT = 'state/ContractData-BJ-Oct.csv'
 PERFORMANCE_DATA_FILENAME_BJ_OCT = 'state/PerformanceData-BJ-Oct.csv'
 STATUS_FILENAME_BJ_OCT = 'state/send_status_bj_oct.json'
+
+## 北京地区，签约播报（新常驻任务，无月份限制）
+API_URL_BJ_SIGN_BROADCAST = os.getenv(
+    "API_URL_BJ_SIGN_BROADCAST",
+    METABASE_URL + "/question/2003"
+)
 
 ## 北京地区，2025年11月活动
 API_URL_BJ_NOV = METABASE_URL + "/api/card/1864/query"

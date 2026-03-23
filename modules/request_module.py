@@ -3,6 +3,7 @@ import os
 import json
 import requests
 import datetime
+import re
 from requests.exceptions import Timeout
 import logging
 from modules.config import METABASE_PASSWORD, METABASE_SESSION, METABASE_USERNAME
@@ -13,6 +14,21 @@ setup_logging()
 
 SESSION_FILE = 'metabase_session.json'
 SESSION_DURATION = 14 * 24 * 60 * 60  # 14 days in seconds
+
+
+def _normalize_metabase_query_url(api_url: str) -> str:
+    """
+    兼容 Metabase 页面地址：
+    - http://host:3000/question/2003
+    自动转换为：
+    - http://host:3000/api/card/2003/query
+    """
+    if not api_url:
+        return api_url
+    m = re.search(r"(https?://[^/]+)/question/(\d+)", api_url)
+    if m:
+        return f"{m.group(1)}/api/card/{m.group(2)}/query"
+    return api_url
 
 def get_metabase_session():
     logging.info("Attempting to get Metabase session.")
@@ -70,15 +86,16 @@ def get_valid_session():
 
 def _send_request_with_session(session_id, api_url):
     try:
+        target_url = _normalize_metabase_query_url(api_url)
         header = {
             'X-Metabase-Session': session_id,
             'Content-Type': 'application/json'
         }
-        response = requests.post(api_url, headers=header, timeout=30)
+        response = requests.post(target_url, headers=header, timeout=30)
         if response.status_code == 202:
             return response.json()
         else:
-            logging.error(f"Request failed with status code {response.status_code}")
+            logging.error(f"Request failed with status code {response.status_code}, url={target_url}")
             return None
     except Timeout:
         logging.error("Request timed out")

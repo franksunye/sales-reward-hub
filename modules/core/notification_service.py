@@ -9,13 +9,16 @@
 
 import logging
 import time
+import json
+import hashlib
+import os
 from typing import List, Dict, Optional
 from datetime import datetime
+import requests
 
 from .storage import PerformanceDataStore
 from .data_models import ProcessingConfig
 from ..config import *
-from task_manager import create_task
 
 
 class NotificationService:
@@ -34,43 +37,86 @@ class NotificationService:
             Dict: 包含发送统计信息
         """
         self.logger.info(f"开始发送通知: {self.config.activity_code}")
-        
-        # 获取需要发送通知的记录
+        stats = {
+            "records": 0,
+            "enqueued": 0,
+            "sent": 0,
+            "failed": 0,
+            "dead_letter": 0,
+        }
+
         records = self._get_notification_records()
-        self.logger.info(f"找到 {len(records)} 条需要发送通知的记录")
-        
-        if not records:
-            return {"total": 0, "group_notifications": 0, "award_notifications": 0}
-        
-        # 获取奖励映射配置
-        awards_mapping = self._get_awards_mapping()
-        
-        # 发送通知
-        stats = {"total": len(records), "group_notifications": 0, "award_notifications": 0}
-        
+        stats["records"] = len(records)
+        self.logger.info(f"找到 {len(records)} 条待通知记录（notification_sent=false）")
+
         for record in records:
             try:
-                # 发送群通知
                 if self._should_send_group_notification(record):
-                    self._send_group_notification(record)
-                    stats["group_notifications"] += 1
-                
-                # 发送个人奖励通知
-                if self._should_send_award_notification(record):
-                    self._send_award_notification(record, awards_mapping)
-                    stats["award_notifications"] += 1
-                
-                # 更新通知状态
-                self._update_notification_status(record)
-                
-                # 添加延迟避免频繁请求
-                time.sleep(1)
-                
+                    msg = self._build_group_notification_message(record)
+                    outbox_id = self._enqueue_text_outbox(record, msg, "group_broadcast")
+                    if outbox_id:
+                        stats["enqueued"] += 1
             except Exception as e:
-                self.logger.error(f"发送通知失败 - 合同ID: {record.get('contract_id')}, 错误: {e}")
-                continue
-        
-        self.logger.info(f"通知发送完成 - 总计: {stats['total']}, 群通知: {stats['group_notifications']}, 奖励通知: {stats['award_notifications']}")
+                self.logger.error(f"Outbox enqueue failed - 合同ID: {record.get('合同ID(_id)')}, 错误: {e}")
+
+        retry_limit = int(os.getenv("NOTIFICATION_OUTBOX_BATCH_LIMIT", "200"))
+        max_attempts = int(os.getenv("NOTIFICATION_OUTBOX_MAX_ATTEMPTS", "5"))
+        outbox_items = self.storage.get_retryable_outbox_messages(
+            activity_code=self.config.activity_code,
+            max_attempts=max_attempts,
+            limit=retry_limit,
+        )
+
+        self.logger.info(f"本轮待发送 outbox 数量: {len(outbox_items)}")
+        for item in outbox_items:
+            try:
+                payload = json.loads(item.get("payload_json") or "{}")
+                response = requests.post(
+                    item["webhook_url"],
+                    json=payload,
+                    timeout=20,
+                )
+                body_text = (response.text or "")[:2000]
+                if 200 <= response.status_code < 300:
+                    self.storage.mark_outbox_sent(item["id"], response.status_code, body_text)
+                    self.storage.update_notification_status(
+                        contract_id=item["contract_id"],
+                        activity_code=item["activity_code"],
+                        notification_sent=True,
+                    )
+                    stats["sent"] += 1
+                else:
+                    self.storage.mark_outbox_failed(
+                        outbox_id=item["id"],
+                        last_error=f"HTTP {response.status_code}",
+                        response_code=response.status_code,
+                        response_body=body_text,
+                        max_attempts=max_attempts,
+                    )
+                    if int(item.get("attempt_count", 0)) + 1 >= max_attempts:
+                        stats["dead_letter"] += 1
+                    else:
+                        stats["failed"] += 1
+            except Exception as e:
+                self.storage.mark_outbox_failed(
+                    outbox_id=item["id"],
+                    last_error=str(e),
+                    max_attempts=max_attempts,
+                )
+                if int(item.get("attempt_count", 0)) + 1 >= max_attempts:
+                    stats["dead_letter"] += 1
+                else:
+                    stats["failed"] += 1
+            time.sleep(0.3)
+
+        self.logger.info(
+            "通知发送完成 - records=%s, enqueued=%s, sent=%s, failed=%s, dead_letter=%s",
+            stats["records"],
+            stats["enqueued"],
+            stats["sent"],
+            stats["failed"],
+            stats["dead_letter"],
+        )
         return stats
     
     def _get_notification_records(self) -> List[Dict]:
@@ -157,30 +203,12 @@ class NotificationService:
             '服务商(orgName)': record.get('service_provider', ''),
         }
     
-    def _get_awards_mapping(self) -> Dict[str, str]:
-        """获取奖励金额映射配置"""
-        from modules.data_utils import get_awards_mapping
-        return get_awards_mapping(self.config.config_key)
-    
     def _should_send_group_notification(self, record: Dict) -> bool:
         """判断是否应该发送群通知"""
         return record.get('是否发送通知') == 'N'
     
-    def _should_send_award_notification(self, record: Dict) -> bool:
-        """判断是否应该发送奖励通知"""
-        # 🔧 新增：检查通知配置
-        # 🐛 修复：从 REWARD_CONFIGS 中获取配置，而不是从 ProcessingConfig 对象中获取
-        from .config_adapter import ConfigAdapter
-        reward_config = ConfigAdapter.get_reward_config(self.config.config_key)
-        notification_config = reward_config.get("notification_config", {})
-        if not notification_config.get("enable_award_notification", True):
-            return False
-
-        return (record.get('激活奖励状态') == '1' and
-                record.get('是否发送通知') == 'N')
-    
-    def _send_group_notification(self, record: Dict):
-        """发送群通知 - 使用与旧架构相同的消息模板"""
+    def _build_group_notification_message(self, record: Dict) -> str:
+        """构建群通知文本（发送由 outbox 负责）。"""
         # 复用现有的消息生成逻辑
         service_housekeeper = record['管家(serviceHousekeeper)']
         
@@ -213,11 +241,7 @@ class NotificationService:
 
 👊 继续加油，再接再厉！🎉🎉🎉
 '''
-            # 创建群通知任务
-            group_name = WECOM_GROUP_NAME_BJ if self.config.city.value == "BJ" else WECOM_GROUP_NAME_SH
-            create_task('send_wecom_message', group_name, msg)
-            self.logger.info(f"群通知已创建: {record['管家(serviceHousekeeper)']}")
-            return  # ✅ 北京11月消息已完整生成，直接返回
+            return msg
 
         # 其他活动的备注逻辑
         if self.config.config_key == "BJ-2025-10":
@@ -314,26 +338,24 @@ class NotificationService:
 
 👊 {next_msg}。
 '''
-        
-        # 创建群通知任务
-        group_name = WECOM_GROUP_NAME_BJ if self.config.city.value == "BJ" else WECOM_GROUP_NAME_SH
-        create_task('send_wecom_message', group_name, msg)
-        
-        self.logger.info(f"群通知已创建: {record['管家(serviceHousekeeper)']}")
-    
-    def _send_award_notification(self, record: Dict, awards_mapping: Dict[str, str]):
-        """发送奖励通知 - 使用与旧架构相同的逻辑"""
-        from modules.data_utils import generate_award_message
+        return msg
 
-        # 使用现有的奖励消息生成函数
-        city_code = self.config.city.value
-        jiangli_msg = generate_award_message(record, awards_mapping, city_code, self.config.config_key)
-
-        # 创建奖励通知任务
-        contact = CAMPAIGN_CONTACT_BJ if city_code == "BJ" else CAMPAIGN_CONTACT_SH
-        create_task('send_wechat_message', contact, jiangli_msg)
-
-        self.logger.info(f"奖励通知已创建: {record['管家(serviceHousekeeper)']} - {record.get('奖励名称', '')}")
+    def _enqueue_text_outbox(self, record: Dict, text_message: str, message_type: str) -> int:
+        payload = {
+            "msgtype": "text",
+            "text": {"content": text_message},
+        }
+        dedupe_key = f"{record['合同ID(_id)']}::{message_type}"
+        payload_json = json.dumps(payload, ensure_ascii=False)
+        hash_value = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()[:16]
+        return self.storage.enqueue_outbox_message(
+            activity_code=self.config.activity_code,
+            contract_id=record["合同ID(_id)"],
+            message_type=message_type,
+            webhook_url=WEBHOOK_URL_DEFAULT,
+            payload_json=payload_json,
+            dedupe_key=f"{dedupe_key}::{hash_value}",
+        )
     
     def _apply_badge_logic(self, housekeeper_name: str) -> str:
         """应用徽章逻辑（与旧架构保持一致）"""
