@@ -2,3 +2,4 @@ python-dotenv>=1.0.1
 requests>=2.31.0
 schedule>=1.2.2
 pandas>=2.2.2
+pytz>=2024.1

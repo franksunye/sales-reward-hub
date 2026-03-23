@@ -359,14 +359,15 @@ class NotificationService:
     
     def _apply_badge_logic(self, housekeeper_name: str) -> str:
         """应用徽章逻辑（与旧架构保持一致）"""
-        # 复用现有的徽章逻辑
-        from modules.data_utils import should_enable_badge
-        
-        if ENABLE_BADGE_MANAGEMENT:
-            elite_badge_enabled = should_enable_badge(self.config.config_key, "elite")
-            if elite_badge_enabled and housekeeper_name in ELITE_HOUSEKEEPER:
-                return f'{ELITE_BADGE_NAME}{housekeeper_name}'
-        
+        # 复用现有的徽章逻辑；可选依赖缺失时降级为“无徽章”而非阻断发送
+        try:
+            from modules.data_utils import should_enable_badge
+            if ENABLE_BADGE_MANAGEMENT:
+                elite_badge_enabled = should_enable_badge(self.config.config_key, "elite")
+                if elite_badge_enabled and housekeeper_name in ELITE_HOUSEKEEPER:
+                    return f'{ELITE_BADGE_NAME}{housekeeper_name}'
+        except Exception as e:
+            self.logger.warning(f"徽章逻辑降级（不影响发送）: {e}")
         return housekeeper_name
     
     def _format_amount(self, amount) -> str:
