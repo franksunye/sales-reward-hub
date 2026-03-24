@@ -2,9 +2,6 @@ name: Beijing Signing Broadcast
 
 on:
   workflow_dispatch:
-  schedule:
-    # Every 30 minutes (UTC). Increased from 10m to improve reliability due to GitHub throttling.
-    - cron: "*/30 * * * *"
 
 concurrency:
   group: beijing-signing-broadcast
