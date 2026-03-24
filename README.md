@@ -23,11 +23,11 @@ pip install -r requirements.txt
 
 ### 新架构（推荐）
 ```bash
-# 北京签约播报（常驻，无月份限制）
+# 北京签约播报（常驻，按月累计）
 python -c "from modules.core.beijing_jobs import signing_broadcast_beijing_v2; signing_broadcast_beijing_v2()"
 
 # 导出结果到CSV
-python scripts/export_database_to_csv.py --activity BJ-SIGN-BROADCAST --compatible
+python scripts/export_database_to_csv.py --activity BJ-SIGN-BROADCAST-2026-03 --compatible
 ```
 
 ### 旧架构（对比验证）

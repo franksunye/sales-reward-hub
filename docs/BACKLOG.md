@@ -1,6 +1,6 @@
 # Backlog (Production)
 
-最后更新: 2026-03-23
+最后更新: 2026-03-24
 范围: 北京签约播报（Metabase -> Turso/SQLite -> Outbox -> 企业微信Webhook）
 
 ## P0
@@ -10,7 +10,7 @@
 - [ ] 增加 webhook 失败率告警（连续失败阈值）
 
 ## P1
-- [ ] 月度累计切换方案（`BJ-SIGN-BROADCAST-YYYY-MM`）
+- [x] 月度累计切换方案（`BJ-SIGN-BROADCAST-YYYY-MM`）
 - [ ] 消息模板版本化（便于审计某次发送使用的模板）
 - [ ] 增加 outbox 保留策略（按月归档历史成功记录）
 - [ ] 增加手动回放 Runbook（含 SQL 与操作步骤）

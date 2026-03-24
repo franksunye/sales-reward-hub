@@ -10,7 +10,13 @@
 import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None
 
 # 确保能导入现有模块
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -532,19 +538,40 @@ def signing_and_sales_incentive_nov_beijing():
     return signing_and_sales_incentive_nov_beijing_v2()
 
 
+def _get_bj_sign_broadcast_activity_code(now: Optional[datetime] = None) -> str:
+    """按北京时间生成签约播报 activity_code，格式：BJ-SIGN-BROADCAST-YYYY-MM。"""
+    if ZoneInfo is not None:
+        beijing_tz = ZoneInfo("Asia/Shanghai")
+    else:
+        beijing_tz = timezone(timedelta(hours=8))
+
+    if now is None:
+        now = datetime.now(beijing_tz)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=beijing_tz)
+    else:
+        now = now.astimezone(beijing_tz)
+
+    return f"BJ-SIGN-BROADCAST-{now.strftime('%Y-%m')}"
+
+
 def signing_broadcast_beijing_v2() -> List[PerformanceRecord]:
     """
-    北京签约播报（常驻任务，无月份限制）
+    北京签约播报（常驻任务，按月累计）
     - 仅播报签约数据
     - 不计算奖励
     - 仅平台单
+    - activity_code 按北京时间按月切分：BJ-SIGN-BROADCAST-YYYY-MM
     """
     logging.info("开始执行北京签约播报任务（常驻）")
 
     try:
+        activity_code = _get_bj_sign_broadcast_activity_code()
+        logging.info(f"北京签约播报：使用月度 activity_code={activity_code}")
+
         pipeline, config, store = create_standard_pipeline(
             config_key="BJ-2025-11",  # 复用仅播报配置
-            activity_code="BJ-SIGN-BROADCAST",
+            activity_code=activity_code,
             city="BJ",
             housekeeper_key_format="管家",
             storage_type="sqlite",
