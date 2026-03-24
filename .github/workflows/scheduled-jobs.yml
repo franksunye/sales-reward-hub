@@ -3,10 +3,10 @@ name: Beijing Signing Broadcast
 on:
   workflow_dispatch:
   schedule:
-    # UTC 00:00-11:30 every 30m -> Asia/Shanghai 08:00-19:30
-    - cron: "0,30 0-11 * * *"
-    # UTC 12:00 -> Asia/Shanghai 20:00
-    - cron: "0 12 * * *"
+    # UTC 00:00-15:50 every 10m -> Asia/Shanghai 08:00-23:50
+    - cron: "*/10 0-15 * * *"
+    # UTC 16:00 -> Asia/Shanghai 00:00 (next day)
+    - cron: "0 16 * * *"
 
 concurrency:
   group: beijing-signing-broadcast
