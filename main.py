@@ -7,6 +7,7 @@ from modules.log_config import setup_logging
 from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 from modules.core.beijing_jobs import signing_broadcast_beijing
 from modules.core.pending_orders_jobs import send_pending_orders_reminder_v2
+from modules.core.sla_jobs import generate_daily_service_report_v2
 
 
 setup_logging()
@@ -34,13 +35,25 @@ def run_pending_orders_reminder_task():
         logging.error(traceback.format_exc())
 
 
+def run_daily_service_report_task():
+    """SLA 日报/周报任务。"""
+    try:
+        logging.info("开始执行 SLA 日报任务")
+        generate_daily_service_report_v2()
+        logging.info("SLA 日报任务执行完成")
+    except Exception as e:
+        logging.error(f"执行 SLA 日报任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
 # 常驻任务
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_sign_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_pending_orders_reminder_task)
+schedule.every().day.at("08:10").do(run_daily_service_report_task)
 
 
 if __name__ == "__main__":
-    logging.info("Program started (Beijing sign broadcast + pending orders reminder)")
+    logging.info("Program started (Beijing sign broadcast + pending orders reminder + daily service report)")
 
     while True:
         try:

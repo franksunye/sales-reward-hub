@@ -307,6 +307,21 @@ class PerformanceDataStore(ABC):
         """将待预约工单标记为已提醒。"""
         pass
 
+    @abstractmethod
+    def replace_sla_violations_for_date(self, business_date: str, records: List[Dict]) -> int:
+        """以业务日期为粒度替换 SLA 违规快照。"""
+        pass
+
+    @abstractmethod
+    def get_sla_violations_for_window(
+        self,
+        start_date: str,
+        end_date: str,
+        org_name: str | None = None,
+    ) -> List[Dict]:
+        """查询业务日期窗口内的 SLA 违规记录。"""
+        pass
+
 
 class SQLitePerformanceDataStore(PerformanceDataStore):
     """SQLite实现 - 大幅简化累计计算"""
@@ -346,6 +361,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     schema_sql = schema_sql.replace('CREATE TABLE schema_version', 'CREATE TABLE IF NOT EXISTS schema_version')
                     schema_sql = schema_sql.replace('CREATE TABLE notification_outbox', 'CREATE TABLE IF NOT EXISTS notification_outbox')
                     schema_sql = schema_sql.replace('CREATE TABLE pending_order_reminders', 'CREATE TABLE IF NOT EXISTS pending_order_reminders')
+                    schema_sql = schema_sql.replace('CREATE TABLE sla_violation_records', 'CREATE TABLE IF NOT EXISTS sla_violation_records')
                     conn.executescript(schema_sql)
                     self._ensure_column_exists(conn, 'notification_outbox', 'metadata_json', "ALTER TABLE notification_outbox ADD COLUMN metadata_json TEXT DEFAULT ''")
                     logging.info(f"Database initialized with schema from {schema_path}")
@@ -449,6 +465,33 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_pending_orders_order_num
             ON pending_order_reminders(activity_code, order_num)
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sla_violation_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                business_date TEXT NOT NULL,
+                violation_id TEXT DEFAULT '',
+                sid TEXT DEFAULT '',
+                sa_create_time TEXT NOT NULL,
+                order_num TEXT NOT NULL,
+                province TEXT DEFAULT '',
+                org_name TEXT NOT NULL,
+                supervisor_name TEXT DEFAULT '',
+                source_type TEXT DEFAULT '',
+                status TEXT DEFAULT '',
+                violation_type TEXT DEFAULT '',
+                violation_description TEXT DEFAULT '',
+                work_type TEXT DEFAULT '',
+                create_time TEXT DEFAULT '',
+                raw_json TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(business_date, order_num, org_name, violation_type, violation_description)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sla_violation_business_date
+            ON sla_violation_records(business_date, org_name)
         """)
 
     def contract_exists(self, contract_id: str, activity_code: str) -> bool:
@@ -909,6 +952,77 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error marking pending orders notified: {e}")
             raise
+
+    def replace_sla_violations_for_date(self, business_date: str, records: List[Dict]) -> int:
+        """按业务日期覆盖 SLA 违规快照。"""
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    "DELETE FROM sla_violation_records WHERE business_date = ?",
+                    (business_date,),
+                )
+                if records:
+                    conn.executemany(
+                        """
+                        INSERT INTO sla_violation_records (
+                            business_date, violation_id, sid, sa_create_time, order_num,
+                            province, org_name, supervisor_name, source_type, status,
+                            violation_type, violation_description, work_type, create_time, raw_json,
+                            updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        """,
+                        [
+                            (
+                                business_date,
+                                record.get("_id", ""),
+                                record.get("sid", ""),
+                                record.get("saCreateTime", ""),
+                                record.get("orderNum", ""),
+                                record.get("province", ""),
+                                record.get("orgName", ""),
+                                record.get("supervisorName", ""),
+                                str(record.get("sourceType", "")),
+                                str(record.get("status", "")),
+                                record.get("msg", ""),
+                                record.get("memo", ""),
+                                str(record.get("workType", "")),
+                                record.get("createTime", ""),
+                                json.dumps(record, ensure_ascii=False),
+                            )
+                            for record in records
+                        ],
+                    )
+                conn.commit()
+                return len(records)
+        except Exception as e:
+            logging.error(f"Error replacing SLA violations for {business_date}: {e}")
+            raise
+
+    def get_sla_violations_for_window(
+        self,
+        start_date: str,
+        end_date: str,
+        org_name: str | None = None,
+    ) -> List[Dict]:
+        """查询业务日期窗口内的 SLA 违规记录。"""
+        try:
+            with self._connect() as conn:
+                params = [start_date, end_date]
+                sql = """
+                    SELECT *
+                    FROM sla_violation_records
+                    WHERE business_date >= ?
+                      AND business_date <= ?
+                """
+                if org_name:
+                    sql += " AND org_name = ?"
+                    params.append(org_name)
+                sql += " ORDER BY business_date ASC, org_name ASC, order_num ASC"
+                cursor = conn.execute(sql, params)
+                return self._cursor_rows_to_dicts(cursor)
+        except Exception as e:
+            logging.error(f"Error querying SLA violations between {start_date} and {end_date}: {e}")
+            return []
 
     def get_retryable_outbox_messages(self, activity_code: str, max_attempts: int, limit: int = 100) -> List[Dict]:
         """获取可重试发送的 outbox 消息。"""

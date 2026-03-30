@@ -1,0 +1,38 @@
+name: Daily Service Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Generate SLA messages but do not send webhooks"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: daily-service-report
+  cancel-in-progress: false
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    env:
+      DB_SOURCE: cloud
+      TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
+      METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
+      WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP: ${{ secrets.WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP }}
+      CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
+      DAILY_SERVICE_REPORT_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run daily service report once
+        run: PYTHONPATH=. python scripts/run_scheduled_task.py --task daily-service-report

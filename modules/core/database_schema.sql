@@ -169,6 +169,31 @@ ON pending_order_reminders(activity_code, is_active, notification_sent, org_name
 CREATE INDEX IF NOT EXISTS idx_pending_orders_order_num
 ON pending_order_reminders(activity_code, order_num);
 
+-- SLA 日报/周报的违规快照
+CREATE TABLE sla_violation_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_date TEXT NOT NULL,
+    violation_id TEXT DEFAULT '',
+    sid TEXT DEFAULT '',
+    sa_create_time TEXT NOT NULL,
+    order_num TEXT NOT NULL,
+    province TEXT DEFAULT '',
+    org_name TEXT NOT NULL,
+    supervisor_name TEXT DEFAULT '',
+    source_type TEXT DEFAULT '',
+    status TEXT DEFAULT '',
+    violation_type TEXT DEFAULT '',
+    violation_description TEXT DEFAULT '',
+    work_type TEXT DEFAULT '',
+    create_time TEXT DEFAULT '',
+    raw_json TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(business_date, order_num, org_name, violation_type, violation_description)
+);
+CREATE INDEX IF NOT EXISTS idx_sla_violation_business_date
+ON sla_violation_records(business_date, org_name);
+
 -- 插入当前版本信息
 INSERT OR IGNORE INTO schema_version (version, description)
-VALUES ('1.2.0', 'Add metadata_json to notification_outbox and pending_order_reminders snapshot table');
+VALUES ('1.3.0', 'Add pending order snapshots and SLA violation records');

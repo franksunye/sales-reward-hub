@@ -6,6 +6,7 @@
 
 const CRON_SIGN_BROADCAST = "0,30 0-15 * * *";
 const CRON_PENDING_ORDERS = "30 0 * * *";
+const CRON_DAILY_SERVICE_REPORT = "10 0 * * *";
 
 export default {
   // Cron Trigger 入口
@@ -56,6 +57,9 @@ function getScheduleConfig(env) {
     [CRON_PENDING_ORDERS]: [
       env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml'
     ],
+    [CRON_DAILY_SERVICE_REPORT]: [
+      env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml'
+    ],
   };
 }
 
@@ -74,9 +78,14 @@ function getTargetWorkflows(env, options = {}) {
     return scheduleConfig[CRON_PENDING_ORDERS];
   }
 
+  if (options.target === 'daily-service-report') {
+    return scheduleConfig[CRON_DAILY_SERVICE_REPORT];
+  }
+
   return Array.from(new Set([
     ...scheduleConfig[CRON_SIGN_BROADCAST],
     ...scheduleConfig[CRON_PENDING_ORDERS],
+    ...scheduleConfig[CRON_DAILY_SERVICE_REPORT],
   ]));
 }
 
