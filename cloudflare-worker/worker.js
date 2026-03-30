@@ -1,17 +1,19 @@
 /**
  * Sales Reward Hub Precision Scheduler
  * 
- * 这个 Cloudflare Worker 作为精准调度器，每 30 分钟运行一次。
- * 它会触发 GitHub Actions 中配置的多个 workflow。
+ * 这个 Cloudflare Worker 作为精准调度器，根据不同 cron 触发不同 workflow。
  */
+
+const CRON_SIGN_BROADCAST = "0,30 0-15 * * *";
+const CRON_PENDING_ORDERS = "30 0 * * *";
 
 export default {
   // Cron Trigger 入口
   async scheduled(event, env, ctx) {
-    console.log(`⏰ Cron triggered at ${new Date().toISOString()}`);
+    console.log(`⏰ Cron triggered at ${new Date().toISOString()} with cron=${event.cron}`);
     
-    // 触发 GitHub Actions workflows
-    const result = await triggerGitHubWorkflows(env);
+    // 按 cron 路由触发 GitHub Actions workflows
+    const result = await triggerGitHubWorkflows(env, { cron: event.cron });
     console.log(`✅ GitHub Actions triggered:`, result);
   },
   
@@ -21,7 +23,8 @@ export default {
     
     if (url.pathname === '/trigger') {
       // 手动触发 (用于测试)
-      const result = await triggerGitHubWorkflows(env);
+      const target = url.searchParams.get('target') || 'all';
+      const result = await triggerGitHubWorkflows(env, { target });
       return new Response(JSON.stringify(result, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -35,7 +38,7 @@ export default {
         status: 'running',
         utc_time: now.toISOString(),
         github_repo: `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`,
-        workflows: getTargetWorkflows(env)
+        schedules: getScheduleConfig(env)
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -45,16 +48,36 @@ export default {
   }
 };
 
-function getTargetWorkflows(env) {
-  const configured = (env.GITHUB_WORKFLOWS || '').trim();
-  if (configured) {
-    return configured
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
+function getScheduleConfig(env) {
+  return {
+    [CRON_SIGN_BROADCAST]: [
+      env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml'
+    ],
+    [CRON_PENDING_ORDERS]: [
+      env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml'
+    ],
+  };
+}
+
+function getTargetWorkflows(env, options = {}) {
+  const scheduleConfig = getScheduleConfig(env);
+
+  if (options.cron && scheduleConfig[options.cron]) {
+    return scheduleConfig[options.cron];
   }
 
-  return [env.GITHUB_WORKFLOW || 'beijing-signing-broadcast.yml'];
+  if (options.target === 'sign-broadcast') {
+    return scheduleConfig[CRON_SIGN_BROADCAST];
+  }
+
+  if (options.target === 'pending-orders') {
+    return scheduleConfig[CRON_PENDING_ORDERS];
+  }
+
+  return Array.from(new Set([
+    ...scheduleConfig[CRON_SIGN_BROADCAST],
+    ...scheduleConfig[CRON_PENDING_ORDERS],
+  ]));
 }
 
 async function triggerSingleGitHubWorkflow(env, workflow) {
@@ -92,8 +115,8 @@ async function triggerSingleGitHubWorkflow(env, workflow) {
   };
 }
 
-async function triggerGitHubWorkflows(env) {
-  const workflows = getTargetWorkflows(env);
+async function triggerGitHubWorkflows(env, options = {}) {
+  const workflows = getTargetWorkflows(env, options);
   const results = [];
 
   for (const workflow of workflows) {

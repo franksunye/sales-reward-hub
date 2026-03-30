@@ -4,11 +4,12 @@ compatibility_date = "2024-01-01"
 
 # Cron Triggers
 [triggers]
-crons = ["0,30 0-15 * * *"]
+crons = ["0,30 0-15 * * *", "30 0 * * *"]
 
 # 环境变量 (敏感信息请在 Cloudflare Dashboard 中设置)
 [vars]
 GITHUB_OWNER = "franksunye"
 GITHUB_REPO = "sales-reward-hub"
-GITHUB_WORKFLOWS = "beijing-signing-broadcast.yml,pending-orders-reminder.yml"
+GITHUB_WORKFLOW_SIGN_BROADCAST = "beijing-signing-broadcast.yml"
+GITHUB_WORKFLOW_PENDING_ORDERS = "pending-orders-reminder.yml"
 # GITHUB_TOKEN 必须在 Dashboard 中设置为 Secret
