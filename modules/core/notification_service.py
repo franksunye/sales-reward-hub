@@ -18,6 +18,7 @@ import requests
 
 from .storage import PerformanceDataStore
 from .data_models import ProcessingConfig
+from .webhook_router import CHANNEL_SIGN_BROADCAST, resolve_wecom_webhook
 from ..config import *
 
 
@@ -352,7 +353,7 @@ class NotificationService:
             activity_code=self.config.activity_code,
             contract_id=record["合同ID(_id)"],
             message_type=message_type,
-            webhook_url=WEBHOOK_URL_DEFAULT,
+            webhook_url=resolve_wecom_webhook(CHANNEL_SIGN_BROADCAST),
             payload_json=payload_json,
             dedupe_key=f"{dedupe_key}::{hash_value}",
         )

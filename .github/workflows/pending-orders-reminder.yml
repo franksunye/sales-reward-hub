@@ -1,0 +1,39 @@
+name: Pending Orders Reminder
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Generate messages but do not send webhooks"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: pending-orders-reminder
+  cancel-in-progress: false
+
+jobs:
+  run-reminder:
+    runs-on: ubuntu-latest
+    env:
+      DB_SOURCE: cloud
+      TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
+      METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
+      WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT: ${{ secrets.WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT }}
+      WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP: ${{ secrets.WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP }}
+      CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
+      PENDING_ORDERS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run pending orders reminder once
+        run: PYTHONPATH=. python scripts/run_scheduled_task.py --task pending-orders-reminder

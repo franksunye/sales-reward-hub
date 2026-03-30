@@ -250,6 +250,7 @@ class PerformanceDataStore(ABC):
         webhook_url: str,
         payload_json: str,
         dedupe_key: str,
+        metadata_json: str = "",
     ) -> int:
         """创建或复用 outbox 消息，返回 outbox id。"""
         pass
@@ -257,6 +258,11 @@ class PerformanceDataStore(ABC):
     @abstractmethod
     def get_retryable_outbox_messages(self, activity_code: str, max_attempts: int, limit: int = 100) -> List[Dict]:
         """获取可重试发送的 outbox 消息。"""
+        pass
+
+    @abstractmethod
+    def get_outbox_message(self, outbox_id: int) -> Dict:
+        """按 id 获取 outbox 消息。"""
         pass
 
     @abstractmethod
@@ -274,6 +280,31 @@ class PerformanceDataStore(ABC):
         max_attempts: int = 5,
     ) -> None:
         """标记 outbox 消息发送失败并累加尝试次数。"""
+        pass
+
+    @abstractmethod
+    def upsert_pending_order_snapshot(self, activity_code: str, snapshot: Dict) -> None:
+        """写入或更新待预约工单快照。"""
+        pass
+
+    @abstractmethod
+    def deactivate_missing_pending_orders(self, activity_code: str, active_fingerprints: List[str]) -> int:
+        """将当前未出现的活跃待预约工单标记为失活。"""
+        pass
+
+    @abstractmethod
+    def get_pending_orders_requiring_notification(self, activity_code: str) -> List[Dict]:
+        """获取当前需要提醒的待预约工单。"""
+        pass
+
+    @abstractmethod
+    def get_active_pending_orders_by_org(self, activity_code: str, org_name: str) -> List[Dict]:
+        """获取指定服务商当前活跃的全部待预约工单。"""
+        pass
+
+    @abstractmethod
+    def mark_pending_orders_notified(self, activity_code: str, fingerprints: List[str]) -> int:
+        """将待预约工单标记为已提醒。"""
         pass
 
 
@@ -314,7 +345,9 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                     schema_sql = schema_sql.replace('CREATE VIEW activity_stats', 'CREATE VIEW IF NOT EXISTS activity_stats')
                     schema_sql = schema_sql.replace('CREATE TABLE schema_version', 'CREATE TABLE IF NOT EXISTS schema_version')
                     schema_sql = schema_sql.replace('CREATE TABLE notification_outbox', 'CREATE TABLE IF NOT EXISTS notification_outbox')
+                    schema_sql = schema_sql.replace('CREATE TABLE pending_order_reminders', 'CREATE TABLE IF NOT EXISTS pending_order_reminders')
                     conn.executescript(schema_sql)
+                    self._ensure_column_exists(conn, 'notification_outbox', 'metadata_json', "ALTER TABLE notification_outbox ADD COLUMN metadata_json TEXT DEFAULT ''")
                     logging.info(f"Database initialized with schema from {schema_path}")
                 else:
                     logging.warning(f"Schema file not found: {schema_path}")
@@ -322,6 +355,18 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
             raise
+
+    def _ensure_column_exists(self, conn, table_name: str, column_name: str, alter_sql: str) -> None:
+        """为历史数据库补齐新增列。"""
+        try:
+            cursor = conn.execute(f"PRAGMA table_info({table_name})")
+            columns = {row[1] for row in cursor.fetchall()}
+            if column_name not in columns:
+                conn.execute(alter_sql)
+                conn.commit()
+                logging.info("Added missing column %s.%s", table_name, column_name)
+        except Exception as e:
+            logging.warning("Failed ensuring column %s.%s exists: %s", table_name, column_name, e)
 
     def _create_basic_schema(self, conn):
         """创建基础schema（如果schema文件不存在）"""
@@ -360,6 +405,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 message_type TEXT NOT NULL DEFAULT 'group_broadcast',
                 webhook_url TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
+                metadata_json TEXT DEFAULT '',
                 dedupe_key TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -373,6 +419,37 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outbox_retry ON notification_outbox(activity_code, status, attempt_count, created_at)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pending_order_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                activity_code TEXT NOT NULL,
+                order_num TEXT NOT NULL,
+                customer_name TEXT DEFAULT '',
+                address TEXT DEFAULT '',
+                supervisor_name TEXT DEFAULT '',
+                create_time TEXT NOT NULL,
+                org_name TEXT NOT NULL,
+                order_status TEXT NOT NULL,
+                status_fingerprint TEXT NOT NULL,
+                eligible_since TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                notification_sent BOOLEAN DEFAULT FALSE,
+                first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_notified_at TIMESTAMP,
+                resolved_at TIMESTAMP,
+                extensions TEXT DEFAULT '',
+                UNIQUE(activity_code, status_fingerprint)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pending_orders_active
+            ON pending_order_reminders(activity_code, is_active, notification_sent, org_name)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pending_orders_order_num
+            ON pending_order_reminders(activity_code, order_num)
+        """)
 
     def contract_exists(self, contract_id: str, activity_code: str) -> bool:
         """简化的去重查询 - O(1)索引查询替代O(n)文件扫描"""
@@ -667,6 +744,7 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         webhook_url: str,
         payload_json: str,
         dedupe_key: str,
+        metadata_json: str = "",
     ) -> int:
         """创建或复用 outbox 消息，返回 outbox id。"""
         try:
@@ -674,10 +752,10 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 cursor = conn.execute(
                     """
                     INSERT OR IGNORE INTO notification_outbox (
-                        activity_code, contract_id, message_type, webhook_url, payload_json, dedupe_key, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
+                        activity_code, contract_id, message_type, webhook_url, payload_json, metadata_json, dedupe_key, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
                     """,
-                    (activity_code, contract_id, message_type, webhook_url, payload_json, dedupe_key),
+                    (activity_code, contract_id, message_type, webhook_url, payload_json, metadata_json, dedupe_key),
                 )
                 if cursor.lastrowid:
                     conn.commit()
@@ -695,6 +773,141 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
                 return int(existing[0]) if existing else 0
         except Exception as e:
             logging.error(f"Error enqueueing outbox message: {e}")
+            raise
+
+    def upsert_pending_order_snapshot(self, activity_code: str, snapshot: Dict) -> None:
+        """写入或更新待预约工单快照。"""
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO pending_order_reminders (
+                        activity_code, order_num, customer_name, address, supervisor_name,
+                        create_time, org_name, order_status, status_fingerprint, eligible_since,
+                        is_active, notification_sent, extensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
+                    ON CONFLICT(activity_code, status_fingerprint) DO UPDATE SET
+                        order_num = excluded.order_num,
+                        customer_name = excluded.customer_name,
+                        address = excluded.address,
+                        supervisor_name = excluded.supervisor_name,
+                        create_time = excluded.create_time,
+                        org_name = excluded.org_name,
+                        order_status = excluded.order_status,
+                        eligible_since = excluded.eligible_since,
+                        is_active = 1,
+                        notification_sent = CASE
+                            WHEN pending_order_reminders.is_active = 0 THEN 0
+                            ELSE pending_order_reminders.notification_sent
+                        END,
+                        last_seen_at = CURRENT_TIMESTAMP,
+                        resolved_at = NULL,
+                        extensions = excluded.extensions
+                    """,
+                    (
+                        activity_code,
+                        snapshot["order_num"],
+                        snapshot.get("customer_name", ""),
+                        snapshot.get("address", ""),
+                        snapshot.get("supervisor_name", ""),
+                        snapshot["create_time"],
+                        snapshot["org_name"],
+                        snapshot["order_status"],
+                        snapshot["status_fingerprint"],
+                        snapshot["eligible_since"],
+                        snapshot.get("extensions", ""),
+                    ),
+                )
+                conn.commit()
+        except Exception as e:
+            logging.error(f"Error upserting pending order snapshot: {e}")
+            raise
+
+    def deactivate_missing_pending_orders(self, activity_code: str, active_fingerprints: List[str]) -> int:
+        """将当前快照中已消失的工单标记为失活。"""
+        try:
+            with self._connect() as conn:
+                params = [activity_code]
+                sql = """
+                    UPDATE pending_order_reminders
+                    SET is_active = 0,
+                        resolved_at = CURRENT_TIMESTAMP,
+                        last_seen_at = CURRENT_TIMESTAMP
+                    WHERE activity_code = ?
+                      AND is_active = 1
+                """
+                if active_fingerprints:
+                    placeholders = ",".join(["?"] * len(active_fingerprints))
+                    sql += f" AND status_fingerprint NOT IN ({placeholders})"
+                    params.extend(active_fingerprints)
+                cursor = conn.execute(sql, params)
+                conn.commit()
+                return cursor.rowcount or 0
+        except Exception as e:
+            logging.error(f"Error deactivating missing pending orders: {e}")
+            raise
+
+    def get_pending_orders_requiring_notification(self, activity_code: str) -> List[Dict]:
+        """获取当前活跃且尚未提醒的工单。"""
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT *
+                    FROM pending_order_reminders
+                    WHERE activity_code = ?
+                      AND is_active = 1
+                      AND notification_sent = 0
+                    ORDER BY org_name ASC, create_time ASC, order_num ASC
+                    """,
+                    (activity_code,),
+                )
+                return self._cursor_rows_to_dicts(cursor)
+        except Exception as e:
+            logging.error(f"Error querying pending orders requiring notification: {e}")
+            return []
+
+    def get_active_pending_orders_by_org(self, activity_code: str, org_name: str) -> List[Dict]:
+        """获取指定服务商当前全部活跃工单。"""
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT *
+                    FROM pending_order_reminders
+                    WHERE activity_code = ?
+                      AND org_name = ?
+                      AND is_active = 1
+                    ORDER BY create_time ASC, order_num ASC
+                    """,
+                    (activity_code, org_name),
+                )
+                return self._cursor_rows_to_dicts(cursor)
+        except Exception as e:
+            logging.error(f"Error querying active pending orders by org: {e}")
+            return []
+
+    def mark_pending_orders_notified(self, activity_code: str, fingerprints: List[str]) -> int:
+        """将指定指纹的工单标记为已提醒。"""
+        if not fingerprints:
+            return 0
+        try:
+            with self._connect() as conn:
+                placeholders = ",".join(["?"] * len(fingerprints))
+                cursor = conn.execute(
+                    f"""
+                    UPDATE pending_order_reminders
+                    SET notification_sent = 1,
+                        last_notified_at = CURRENT_TIMESTAMP
+                    WHERE activity_code = ?
+                      AND status_fingerprint IN ({placeholders})
+                    """,
+                    [activity_code, *fingerprints],
+                )
+                conn.commit()
+                return cursor.rowcount or 0
+        except Exception as e:
+            logging.error(f"Error marking pending orders notified: {e}")
             raise
 
     def get_retryable_outbox_messages(self, activity_code: str, max_attempts: int, limit: int = 100) -> List[Dict]:
@@ -717,6 +930,25 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error querying retryable outbox messages: {e}")
             return []
+
+    def get_outbox_message(self, outbox_id: int) -> Dict:
+        """按 id 获取 outbox 消息。"""
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT *
+                    FROM notification_outbox
+                    WHERE id = ?
+                    LIMIT 1
+                    """,
+                    (outbox_id,),
+                )
+                rows = self._cursor_rows_to_dicts(cursor)
+                return rows[0] if rows else {}
+        except Exception as e:
+            logging.error(f"Error getting outbox message {outbox_id}: {e}")
+            return {}
 
     def mark_outbox_sent(self, outbox_id: int, response_code: int, response_body: str) -> None:
         """标记 outbox 消息发送成功。"""

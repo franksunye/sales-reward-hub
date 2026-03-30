@@ -6,6 +6,7 @@ import traceback
 from modules.log_config import setup_logging
 from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 from modules.core.beijing_jobs import signing_broadcast_beijing
+from modules.core.pending_orders_jobs import send_pending_orders_reminder_v2
 
 
 setup_logging()
@@ -22,12 +23,24 @@ def run_beijing_sign_broadcast_task():
         logging.error(traceback.format_exc())
 
 
-# 仅保留北京签约播报任务
+def run_pending_orders_reminder_task():
+    """待预约工单提醒常驻任务。"""
+    try:
+        logging.info("开始执行待预约工单提醒任务")
+        send_pending_orders_reminder_v2()
+        logging.info("待预约工单提醒任务执行完成")
+    except Exception as e:
+        logging.error(f"执行待预约工单提醒任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
+# 常驻任务
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_sign_broadcast_task)
+schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_pending_orders_reminder_task)
 
 
 if __name__ == "__main__":
-    logging.info("Program started (Beijing signing broadcast only)")
+    logging.info("Program started (Beijing sign broadcast + pending orders reminder)")
 
     while True:
         try:

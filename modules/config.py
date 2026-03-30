@@ -1,4 +1,5 @@
 # config.py
+import json
 import os
 from dotenv import load_dotenv
 
@@ -429,11 +430,23 @@ RUN_JOBS_SERIALLY_SCHEDULE = 3 # 每3分钟执行一次
 TASK_CHECK_INTERVAL = 10
 
 # 北京地区
-# 北京运营企微群机器人通讯地址（默认值为测试 webhook，可通过环境变量覆盖）
+# 默认 webhook（兼容旧代码），建议新代码使用通道化路由函数
 WEBHOOK_URL_DEFAULT = os.getenv(
     'WECOM_WEBHOOK_DEFAULT',
     'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4fbae71d-8d83-479f-a2db-7690eeb37a5c'
 )
+WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT = os.getenv(
+    'WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT',
+    WEBHOOK_URL_DEFAULT
+)
+WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT = os.getenv(
+    'WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT',
+    WEBHOOK_URL_DEFAULT
+)
+WECOM_WEBHOOK_PENDING_ORDERS_FORCE_URL = os.getenv(
+    'WECOM_WEBHOOK_PENDING_ORDERS_FORCE_URL',
+    ''
+).strip()
 PHONE_NUMBER = os.getenv('CONTACT_PHONE_NUMBER')
 
 # 验证必需的环境变量
@@ -443,7 +456,10 @@ if not PHONE_NUMBER:
     raise ValueError("CONTACT_PHONE_NUMBER 环境变量未设置，请在 .env 文件中配置")
 
 # 第七个任务，待预约工单提醒
-API_URL_PENDING_ORDERS_REMINDER = METABASE_URL + "/api/card/1712/query"
+API_URL_PENDING_ORDERS_REMINDER = os.getenv(
+    "API_URL_PENDING_ORDERS_REMINDER",
+    METABASE_URL + "/api/card/1712/query"
+)
 STATUS_FILENAME_PENDING_ORDERS = './state/pending_orders_reminder_status.json'
 
 ## 上海地区，2025年10月活动
@@ -520,42 +536,19 @@ SLA_CONFIG = {
 }
 
 # 服务商webhook映射（待预约工单提醒专用）
-ORG_WEBHOOKS = {
-    # 服务商专属webhook配置
-    "北京经常亮工程技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=44b3d3db-009e-4477-bdbb-88832b232155",
-    "虹途控股（北京）有限责任公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=0cd6ba04-719d-4817-a8a5-4034c2e4781d",
-    "北京顺建为安工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b81aae61-820c-4123-8ed7-0287540be82d",
-    "北京九鼎建工科技工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c6f36d8e-6b06-4614-9869-a095168de0dc",
-    "北京久盾宏盛建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2ea71190-53b6-46ff-ad83-9d249d9d67e3",
-    "三河市中豫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=8a3c889a-1109-477c-8bd8-bdb3ca8599ce",
-    "北京恒润万通防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=77214359-c515-4463-a8d8-a80d691437d1",
-    "北京浩圣科技有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=23f3fac2-5390-45e8-b54b-619b025e335a",
-    "北京华夏精程防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=d6958739-31d9-4cfb-9ef0-238ff003061d",
-    "北京腾飞瑞欧建筑装饰有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=d60d7366-e66d-4202-88d3-bd87f43f7cab",
-    "云尚虹（北京）建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=1f383a88-107a-4760-a455-f00297203675",
-    "北京博远恒泰装饰装修有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a7696a0a-a392-412a-a5b6-ed34486ea6a0",
-    "北京华庭装饰工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9f0621da-2e4c-484b-b1f9-b65bcdd48cee",
-    "北京德客声商贸有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4ea9922b-1333-4e34-9fca-62cec5408c73",
-    "北京虹象防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b61d1232-ddfd-4cc4-81ed-f8f6b9cdc7b9",
-    "北京建君盛华技术服务有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b72b9e1d-1c82-4be6-8b58-239b2f941570",
-    "北京怀军防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=09a26589-f1b2-4d1c-b27d-01703ec32820",
-    "北京盛达洪雨防水技术有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=32aedd2b-ec5a-4fd8-a1bf-8a1e1a16ed6c",
-    "北京吉柿建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=91a6546d-fbb8-43db-9650-4d2efcc4b78a",
-    # 上海地区
-    "上海国坦装潢设计工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4b25fb8e-b08f-4260-9f5c-eff87766ea2a",
-    "上海昊炫建筑材料有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=daaf7c55-639c-4366-9d47-0909a4d8cf59",
-    "上海昆昱防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c05e83b9-1f4a-4603-a8bc-2de74f42eaf8",
-    "上海妙才建筑防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=68489387-abc8-4f49-9804-d0c8b08e8288",
-    "上海荃璆实业有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9a4e331e-44ef-4356-a5b6-40108e4ccd53",
-    "上海锐常实业有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=957f398b-686b-4c42-b02a-51f91fac0fff",
-    "上海若金汤防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=71152288-4a43-4ac7-a393-49f3636b4391",
-    "上海位卫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4703b5a8-994a-401b-a06c-b04a86bed01a",
-    "上海雁棠建筑工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=b74d3962-2399-423c-9491-b21dff0fe1a7",
-    "上海哲佑防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=84eb80c4-def8-40c8-82e3-842fd0b01e7d",
-    "上海涛芫防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9a4e331e-44ef-4356-a5b6-40108e4ccd53",
-    "上海云风防水工程有限公司": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c05e83b9-1f4a-4603-a8bc-2de74f42eaf8",
-    # 其他未配置专属webhook的服务商将使用默认webhook
-}
+PENDING_ORDER_ORG_WEBHOOKS = {}
+_pending_order_org_overrides_env = os.getenv("WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP", "").strip()
+if _pending_order_org_overrides_env:
+    try:
+        loaded_map = json.loads(_pending_order_org_overrides_env)
+        if not isinstance(loaded_map, dict):
+            raise ValueError("WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP 必须是 JSON object")
+        PENDING_ORDER_ORG_WEBHOOKS.update(loaded_map)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(f"WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP 配置非法: {exc}")
+
+# 兼容旧代码
+ORG_WEBHOOKS = PENDING_ORDER_ORG_WEBHOOKS
 
 ##------ 徽章功能 ------##
 # 是否启用徽章，2025年4月新增

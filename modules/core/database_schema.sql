@@ -128,6 +128,7 @@ CREATE TABLE notification_outbox (
     message_type TEXT NOT NULL DEFAULT 'group_broadcast',
     webhook_url TEXT NOT NULL,
     payload_json TEXT NOT NULL,
+    metadata_json TEXT DEFAULT '',
     dedupe_key TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending', -- pending | failed | sent | dead_letter
     attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -141,6 +142,33 @@ CREATE TABLE notification_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_retry ON notification_outbox(activity_code, status, attempt_count, created_at);
 
+-- 待预约工单提醒快照（数据库优先架构，支持去重/恢复/审计）
+CREATE TABLE pending_order_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_code TEXT NOT NULL,
+    order_num TEXT NOT NULL,
+    customer_name TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    supervisor_name TEXT DEFAULT '',
+    create_time TEXT NOT NULL,
+    org_name TEXT NOT NULL,
+    order_status TEXT NOT NULL,
+    status_fingerprint TEXT NOT NULL,
+    eligible_since TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    notification_sent BOOLEAN DEFAULT FALSE,
+    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_notified_at TIMESTAMP,
+    resolved_at TIMESTAMP,
+    extensions TEXT DEFAULT '',
+    UNIQUE(activity_code, status_fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_pending_orders_active
+ON pending_order_reminders(activity_code, is_active, notification_sent, org_name);
+CREATE INDEX IF NOT EXISTS idx_pending_orders_order_num
+ON pending_order_reminders(activity_code, order_num);
+
 -- 插入当前版本信息
 INSERT OR IGNORE INTO schema_version (version, description)
-VALUES ('1.1.0', 'Complete schema with notification_sent and remarks fields for notification service');
+VALUES ('1.2.0', 'Add metadata_json to notification_outbox and pending_order_reminders snapshot table');
