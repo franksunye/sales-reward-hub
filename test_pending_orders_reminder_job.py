@@ -111,23 +111,33 @@ class PendingOrdersReminderJobTest(unittest.TestCase):
         self.assertEqual(reminder_rows, [("测试服务商A", 1, 1), ("测试服务商B", 1, 1)])
         self.assertEqual(outbox_rows, [("pending_orders_digest", "sent"), ("pending_orders_digest", "sent")])
 
-    def test_second_run_with_same_snapshot_does_not_resend(self):
+    def test_second_run_with_same_snapshot_resends_active_orders(self):
         rows = [self._row("A001", 72, org_name="测试服务商A", status="待预约")]
         response = self._build_response(rows)
 
-        with patch("modules.core.pending_orders_jobs.send_request_with_managed_session", return_value=response), patch(
+        with patch(
+            "modules.core.pending_orders_jobs.send_request_with_managed_session",
+            return_value=response,
+        ), patch(
             "modules.core.pending_orders_jobs.requests.post"
         ) as mock_post:
             mock_post.return_value = MagicMock(status_code=200, text="ok")
             service = PendingOrdersReminderService(self.storage, now=self.now)
             first_stats = service.run()
+            service.now = self.now + timedelta(minutes=30)
             second_stats = service.run()
 
         self.assertEqual(first_stats["sent"], 1)
-        self.assertEqual(second_stats["sent"], 0)
-        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(second_stats["sent"], 1)
+        self.assertEqual(mock_post.call_count, 2)
 
-    def test_new_order_in_existing_org_generates_new_digest(self):
+        with sqlite3.connect(self.db_path) as conn:
+            outbox_total = conn.execute(
+                "SELECT COUNT(*) FROM notification_outbox WHERE message_type = 'pending_orders_digest'"
+            ).fetchone()[0]
+        self.assertEqual(outbox_total, 2)
+
+    def test_existing_org_still_sends_when_new_order_appears(self):
         first_response = self._build_response([self._row("A001", 72, org_name="测试服务商A", status="待预约")])
         second_response = self._build_response(
             [
@@ -143,6 +153,7 @@ class PendingOrdersReminderJobTest(unittest.TestCase):
             mock_post.return_value = MagicMock(status_code=200, text="ok")
             service = PendingOrdersReminderService(self.storage, now=self.now)
             service.run()
+            service.now = self.now + timedelta(minutes=30)
             second_stats = service.run()
 
         self.assertEqual(second_stats["orgs_with_new_orders"], 1)

@@ -130,23 +130,27 @@ class PendingOrdersReminderService:
             active_fingerprints,
         )
 
-        pending_rows = self.storage.get_pending_orders_requiring_notification(self.activity_code)
-        pending_by_org: Dict[str, List[Dict]] = {}
-        for row in pending_rows:
-            pending_by_org.setdefault(row["org_name"], []).append(row)
+        active_by_org: Dict[str, List[Dict]] = {}
+        for snapshot in snapshots:
+            org_name = snapshot["org_name"]
+            active_by_org.setdefault(org_name, [])
+        for org_name in list(active_by_org.keys()):
+            active_rows = self.storage.get_active_pending_orders_by_org(self.activity_code, org_name)
+            if active_rows:
+                active_by_org[org_name] = active_rows
+            else:
+                active_by_org.pop(org_name, None)
 
-        stats["orgs_with_new_orders"] = len(pending_by_org)
-        if self.dry_run and pending_by_org:
-            self._log_dry_run_preview(pending_by_org)
+        # 兼容原有统计字段名，当前语义为“本次需要提醒的服务商数量”
+        stats["orgs_with_new_orders"] = len(active_by_org)
+        if self.dry_run and active_by_org:
+            self._log_dry_run_preview(active_by_org)
 
         if self.dry_run:
             return stats
 
-        for org_name, new_rows in pending_by_org.items():
-            active_rows = self.storage.get_active_pending_orders_by_org(self.activity_code, org_name)
-            if not active_rows:
-                continue
-            outbox_id = self._enqueue_org_digest(org_name, active_rows, new_rows)
+        for org_name, active_rows in active_by_org.items():
+            outbox_id = self._enqueue_org_digest(org_name, active_rows)
             if not outbox_id:
                 continue
 
@@ -161,14 +165,12 @@ class PendingOrdersReminderService:
             stats[key] = dispatch_stats[key]
         return stats
 
-    def _log_dry_run_preview(self, pending_by_org: Dict[str, List[Dict]]) -> None:
-        for org_name, new_rows in pending_by_org.items():
-            active_rows = self.storage.get_active_pending_orders_by_org(self.activity_code, org_name)
+    def _log_dry_run_preview(self, active_by_org: Dict[str, List[Dict]]) -> None:
+        for org_name, active_rows in active_by_org.items():
             preview = _format_pending_orders_message(org_name, active_rows)
             self.logger.info(
-                "[DRY RUN] 待预约提醒将发送给 %s，新工单 %s 条，当前活跃工单 %s 条",
+                "[DRY RUN] 待预约提醒将发送给 %s，当前活跃工单 %s 条",
                 org_name,
-                len(new_rows),
                 len(active_rows),
             )
             self.logger.info("[DRY RUN] 消息预览:\n%s", preview)
@@ -221,17 +223,15 @@ class PendingOrdersReminderService:
                 self.logger.warning("跳过异常工单数据 %s，错误: %s", row, exc)
         return snapshots
 
-    def _enqueue_org_digest(self, org_name: str, active_rows: List[Dict], new_rows: List[Dict]) -> int:
+    def _enqueue_org_digest(self, org_name: str, active_rows: List[Dict]) -> int:
         payload = {
             "msgtype": "text",
             "text": {"content": _format_pending_orders_message(org_name, active_rows)},
         }
-        snapshot_hash = hashlib.sha256(
-            "|".join(sorted(row["status_fingerprint"] for row in active_rows)).encode("utf-8")
-        ).hexdigest()[:16]
         metadata = {
-            "pending_order_fingerprints": [row["status_fingerprint"] for row in new_rows],
+            "pending_order_fingerprints": [row["status_fingerprint"] for row in active_rows],
             "org_name": org_name,
+            "run_marker": self.now.isoformat(),
         }
         return self.storage.enqueue_outbox_message(
             activity_code=self.activity_code,
@@ -240,7 +240,7 @@ class PendingOrdersReminderService:
             webhook_url=resolve_wecom_webhook(CHANNEL_PENDING_ORDERS, org_name=org_name),
             payload_json=json.dumps(payload, ensure_ascii=False),
             metadata_json=json.dumps(metadata, ensure_ascii=False),
-            dedupe_key=f"{org_name}::pending_orders_digest::{snapshot_hash}",
+            dedupe_key=f"{org_name}::pending_orders_digest::{self.now.isoformat()}",
         )
 
     def _dispatch_outbox(self) -> Dict[str, int]:
