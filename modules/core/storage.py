@@ -78,6 +78,18 @@ class TursoHttpCursor:
         self._process_response(resp)
         return self
 
+    def executemany(self, sql, seq_of_params):
+        total_rowcount = 0
+        lastrowid = None
+        for params in seq_of_params:
+            self.execute(sql, params)
+            total_rowcount += self.rowcount if self.rowcount and self.rowcount > 0 else 0
+            if self.lastrowid is not None:
+                lastrowid = self.lastrowid
+        self.rowcount = total_rowcount
+        self.lastrowid = lastrowid
+        return self
+
     def _process_response(self, resp_json):
         if not resp_json:
             return
@@ -175,6 +187,10 @@ class TursoHttpConnection:
     def execute(self, sql, params=None):
         cursor = self.cursor()
         return cursor.execute(sql, params)
+
+    def executemany(self, sql, seq_of_params):
+        cursor = self.cursor()
+        return cursor.executemany(sql, seq_of_params)
 
     def executescript(self, script: str):
         statements = []
