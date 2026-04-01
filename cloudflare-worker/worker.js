@@ -1,20 +1,24 @@
 /**
  * Sales Reward Hub Precision Scheduler
- * 
- * 这个 Cloudflare Worker 作为精准调度器，根据不同 cron 触发不同 workflow。
+ *
+ * 这个 Cloudflare Worker 只保留一个 cron 心跳：
+ * - 北京时间 08:00-23:30，每 30 分钟触发一次
+ *
+ * 然后在 Worker 内部根据北京时间路由不同 workflow：
+ * - 每个心跳都触发北京签约播报
+ * - 08:30 额外触发待预约工单提醒
+ * - 09:00 额外触发 SLA 日报
  */
 
-const CRON_SIGN_BROADCAST = "0,30 0-15 * * *";
-const CRON_PENDING_ORDERS = "30 0 * * *";
-const CRON_DAILY_SERVICE_REPORT = "10 0 * * *";
+const CRON_HEARTBEAT = "0,30 0-15 * * *";
 
 export default {
   // Cron Trigger 入口
   async scheduled(event, env, ctx) {
     console.log(`⏰ Cron triggered at ${new Date().toISOString()} with cron=${event.cron}`);
-    
-    // 按 cron 路由触发 GitHub Actions workflows
-    const result = await triggerGitHubWorkflows(env, { cron: event.cron });
+
+    // 按北京时间路由触发 GitHub Actions workflows
+    const result = await triggerGitHubWorkflows(env, { now: new Date() });
     console.log(`✅ GitHub Actions triggered:`, result);
   },
   
@@ -34,12 +38,17 @@ export default {
     if (url.pathname === '/status') {
       // 状态检查
       const now = new Date();
+      const routing = getTimeBasedScheduleConfig(env);
       return new Response(JSON.stringify({
         service: 'Sales Reward Hub Scheduler',
         status: 'running',
         utc_time: now.toISOString(),
         github_repo: `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`,
-        schedules: getScheduleConfig(env)
+        schedules: {
+          cron: CRON_HEARTBEAT,
+          timezone: "Asia/Shanghai",
+          routing,
+        }
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -49,44 +58,77 @@ export default {
   }
 };
 
-function getScheduleConfig(env) {
+function getWorkflowNames(env) {
   return {
-    [CRON_SIGN_BROADCAST]: [
-      env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml'
-    ],
-    [CRON_PENDING_ORDERS]: [
-      env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml'
-    ],
-    [CRON_DAILY_SERVICE_REPORT]: [
-      env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml'
-    ],
+    signBroadcast: env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml',
+    pendingOrders: env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml',
+    dailyServiceReport: env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml',
+  };
+}
+
+function getTimeBasedScheduleConfig(env) {
+  const workflows = getWorkflowNames(env);
+  return {
+    "08:00-23:30/30m": [workflows.signBroadcast],
+    "08:30": [workflows.pendingOrders],
+    "09:00": [workflows.dailyServiceReport],
   };
 }
 
 function getTargetWorkflows(env, options = {}) {
-  const scheduleConfig = getScheduleConfig(env);
-
-  if (options.cron && scheduleConfig[options.cron]) {
-    return scheduleConfig[options.cron];
-  }
+  const workflows = getWorkflowNames(env);
 
   if (options.target === 'sign-broadcast') {
-    return scheduleConfig[CRON_SIGN_BROADCAST];
+    return [workflows.signBroadcast];
   }
 
   if (options.target === 'pending-orders') {
-    return scheduleConfig[CRON_PENDING_ORDERS];
+    return [workflows.pendingOrders];
   }
 
   if (options.target === 'daily-service-report') {
-    return scheduleConfig[CRON_DAILY_SERVICE_REPORT];
+    return [workflows.dailyServiceReport];
   }
 
-  return Array.from(new Set([
-    ...scheduleConfig[CRON_SIGN_BROADCAST],
-    ...scheduleConfig[CRON_PENDING_ORDERS],
-    ...scheduleConfig[CRON_DAILY_SERVICE_REPORT],
-  ]));
+  if (options.target === 'all') {
+    return [workflows.signBroadcast, workflows.pendingOrders, workflows.dailyServiceReport];
+  }
+
+  const current = options.now instanceof Date ? options.now : new Date();
+  const shanghai = getShanghaiParts(current);
+  const targetWorkflows = [workflows.signBroadcast];
+
+  if (shanghai.hour === 8 && shanghai.minute === 30) {
+    targetWorkflows.push(workflows.pendingOrders);
+  }
+
+  if (shanghai.hour === 9 && shanghai.minute === 0) {
+    targetWorkflows.push(workflows.dailyServiceReport);
+  }
+
+  return targetWorkflows;
+}
+
+function getShanghaiParts(date) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const parts = formatter.formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(lookup.year),
+    month: Number(lookup.month),
+    day: Number(lookup.day),
+    hour: Number(lookup.hour),
+    minute: Number(lookup.minute),
+  };
 }
 
 async function triggerSingleGitHubWorkflow(env, workflow) {
