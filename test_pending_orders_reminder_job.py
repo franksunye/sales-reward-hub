@@ -36,7 +36,6 @@ os.environ.setdefault("METABASE_USERNAME", "test@example.com")
 os.environ.setdefault("METABASE_PASSWORD", "test-password")
 os.environ.setdefault("WECOM_WEBHOOK_DEFAULT", "https://example.com/default")
 os.environ.setdefault("WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT", "https://example.com/sign-broadcast")
-os.environ.setdefault("WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT", "https://example.com/pending-default")
 os.environ.setdefault(
     "WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP",
     '{"北京经常亮工程技术有限公司":"https://example.com/pending-provider-a"}',
@@ -166,13 +165,13 @@ class PendingOrdersReminderJobTest(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(active_count, 2)
 
-    def test_webhook_router_uses_channel_specific_defaults_and_org_override(self):
+    def test_webhook_router_pending_orders_uses_default_webhook_and_org_override(self):
         sign_webhook = resolve_wecom_webhook(CHANNEL_SIGN_BROADCAST)
         pending_default = resolve_wecom_webhook(CHANNEL_PENDING_ORDERS, org_name="未知服务商")
         pending_override = resolve_wecom_webhook(CHANNEL_PENDING_ORDERS, org_name="北京经常亮工程技术有限公司")
 
         self.assertEqual(sign_webhook, os.environ["WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT"])
-        self.assertEqual(pending_default, os.environ["WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT"])
+        self.assertEqual(pending_default, os.environ["WECOM_WEBHOOK_DEFAULT"])
         self.assertNotEqual(pending_override, pending_default)
 
     def test_webhook_router_can_force_all_pending_order_messages_to_local_url(self):

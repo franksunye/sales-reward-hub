@@ -433,14 +433,10 @@ TASK_CHECK_INTERVAL = 10
 # 默认 webhook（兼容旧代码），建议新代码使用通道化路由函数
 WEBHOOK_URL_DEFAULT = os.getenv(
     'WECOM_WEBHOOK_DEFAULT',
-    'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4fbae71d-8d83-479f-a2db-7690eeb37a5c'
+    'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=689cebff-3328-4150-9741-fed8b8ce4713'
 )
 WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT = os.getenv(
     'WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT',
-    WEBHOOK_URL_DEFAULT
-)
-WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT = os.getenv(
-    'WECOM_WEBHOOK_PENDING_ORDERS_DEFAULT',
     WEBHOOK_URL_DEFAULT
 )
 WECOM_WEBHOOK_PENDING_ORDERS_FORCE_URL = os.getenv(
