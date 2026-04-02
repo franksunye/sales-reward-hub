@@ -17,6 +17,8 @@ jobs:
       METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
       METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
       WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      # 签约播报专用群；若不设置 secret，进程内会回退为 WECOM_WEBHOOK_DEFAULT
+      WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT: ${{ secrets.WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT }}
       CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
     steps:
       - uses: actions/checkout@v4
