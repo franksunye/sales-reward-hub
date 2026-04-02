@@ -1,5 +1,6 @@
 """企业微信 webhook 路由管理。"""
 
+from urllib.parse import parse_qs, urlparse
 from typing import Optional
 
 from modules.config import (
@@ -38,3 +39,17 @@ def resolve_wecom_webhook(channel: str, org_name: Optional[str] = None) -> str:
 def get_configured_provider_names() -> list[str]:
     """返回当前已配置专属 webhook 的服务商列表。"""
     return sorted(PENDING_ORDER_ORG_WEBHOOKS.keys())
+
+
+def format_safe_webhook_target(webhook_url: str) -> str:
+    """返回适合写入日志的脱敏 webhook 标识。"""
+    if not webhook_url:
+        return "webhook=<empty>"
+
+    parsed = urlparse(webhook_url)
+    host = parsed.netloc or "unknown-host"
+    key = parse_qs(parsed.query).get("key", [""])[0]
+    if key:
+        suffix = key[-6:] if len(key) > 6 else key
+        return f"webhook={host} key=*{suffix}"
+    return f"webhook={host}"

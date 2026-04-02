@@ -13,7 +13,7 @@ import requests
 
 from modules.config import API_URL_PENDING_ORDERS_REMINDER
 from modules.core.storage import PerformanceDataStore, create_data_store
-from modules.core.webhook_router import CHANNEL_PENDING_ORDERS, resolve_wecom_webhook
+from modules.core.webhook_router import CHANNEL_PENDING_ORDERS, format_safe_webhook_target, resolve_wecom_webhook
 from modules.request_module import send_request_with_managed_session
 
 
@@ -252,6 +252,14 @@ class PendingOrdersReminderService:
         for item in outbox_items:
             try:
                 payload = json.loads(item.get("payload_json") or "{}")
+                self.logger.info(
+                    "发送 webhook: activity=%s, outbox_id=%s, type=%s, contract=%s, %s",
+                    item.get("activity_code"),
+                    item.get("id"),
+                    item.get("message_type"),
+                    item.get("contract_id"),
+                    format_safe_webhook_target(item.get("webhook_url", "")),
+                )
                 response = requests.post(item["webhook_url"], json=payload, timeout=20)
                 body_text = (response.text or "")[:2000]
                 if 200 <= response.status_code < 300:

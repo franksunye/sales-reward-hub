@@ -19,6 +19,7 @@ from modules.config import API_URL_DAILY_SERVICE_REPORT
 from modules.core.storage import PerformanceDataStore, create_data_store
 from modules.core.webhook_router import (
     CHANNEL_SLA_DAILY_REPORT,
+    format_safe_webhook_target,
     get_configured_provider_names,
     resolve_wecom_webhook,
 )
@@ -247,6 +248,14 @@ class DailyServiceReportService:
         for item in outbox_items:
             try:
                 payload = json.loads(item.get("payload_json") or "{}")
+                self.logger.info(
+                    "发送 webhook: activity=%s, outbox_id=%s, type=%s, contract=%s, %s",
+                    item.get("activity_code"),
+                    item.get("id"),
+                    item.get("message_type"),
+                    item.get("contract_id"),
+                    format_safe_webhook_target(item.get("webhook_url", "")),
+                )
                 response = requests.post(item["webhook_url"], json=payload, timeout=20)
                 body_text = (response.text or "")[:2000]
                 if 200 <= response.status_code < 300:
