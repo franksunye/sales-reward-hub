@@ -108,10 +108,19 @@ python tests/test_jobs_simple.py
 
 ## 🤖 GitHub Actions 定时任务
 
-项目已提供工作流：`.github/workflows/scheduled-jobs.yml`。
+当前由 Cloudflare Worker 统一保留一个 cron 心跳，再按北京时间路由触发 GitHub Actions workflow。
+
+当前工作流：
+- `.github/workflows/beijing-signing-broadcast.yml`
+- `.github/workflows/project-settlement-smartsheet.yml`
+- `.github/workflows/pending-orders-reminder.yml`
+- `.github/workflows/daily-service-report.yml`
 
 默认计划：
-- 每10分钟：执行北京签约播报任务（无月份限制）
+- 北京时间 `08:00-23:30` 每 30 分钟：执行北京签约播报
+- 北京时间 `08:00-23:30` 每 30 分钟：执行项目结算电子表格同步
+- 北京时间 `08:30`：额外执行待预约工单提醒
+- 北京时间 `09:00`：额外执行 SLA 日报
 
 请在 GitHub 仓库 `Settings -> Secrets and variables -> Actions` 配置：
 - `TURSO_DB_URL`
@@ -119,8 +128,10 @@ python tests/test_jobs_simple.py
 - `METABASE_USERNAME`
 - `METABASE_PASSWORD`
 - `WECOM_WEBHOOK_DEFAULT`
+- `WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK`
 - `CONTACT_PHONE_NUMBER`
 - `API_URL_BJ_SIGN_BROADCAST`（可选，不填则使用默认值）
+- `API_URL_PROJECT_SETTLEMENT_SMARTSHEET`（可选，不填则使用默认值）
 - `METABASE_URL`（可选，不填则使用默认值）
 
 ## 📞 支持

@@ -6,6 +6,7 @@
  *
  * 然后在 Worker 内部根据北京时间路由不同 workflow：
  * - 每个心跳都触发北京签约播报
+ * - 每个心跳都触发项目结算电子表格同步
  * - 08:30 额外触发待预约工单提醒
  * - 09:00 额外触发 SLA 日报
  */
@@ -61,6 +62,7 @@ export default {
 function getWorkflowNames(env) {
   return {
     signBroadcast: env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml',
+    projectSettlementSmartsheet: env.GITHUB_WORKFLOW_PROJECT_SETTLEMENT_SMARTSHEET || 'project-settlement-smartsheet.yml',
     pendingOrders: env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml',
     dailyServiceReport: env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml',
   };
@@ -69,7 +71,7 @@ function getWorkflowNames(env) {
 function getTimeBasedScheduleConfig(env) {
   const workflows = getWorkflowNames(env);
   return {
-    "08:00-23:30/30m": [workflows.signBroadcast],
+    "08:00-23:30/30m": [workflows.signBroadcast, workflows.projectSettlementSmartsheet],
     "08:30": [workflows.pendingOrders],
     "09:00": [workflows.dailyServiceReport],
   };
@@ -82,6 +84,10 @@ function getTargetWorkflows(env, options = {}) {
     return [workflows.signBroadcast];
   }
 
+  if (options.target === 'project-settlement-smartsheet') {
+    return [workflows.projectSettlementSmartsheet];
+  }
+
   if (options.target === 'pending-orders') {
     return [workflows.pendingOrders];
   }
@@ -91,12 +97,12 @@ function getTargetWorkflows(env, options = {}) {
   }
 
   if (options.target === 'all') {
-    return [workflows.signBroadcast, workflows.pendingOrders, workflows.dailyServiceReport];
+    return [workflows.signBroadcast, workflows.projectSettlementSmartsheet, workflows.pendingOrders, workflows.dailyServiceReport];
   }
 
   const current = options.now instanceof Date ? options.now : new Date();
   const shanghai = getShanghaiParts(current);
-  const targetWorkflows = [workflows.signBroadcast];
+  const targetWorkflows = [workflows.signBroadcast, workflows.projectSettlementSmartsheet];
 
   if (shanghai.hour === 8 && shanghai.minute === 30) {
     targetWorkflows.push(workflows.pendingOrders);
