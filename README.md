@@ -38,8 +38,8 @@ python -c "from jobs import signing_and_sales_incentive_sep_beijing; signing_and
 
 ### 手动验证
 ```bash
-# 查看详细验证指南
-cat docs/manual_validation_guide.md
+# 查看当前活跃文档入口
+cat docs/BACKLOG.md
 ```
 
 ## 📁 项目结构
@@ -52,19 +52,16 @@ cat docs/manual_validation_guide.md
 │   ├── storage.py           # 数据存储抽象层
 │   └── processing_pipeline.py # 处理管道
 ├── jobs.py                   # 旧架构任务定义
-├── scripts/                  # 验证和工具脚本
-│   ├── export_database_to_csv.py # 数据库导出工具
-│   ├── individual_sampling_validator.py # 个体抽样验证
+├── scripts/                  # 运行脚本和工具
+│   ├── run_scheduled_task.py # 本地定时任务入口
+│   ├── local_webhook_sink.py # 本地 webhook 接收器
 │   └── ...
+├── tests/                    # 测试与手工验证
+│   ├── unit/                 # 自动化单元测试
+│   └── manual/               # 手工验证脚本
 ├── docs/                     # 文档
-│   ├── manual_validation_guide.md # 手动验证指南
-│   └── current_project_status.md  # 项目状态
-├── baseline/                 # 基准数据
-├── reports/                  # 验证报告
-│   └── README_测试说明.md   # 详细测试说明
-├── config/                   # 配置文件
-├── docs/                     # 文档
-├── scripts/                  # 工具脚本
+│   ├── BACKLOG.md            # 当前活跃文档入口
+│   └── ARCHIVE_NOTICE.md     # 历史归档说明
 └── state/                    # 状态文件
 ```
 
@@ -77,12 +74,18 @@ cat docs/manual_validation_guide.md
 
 ## 📊 测试
 
-详细的测试说明请查看 [tests/README_测试说明.md](tests/README_测试说明.md)
+自动化测试放在 `tests/unit/`，手工验证脚本放在 `tests/manual/`。
 
 ### 快速验证
 ```bash
-# 运行所有核心任务的快速测试
-python tests/test_jobs_simple.py
+# 运行所有自动化单测
+python -m unittest discover -s tests/unit -p 'test_*.py'
+
+# 运行单个测试文件
+python -m unittest tests.unit.test_project_settlement_smartsheet_job
+
+# 运行手工验证脚本
+python tests/manual/beijing_november.py
 ```
 
 ## 📝 配置
@@ -94,17 +97,13 @@ python tests/test_jobs_simple.py
 
 ## 📖 文档
 
-详细文档位于 `docs/` 目录下，包含：
-- 业务规则说明
-- 配置指南
-- 测试方法
-- 版本历史
+当前活跃文档入口是 `docs/BACKLOG.md`。`docs/` 目录中其余内容默认按历史归档资料处理；如需查找旧设计、旧实现或阶段性报告，请先看 `docs/ARCHIVE_NOTICE.md` 的说明。
 
 ## 🔧 开发
 
-1. **修改代码后**: 运行 `python tests/test_jobs_simple.py` 快速验证
-2. **重要变更前**: 在测试环境运行真实任务验证
-3. **部署前**: 确保所有测试通过
+1. **修改代码后**: 先运行 `python -m unittest discover -s tests/unit -p 'test_*.py'`
+2. **重要变更前**: 再运行对应的 `tests/manual/` 验证脚本
+3. **部署前**: 确保相关测试和手工验证都通过
 
 ## 🤖 GitHub Actions 定时任务
 
