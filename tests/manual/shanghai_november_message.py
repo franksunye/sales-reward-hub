@@ -5,9 +5,38 @@
 验证消息格式是否与10月一致（不显示自引单信息）
 """
 
-import sys
 import os
+import sys
+import types
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+if "requests" not in sys.modules:
+    requests_stub = types.ModuleType("requests")
+    requests_exceptions_stub = types.ModuleType("requests.exceptions")
+
+    class _RequestException(Exception):
+        pass
+
+    class _Timeout(_RequestException):
+        pass
+
+    requests_stub.post = lambda *args, **kwargs: None
+    requests_stub.RequestException = _RequestException
+    requests_exceptions_stub.Timeout = _Timeout
+    sys.modules["requests"] = requests_stub
+    sys.modules["requests.exceptions"] = requests_exceptions_stub
+
+if "dotenv" not in sys.modules:
+    dotenv_stub = types.ModuleType("dotenv")
+    dotenv_stub.load_dotenv = lambda *args, **kwargs: None
+    sys.modules["dotenv"] = dotenv_stub
+
+os.environ.setdefault("CONTACT_PHONE_NUMBER", "13800000000")
+os.environ.setdefault("METABASE_USERNAME", "test@example.com")
+os.environ.setdefault("METABASE_PASSWORD", "test-password")
+os.environ.setdefault("WECOM_WEBHOOK_DEFAULT", "https://example.com/default")
+os.environ.setdefault("WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT", "https://example.com/sign-broadcast")
+os.environ.setdefault("DB_SOURCE", "local")
 
 from modules.core.config_adapter import ConfigAdapter
 from modules.core.notification_service import NotificationService
@@ -183,4 +212,3 @@ if __name__ == "__main__":
     else:
         print("❌ 部分测试失败")
         sys.exit(1)
-

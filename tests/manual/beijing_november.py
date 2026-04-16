@@ -6,6 +6,7 @@
 
 import os
 import sys
+import types
 import logging
 from typing import Dict, List
 
@@ -13,11 +14,17 @@ from typing import Dict, List
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
+if "dotenv" not in sys.modules:
+    dotenv_stub = types.ModuleType("dotenv")
+    dotenv_stub.load_dotenv = lambda *args, **kwargs: None
+    sys.modules["dotenv"] = dotenv_stub
+
 # 设置环境变量避免配置错误
-os.environ['METABASE_USERNAME'] = 'test'
-os.environ['METABASE_PASSWORD'] = 'test'
-os.environ['WECOM_WEBHOOK_DEFAULT'] = 'test'
-os.environ['CONTACT_PHONE_NUMBER'] = 'test'
+os.environ.setdefault('METABASE_USERNAME', 'test')
+os.environ.setdefault('METABASE_PASSWORD', 'test')
+os.environ.setdefault('WECOM_WEBHOOK_DEFAULT', 'test')
+os.environ.setdefault('CONTACT_PHONE_NUMBER', 'test')
+os.environ.setdefault('DB_SOURCE', 'local')
 
 from modules.core.reward_calculator import RewardCalculator
 from modules.core.data_models import ContractData, HousekeeperStats, OrderType

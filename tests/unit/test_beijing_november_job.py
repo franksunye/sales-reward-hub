@@ -6,6 +6,22 @@
 """
 
 import logging
+import os
+import sys
+import types
+
+if "dotenv" not in sys.modules:
+    dotenv_stub = types.ModuleType("dotenv")
+    dotenv_stub.load_dotenv = lambda *args, **kwargs: None
+    sys.modules["dotenv"] = dotenv_stub
+
+os.environ.setdefault("CONTACT_PHONE_NUMBER", "13800000000")
+os.environ.setdefault("METABASE_USERNAME", "test@example.com")
+os.environ.setdefault("METABASE_PASSWORD", "test-password")
+os.environ.setdefault("WECOM_WEBHOOK_DEFAULT", "https://example.com/default")
+os.environ.setdefault("WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT", "https://example.com/sign-broadcast")
+os.environ.setdefault("DB_SOURCE", "local")
+
 from modules.log_config import setup_logging
 
 # 设置日志
@@ -182,4 +198,3 @@ def main():
 if __name__ == '__main__':
     import sys
     sys.exit(main())
-
