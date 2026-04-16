@@ -58,17 +58,18 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
 
     def _response(self, rows):
         cols = [{"name": name} for name in [
-            "合同编号", "项目施工地址", "业主姓名", "联系电话", "部位", "进场日期", "完工日期",
+            "合同编号", "项目施工地址", "业主姓名", "联系电话", "serviceHousekeeper", "部位", "进场日期", "完工日期",
             "项目用工数", "班组名称", "是否发起预结单", "结算状态", "支付金额", "合同金额",
         ]]
         return {"data": {"cols": cols, "rows": rows}}
 
-    def _row(self, contract_no="HT001", team_name="刘振海", settle_status="已发起"):
+    def _row(self, contract_no="HT001", team_name="刘振海", settle_status="已发起", housekeeper="王管家"):
         return [
             contract_no,
             "北京市朝阳区测试地址",
             "张三",
             "13800138000",
+            housekeeper,
             "客厅",
             "2026-04-01",
             "2026-04-10",
@@ -97,8 +98,10 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
         first_payload = mock_post.call_args_list[0].kwargs["json"]
         self.assertIn("schema", first_payload)
         self.assertEqual(first_payload["schema"]["f04Gwj"], "合同编号")
+        self.assertEqual(first_payload["schema"]["foyhkS"], "管家")
         values = first_payload["add_records"][0]["values"]
         self.assertEqual(values["f04Gwj"], "HT001")
+        self.assertEqual(values["foyhkS"], "王管家")
         self.assertEqual(values["fMqDX0"], 3)
         self.assertEqual(values["f5Cx2q"], 1200.5)
         self.assertEqual(values["f8xImK"], [{"text": "刘振海"}])
