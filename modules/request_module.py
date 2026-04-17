@@ -92,11 +92,14 @@ def _send_request_with_session(session_id, api_url):
             'Content-Type': 'application/json'
         }
         response = requests.post(target_url, headers=header, timeout=30)
-        if response.status_code == 202:
-            return response.json()
-        else:
-            logging.error(f"Request failed with status code {response.status_code}, url={target_url}")
-            return None
+        if response.status_code in (200, 202):
+            try:
+                return response.json()
+            except ValueError as exc:
+                logging.error(f"Failed to parse JSON response from {target_url}: {exc}")
+                return None
+        logging.error(f"Request failed with status code {response.status_code}, url={target_url}")
+        return None
     except Timeout:
         logging.error("Request timed out")
         return None

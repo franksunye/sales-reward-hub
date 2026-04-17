@@ -40,6 +40,7 @@ class SmartsheetSyncConfig:
     log_label: str
     dry_run_env: str
     dedupe_prefix: str
+    dispatch_delay_seconds: float = 0.2
     numeric_fields: Set[str] = field(default_factory=set)
     datetime_fields: Set[str] = field(default_factory=set)
     multi_text_fields: Set[str] = field(default_factory=set)
@@ -111,6 +112,7 @@ CONTRACT_COMPLETION_SYNC_CONFIG = SmartsheetSyncConfig(
     log_label="合同完工",
     dry_run_env="CONTRACT_COMPLETION_SMARTSHEET_DRY_RUN",
     dedupe_prefix="wedoc-contract-completion",
+    datetime_fields={"f2fKLq"},
     identity_keys=("fDeUpD", "f2fKLq"),
 )
 
@@ -132,6 +134,7 @@ PAYMENT_RECORDS_SYNC_CONFIG = SmartsheetSyncConfig(
     log_label="支付记录更新",
     dry_run_env="PAYMENT_RECORDS_SMARTSHEET_DRY_RUN",
     dedupe_prefix="wedoc-payment-records",
+    dispatch_delay_seconds=1.5,
     numeric_fields={"fO4cAe"},
     datetime_fields={"fBaRQ1"},
     identity_keys=("fi9MN0", "fO4cAe", "fBaRQ1"),
@@ -409,6 +412,14 @@ class SmartsheetSyncService:
                     self.storage.mark_outbox_sent(item["id"], response.status_code, body_text)
                     stats["sent"] += 1
                 else:
+                    self.logger.warning(
+                        "企业微信电子表格 webhook 发送失败: activity=%s, outbox_id=%s, contract=%s, status=%s, body=%s",
+                        item.get("activity_code"),
+                        item.get("id"),
+                        item.get("contract_id"),
+                        response.status_code,
+                        body_text,
+                    )
                     self.storage.mark_outbox_failed(
                         outbox_id=item["id"],
                         last_error=f"HTTP {response.status_code}: {body_text}",
@@ -430,7 +441,7 @@ class SmartsheetSyncService:
                     stats["dead_letter"] += 1
                 else:
                     stats["failed"] += 1
-            time.sleep(0.2)
+            time.sleep(self.sync_config.dispatch_delay_seconds)
         return stats
 
     def _log_dry_run_preview(self, eligible_records: List[Tuple[Dict, Dict]]) -> None:

@@ -218,6 +218,25 @@ class ContractCompletionSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(values["fDeUpD"], "HT001")
         self.assertEqual(values["f2fKLq"], "2026-04-12")
 
+    def test_timestamp_value_is_normalized_for_completion_date(self):
+        response = self._response([self._row("HT001", "1735660800000")])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":0}')
+            stats = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=CONTRACT_COMPLETION_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        self.assertEqual(stats["raw_records"], 1)
+        self.assertEqual(stats["sent"], 1)
+        first_payload = mock_post.call_args_list[0].kwargs["json"]
+        values = first_payload["add_records"][0]["values"]
+        self.assertEqual(values["f2fKLq"], "2025-01-01 00:00:00")
+
     def test_second_run_does_not_resend_same_completion_record(self):
         response = self._response([self._row("HT001", "2026-04-12")])
 
@@ -280,6 +299,24 @@ class PaymentRecordsSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(values["fi9MN0"], "HT001")
         self.assertEqual(values["fO4cAe"], 1200.5)
         self.assertEqual(values["fBaRQ1"], "2025-01-01 00:00:00")
+
+    def test_failed_payment_webhook_is_marked_as_failed(self):
+        response = self._response([self._row("HT001")])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":40013, "errmsg":"invalid appid"}')
+            stats = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=PAYMENT_RECORDS_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        self.assertEqual(stats["raw_records"], 1)
+        self.assertEqual(stats["sent"], 0)
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual(mock_post.call_count, 1)
 
     def test_missing_contract_number_is_skipped(self):
         response = self._response([self._row("", "1200.5", "2026-04-12 10:20:30")])
