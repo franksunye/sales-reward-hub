@@ -7,6 +7,8 @@ from modules.log_config import setup_logging
 from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 from modules.core.beijing_jobs import signing_broadcast_beijing
 from modules.core.pending_orders_jobs import send_pending_orders_reminder_v2
+from modules.core.project_settlement_jobs import sync_contract_completion_smartsheet_v2
+from modules.core.project_settlement_jobs import sync_payment_records_smartsheet_v2
 from modules.core.project_settlement_jobs import sync_project_settlement_smartsheet_v2
 from modules.core.sla_jobs import generate_daily_service_report_v2
 
@@ -58,15 +60,39 @@ def run_project_settlement_smartsheet_task():
         logging.error(traceback.format_exc())
 
 
+def run_contract_completion_smartsheet_task():
+    """合同完工企业微信电子表格同步任务。"""
+    try:
+        logging.info("开始执行合同完工电子表格同步任务")
+        sync_contract_completion_smartsheet_v2()
+        logging.info("合同完工电子表格同步任务执行完成")
+    except Exception as e:
+        logging.error(f"执行合同完工电子表格同步任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
+def run_payment_records_smartsheet_task():
+    """支付记录企业微信电子表格同步任务。"""
+    try:
+        logging.info("开始执行支付记录电子表格同步任务")
+        sync_payment_records_smartsheet_v2()
+        logging.info("支付记录电子表格同步任务执行完成")
+    except Exception as e:
+        logging.error(f"执行支付记录电子表格同步任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
 # 常驻任务
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_sign_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_pending_orders_reminder_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_project_settlement_smartsheet_task)
+schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_contract_completion_smartsheet_task)
+schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_payment_records_smartsheet_task)
 schedule.every().day.at("08:10").do(run_daily_service_report_task)
 
 
 if __name__ == "__main__":
-    logging.info("Program started (Beijing sign broadcast + pending orders reminder + project settlement smartsheet + daily service report)")
+    logging.info("Program started (Beijing sign broadcast + pending orders reminder + project settlement smartsheet + contract completion smartsheet + payment records smartsheet + daily service report)")
 
     while True:
         try:

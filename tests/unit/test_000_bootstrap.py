@@ -32,9 +32,10 @@ defaults = {
     "WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT": "https://example.com/sign-broadcast",
     "WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP": '{"北京经常亮工程技术有限公司":"https://example.com/pending-provider-a"}',
     "WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK": "https://example.com/wedoc",
+    "WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-contract-completion",
+    "WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-payment-records",
     "DB_SOURCE": "local",
 }
 
 for key, value in defaults.items():
     os.environ.setdefault(key, value)
-

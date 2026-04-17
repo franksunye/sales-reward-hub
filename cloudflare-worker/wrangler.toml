@@ -11,7 +11,7 @@ crons = ["0,30 0-15 * * *"]
 GITHUB_OWNER = "franksunye"
 GITHUB_REPO = "sales-reward-hub"
 GITHUB_WORKFLOW_SIGN_BROADCAST = "beijing-signing-broadcast.yml"
-GITHUB_WORKFLOW_PROJECT_SETTLEMENT_SMARTSHEET = "project-settlement-smartsheet.yml"
+GITHUB_WORKFLOW_SMARTSHEET_SYNC = "smartsheet-sync.yml"
 GITHUB_WORKFLOW_PENDING_ORDERS = "pending-orders-reminder.yml"
 GITHUB_WORKFLOW_DAILY_SERVICE_REPORT = "daily-service-report.yml"
 # GITHUB_TOKEN 必须在 Dashboard 中设置为 Secret

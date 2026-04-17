@@ -6,7 +6,7 @@
  *
  * 然后在 Worker 内部根据北京时间路由不同 workflow：
  * - 每个心跳都触发北京签约播报
- * - 每个心跳都触发项目结算电子表格同步
+ * - 每个心跳都触发统一电子表格同步 workflow（项目结算 / 合同完工 / 支付记录）
  * - 08:30 额外触发待预约工单提醒
  * - 09:00 额外触发 SLA 日报
  */
@@ -62,7 +62,7 @@ export default {
 function getWorkflowNames(env) {
   return {
     signBroadcast: env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml',
-    projectSettlementSmartsheet: env.GITHUB_WORKFLOW_PROJECT_SETTLEMENT_SMARTSHEET || 'project-settlement-smartsheet.yml',
+    smartsheetSync: env.GITHUB_WORKFLOW_SMARTSHEET_SYNC || 'smartsheet-sync.yml',
     pendingOrders: env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml',
     dailyServiceReport: env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml',
   };
@@ -71,45 +71,65 @@ function getWorkflowNames(env) {
 function getTimeBasedScheduleConfig(env) {
   const workflows = getWorkflowNames(env);
   return {
-    "08:00-23:30/30m": [workflows.signBroadcast, workflows.projectSettlementSmartsheet],
+    "08:00-23:30/30m": [workflows.signBroadcast, workflows.smartsheetSync],
     "08:30": [workflows.pendingOrders],
     "09:00": [workflows.dailyServiceReport],
   };
+}
+
+function createWorkflowDispatch(workflow, inputs = undefined) {
+  return { workflow, inputs };
 }
 
 function getTargetWorkflows(env, options = {}) {
   const workflows = getWorkflowNames(env);
 
   if (options.target === 'sign-broadcast') {
-    return [workflows.signBroadcast];
+    return [createWorkflowDispatch(workflows.signBroadcast)];
   }
 
-  if (options.target === 'project-settlement-smartsheet') {
-    return [workflows.projectSettlementSmartsheet];
+  if (options.target === 'smartsheet-sync') {
+    return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'all', dry_run: 'false' })];
+  }
+
+  if (options.target === 'contract-completion-smartsheet') {
+    return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'contract-completion-smartsheet', dry_run: 'false' })];
+  }
+
+  if (options.target === 'payment-records-smartsheet') {
+    return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'payment-records-smartsheet', dry_run: 'false' })];
   }
 
   if (options.target === 'pending-orders') {
-    return [workflows.pendingOrders];
+    return [createWorkflowDispatch(workflows.pendingOrders)];
   }
 
   if (options.target === 'daily-service-report') {
-    return [workflows.dailyServiceReport];
+    return [createWorkflowDispatch(workflows.dailyServiceReport)];
   }
 
   if (options.target === 'all') {
-    return [workflows.signBroadcast, workflows.projectSettlementSmartsheet, workflows.pendingOrders, workflows.dailyServiceReport];
+    return [
+      createWorkflowDispatch(workflows.signBroadcast),
+      createWorkflowDispatch(workflows.smartsheetSync, { task: 'all', dry_run: 'false' }),
+      createWorkflowDispatch(workflows.pendingOrders),
+      createWorkflowDispatch(workflows.dailyServiceReport),
+    ];
   }
 
   const current = options.now instanceof Date ? options.now : new Date();
   const shanghai = getShanghaiParts(current);
-  const targetWorkflows = [workflows.signBroadcast, workflows.projectSettlementSmartsheet];
+  const targetWorkflows = [
+    createWorkflowDispatch(workflows.signBroadcast),
+    createWorkflowDispatch(workflows.smartsheetSync, { task: 'all', dry_run: 'false' }),
+  ];
 
   if (shanghai.hour === 8 && shanghai.minute === 30) {
-    targetWorkflows.push(workflows.pendingOrders);
+    targetWorkflows.push(createWorkflowDispatch(workflows.pendingOrders));
   }
 
   if (shanghai.hour === 9 && shanghai.minute === 0) {
-    targetWorkflows.push(workflows.dailyServiceReport);
+    targetWorkflows.push(createWorkflowDispatch(workflows.dailyServiceReport));
   }
 
   return targetWorkflows;
@@ -137,8 +157,9 @@ function getShanghaiParts(date) {
   };
 }
 
-async function triggerSingleGitHubWorkflow(env, workflow) {
+async function triggerSingleGitHubWorkflow(env, dispatch) {
   const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO } = env;
+  const workflow = dispatch.workflow;
   
   if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) {
     return { success: false, error: 'Missing required environment variables (GITHUB_TOKEN, GITHUB_OWNER, or GITHUB_REPO)' };
@@ -155,17 +176,19 @@ async function triggerSingleGitHubWorkflow(env, workflow) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      ref: 'main'  // 目标分支
+      ref: 'main',
+      ...(dispatch.inputs ? { inputs: dispatch.inputs } : {})
     })
   });
   
   if (response.status === 204) {
-    return { workflow, success: true, message: 'Workflow triggered successfully' };
+    return { workflow, inputs: dispatch.inputs || null, success: true, message: 'Workflow triggered successfully' };
   }
   
   const errorText = await response.text();
   return { 
     workflow,
+    inputs: dispatch.inputs || null,
     success: false, 
     status: response.status,
     error: errorText 

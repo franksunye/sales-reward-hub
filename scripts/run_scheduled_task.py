@@ -5,9 +5,11 @@ import argparse
 import logging
 
 from modules.log_config import setup_logging
+from main import run_contract_completion_smartsheet_task
 from main import run_beijing_sign_broadcast_task
 from main import run_daily_service_report_task
 from main import run_pending_orders_reminder_task
+from main import run_payment_records_smartsheet_task
 from main import run_project_settlement_smartsheet_task
 
 
@@ -15,7 +17,14 @@ def main():
     parser = argparse.ArgumentParser(description="Run one scheduled task once and exit.")
     parser.add_argument(
         "--task",
-        choices=["beijing-sign-broadcast", "pending-orders-reminder", "project-settlement-smartsheet", "daily-service-report"],
+        choices=[
+            "beijing-sign-broadcast",
+            "pending-orders-reminder",
+            "project-settlement-smartsheet",
+            "contract-completion-smartsheet",
+            "payment-records-smartsheet",
+            "daily-service-report",
+        ],
         required=True,
         help="Task selector.",
     )
@@ -28,6 +37,10 @@ def main():
         run_beijing_sign_broadcast_task()
     elif args.task == "daily-service-report":
         run_daily_service_report_task()
+    elif args.task == "contract-completion-smartsheet":
+        run_contract_completion_smartsheet_task()
+    elif args.task == "payment-records-smartsheet":
+        run_payment_records_smartsheet_task()
     elif args.task == "project-settlement-smartsheet":
         run_project_settlement_smartsheet_task()
     else:

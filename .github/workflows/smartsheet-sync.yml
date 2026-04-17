@@ -1,0 +1,76 @@
+name: Smartsheet Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Smartsheet task selector"
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - project-settlement-smartsheet
+          - contract-completion-smartsheet
+          - payment-records-smartsheet
+      dry_run:
+        description: "Generate smartsheet records but do not send webhook"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: smartsheet-sync
+  cancel-in-progress: false
+
+jobs:
+  run-sync:
+    runs-on: ubuntu-latest
+    env:
+      DB_SOURCE: cloud
+      TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
+      METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
+      WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK }}
+      WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK }}
+      WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK }}
+      CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run selected smartsheet sync task(s)
+        env:
+          TASK_SELECTOR: ${{ github.event.inputs.task || 'all' }}
+          DRY_RUN_ENABLED: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: |
+          if [ "$DRY_RUN_ENABLED" = "1" ]; then
+            export PROJECT_SETTLEMENT_SMARTSHEET_DRY_RUN=1
+            export CONTRACT_COMPLETION_SMARTSHEET_DRY_RUN=1
+            export PAYMENT_RECORDS_SMARTSHEET_DRY_RUN=1
+          fi
+
+          run_task() {
+            PYTHONPATH=. python scripts/run_scheduled_task.py --task "$1"
+          }
+
+          case "$TASK_SELECTOR" in
+            all)
+              run_task project-settlement-smartsheet
+              run_task contract-completion-smartsheet
+              run_task payment-records-smartsheet
+              ;;
+            project-settlement-smartsheet|contract-completion-smartsheet|payment-records-smartsheet)
+              run_task "$TASK_SELECTOR"
+              ;;
+            *)
+              echo "Unsupported smartsheet task: $TASK_SELECTOR" >&2
+              exit 1
+              ;;
+          esac
