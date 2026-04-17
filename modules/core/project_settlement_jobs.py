@@ -33,12 +33,11 @@ PROJECT_SETTLEMENT_SCHEMA = {
     "f8xImK": "班组名称",
     "fESKNz": "是否发起预结单",
     "f28Fkl": "结算状态",
-    "f5Cx2q": "支付金额",
     "fStRfT": "合同金额",
 }
 PROJECT_SETTLEMENT_COLUMNS = list(PROJECT_SETTLEMENT_SCHEMA.values())
 PROJECT_SETTLEMENT_MULTI_TEXT_FIELDS = {"f8xImK", "fESKNz", "f28Fkl"}
-PROJECT_SETTLEMENT_NUMERIC_FIELDS = {"fMqDX0", "f5Cx2q", "fStRfT"}
+PROJECT_SETTLEMENT_NUMERIC_FIELDS = {"fMqDX0", "fStRfT"}
 PROJECT_SETTLEMENT_SOURCE_FIELD_MAP = {
     "f04Gwj": "contractdocNum",
     "ftQMc5": "address",
@@ -52,7 +51,6 @@ PROJECT_SETTLEMENT_SOURCE_FIELD_MAP = {
     "f8xImK": "",
     "fESKNz": "",
     "f28Fkl": "",
-    "f5Cx2q": "paidAmount",
     "fStRfT": "adjustRefundMoney",
 }
 PROJECT_SETTLEMENT_IDENTITY_COLUMNS = (

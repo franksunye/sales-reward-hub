@@ -59,7 +59,7 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
     def _response(self, rows):
         cols = [{"name": name} for name in [
             "合同编号", "项目施工地址", "业主姓名", "联系电话", "serviceHousekeeper", "部位", "进场日期", "完工日期",
-            "项目用工数", "班组名称", "是否发起预结单", "结算状态", "支付金额", "合同金额",
+            "项目用工数", "班组名称", "是否发起预结单", "结算状态", "合同金额",
         ]]
         return {"data": {"cols": cols, "rows": rows}}
 
@@ -77,7 +77,6 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
             team_name,
             "已发起",
             settle_status,
-            "1200.5",
             "9999",
         ]
 
@@ -103,7 +102,6 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(values["f04Gwj"], "HT001")
         self.assertEqual(values["foyhkS"], "王管家")
         self.assertEqual(values["fMqDX0"], 3)
-        self.assertEqual(values["f5Cx2q"], 1200.5)
         self.assertEqual(values["f8xImK"], [{"text": "刘振海"}])
         self.assertEqual(values["fESKNz"], [{"text": "已发起"}])
 
