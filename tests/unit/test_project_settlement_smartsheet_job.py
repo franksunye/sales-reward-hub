@@ -256,7 +256,7 @@ class PaymentRecordsSmartsheetJobTest(unittest.TestCase):
         cols = [{"name": name} for name in ["contractCode", "payPrice", "auditstate2Time"]]
         return {"data": {"cols": cols, "rows": rows}}
 
-    def _row(self, contract_no="HT001", pay_price="1200.5", pay_time="2026-04-12 10:20:30"):
+    def _row(self, contract_no="HT001", pay_price="1200.5", pay_time="1735660800000"):
         return [contract_no, pay_price, pay_time]
 
     def test_first_run_sends_payment_payload(self):
@@ -279,7 +279,7 @@ class PaymentRecordsSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(first_payload["schema"], PAYMENT_RECORDS_SYNC_CONFIG.schema)
         self.assertEqual(values["fi9MN0"], "HT001")
         self.assertEqual(values["fO4cAe"], 1200.5)
-        self.assertEqual(values["fBaRQ1"], "2026-04-12 10:20:30")
+        self.assertEqual(values["fBaRQ1"], "2025-01-01 00:00:00")
 
     def test_missing_contract_number_is_skipped(self):
         response = self._response([self._row("", "1200.5", "2026-04-12 10:20:30")])

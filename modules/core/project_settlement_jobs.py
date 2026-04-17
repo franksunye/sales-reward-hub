@@ -7,10 +7,15 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
 import requests
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover - Python < 3.9 fallback
+    ZoneInfo = None
 
 from modules.config import (
     API_URL_CONTRACT_COMPLETION_SMARTSHEET,
@@ -36,8 +41,15 @@ class SmartsheetSyncConfig:
     dry_run_env: str
     dedupe_prefix: str
     numeric_fields: Set[str] = field(default_factory=set)
+    datetime_fields: Set[str] = field(default_factory=set)
     multi_text_fields: Set[str] = field(default_factory=set)
     identity_keys: Tuple[str, ...] = ()
+
+
+def _get_beijing_tz():
+    if ZoneInfo is not None:
+        return ZoneInfo("Asia/Shanghai")
+    return timezone.utc
 
 
 PROJECT_SETTLEMENT_SYNC_CONFIG = SmartsheetSyncConfig(
@@ -121,6 +133,7 @@ PAYMENT_RECORDS_SYNC_CONFIG = SmartsheetSyncConfig(
     dry_run_env="PAYMENT_RECORDS_SMARTSHEET_DRY_RUN",
     dedupe_prefix="wedoc-payment-records",
     numeric_fields={"fO4cAe"},
+    datetime_fields={"fBaRQ1"},
     identity_keys=("fi9MN0", "fO4cAe", "fBaRQ1"),
 )
 
@@ -170,6 +183,39 @@ def _normalize_numeric_value(value):
     if number.is_integer():
         return int(number)
     return number
+
+
+def _normalize_datetime_value(value):
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_get_beijing_tz())
+        else:
+            dt = dt.astimezone(_get_beijing_tz())
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    text = _stringify(value).replace(",", "")
+    if not text:
+        return None
+
+    if not re.fullmatch(r"-?\d+(?:\.\d+)?", text):
+        return text
+
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+
+    if abs(number) >= 1_000_000_000_000:
+        seconds = number / 1000.0
+    else:
+        seconds = number
+
+    dt = datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone(_get_beijing_tz())
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _unique_non_empty(values: List[str]) -> List[str]:
@@ -300,6 +346,12 @@ class SmartsheetSyncService:
                 number = _normalize_numeric_value(raw_value)
                 if number is not None:
                     values[field_id] = number
+                continue
+
+            if field_id in self.sync_config.datetime_fields:
+                formatted = _normalize_datetime_value(raw_value)
+                if formatted:
+                    values[field_id] = formatted
                 continue
 
             text = _stringify(raw_value)
