@@ -5,8 +5,26 @@ import sys
 import tempfile
 import types
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
+
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except Exception:  # pragma: no cover - fallback for environments without tzdata
+    BEIJING_TZ = timezone.utc
+
+
+def _ms_for_naive_beijing(text: str) -> str:
+    """Helper: build the millisecond timestamp string the service should emit
+    for a naive Beijing-local datetime string."""
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(text, fmt).replace(tzinfo=BEIJING_TZ)
+            return str(int(dt.timestamp() * 1000))
+        except ValueError:
+            continue
+    raise ValueError(f"unsupported datetime literal: {text}")
 
 
 if "requests" not in sys.modules:
@@ -216,7 +234,8 @@ class ContractCompletionSmartsheetJobTest(unittest.TestCase):
         values = first_payload["add_records"][0]["values"]
         self.assertEqual(first_payload["schema"], CONTRACT_COMPLETION_SYNC_CONFIG.schema)
         self.assertEqual(values["fDeUpD"], "HT001")
-        self.assertEqual(values["f2fKLq"], "2026-04-12")
+        # WeCom smartsheet 日期字段要求毫秒 unix 时间戳字符串
+        self.assertEqual(values["f2fKLq"], _ms_for_naive_beijing("2026-04-12"))
 
     def test_timestamp_value_is_normalized_for_completion_date(self):
         response = self._response([self._row("HT001", "1735660800000")])
@@ -235,7 +254,8 @@ class ContractCompletionSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(stats["sent"], 1)
         first_payload = mock_post.call_args_list[0].kwargs["json"]
         values = first_payload["add_records"][0]["values"]
-        self.assertEqual(values["f2fKLq"], "2025-01-01 00:00:00")
+        # 入参已经是毫秒时间戳字符串，原样下发即可
+        self.assertEqual(values["f2fKLq"], "1735660800000")
 
     def test_metabase_nested_column_name_is_resolved_via_display_name(self):
         # Metabase 对嵌套 JSON 字段会把 cols[i].name 返回 "exts.endDateExts"，
@@ -262,7 +282,7 @@ class ContractCompletionSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(stats["sent"], 1)
         values = mock_post.call_args_list[0].kwargs["json"]["add_records"][0]["values"]
         self.assertEqual(values["fDeUpD"], "HT001")
-        self.assertEqual(values["f2fKLq"], "2026-03-27")
+        self.assertEqual(values["f2fKLq"], _ms_for_naive_beijing("2026-03-27"))
 
     def test_second_run_does_not_resend_same_completion_record(self):
         response = self._response([self._row("HT001", "2026-04-12")])
@@ -325,7 +345,35 @@ class PaymentRecordsSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(first_payload["schema"], PAYMENT_RECORDS_SYNC_CONFIG.schema)
         self.assertEqual(values["fi9MN0"], "HT001")
         self.assertEqual(values["fO4cAe"], 1200.5)
-        self.assertEqual(values["fBaRQ1"], "2025-01-01 00:00:00")
+        # 入参是毫秒时间戳字符串，服务端按 WeCom 要求原样下发
+        self.assertEqual(values["fBaRQ1"], "1735660800000")
+        second_values = mock_post.call_args_list[1].kwargs["json"]["add_records"][0]["values"]
+        self.assertEqual(
+            second_values["fBaRQ1"],
+            _ms_for_naive_beijing("2026-04-13 09:00:00"),
+        )
+
+    def test_pay_time_is_always_emitted_as_millisecond_timestamp_string(self):
+        # 回归 errcode 2022034 (Smartsheet invalid date time value):
+        # WeCom smartsheet FIELD_TYPE_DATE_TIME 要求毫秒 unix 时间戳字符串，
+        # 不能下发 "YYYY-MM-DD HH:MM:SS" 这种本地时间格式。
+        response = self._response([self._row("HT001", "5350", "2026-04-16 20:13:28")])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":0}')
+            SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=PAYMENT_RECORDS_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        values = mock_post.call_args_list[0].kwargs["json"]["add_records"][0]["values"]
+        pay_time = values["fBaRQ1"]
+        self.assertIsInstance(pay_time, str)
+        self.assertTrue(pay_time.lstrip("-").isdigit(), f"expected unix ms ts, got {pay_time!r}")
+        self.assertEqual(pay_time, _ms_for_naive_beijing("2026-04-16 20:13:28"))
 
     def test_failed_payment_webhook_is_marked_as_failed(self):
         response = self._response([self._row("HT001")])

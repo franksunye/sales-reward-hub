@@ -188,37 +188,70 @@ def _normalize_numeric_value(value):
     return number
 
 
-def _normalize_datetime_value(value):
+def _parse_beijing_datetime(value) -> Optional[datetime]:
+    """尽力把外部时间值解析成带时区信息的 Asia/Shanghai datetime。"""
     if value is None:
         return None
+
+    tz = _get_beijing_tz()
 
     if isinstance(value, datetime):
         dt = value
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=_get_beijing_tz())
-        else:
-            dt = dt.astimezone(_get_beijing_tz())
-        return dt.strftime("%Y-%m-%d %H:%M:%S")
+            dt = dt.replace(tzinfo=tz)
+        return dt.astimezone(tz)
 
     text = _stringify(value).replace(",", "")
     if not text:
         return None
 
-    if not re.fullmatch(r"-?\d+(?:\.\d+)?", text):
-        return text
+    # 纯数字：按秒或毫秒解释
+    if re.fullmatch(r"-?\d+(?:\.\d+)?", text):
+        try:
+            number = float(text)
+        except ValueError:
+            return None
+        seconds = number / 1000.0 if abs(number) >= 1_000_000_000_000 else number
+        return datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone(tz)
 
+    # ISO 8601（含时区或不含时区皆可）
+    iso_text = text.replace("Z", "+00:00")
     try:
-        number = float(text)
+        dt = datetime.fromisoformat(iso_text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
+        return dt.astimezone(tz)
     except ValueError:
-        return text
+        pass
 
-    if abs(number) >= 1_000_000_000_000:
-        seconds = number / 1000.0
-    else:
-        seconds = number
+    # 常见中文系统返回的朴素本地时间格式
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d",
+    ):
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=tz)
+        except ValueError:
+            continue
 
-    dt = datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone(_get_beijing_tz())
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+    return None
+
+
+def _normalize_datetime_value(value):
+    """归一化为企业微信智能表格日期字段要求的值：毫秒级 Unix 时间戳字符串。
+
+    参见：https://developer.work.weixin.qq.com/document/path/100223
+    字段类型 FIELD_TYPE_DATE_TIME 要求 value 为 "以毫秒为单位的 unix 时间戳" 字符串。
+    之前错误地传入 "YYYY-MM-DD HH:MM:SS" 会触发 errcode 2022034
+    (Smartsheet invalid date time value)。
+    """
+    dt = _parse_beijing_datetime(value)
+    if dt is None:
+        return None
+    return str(int(dt.timestamp() * 1000))
 
 
 def _unique_non_empty(values: List[str]) -> List[str]:
