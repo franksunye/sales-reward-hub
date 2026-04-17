@@ -330,9 +330,23 @@ class SmartsheetSyncService:
         rows = data.get("rows", []) or []
         cols = data.get("cols", []) or []
         if cols:
-            names = [col.get("name") for col in cols]
-        else:
-            names = _unique_non_empty(list(self.sync_config.source_field_map.values()) + list(self.sync_config.schema.values()))
+            # 同时保留 name 与 display_name 两种 key，兼容 Metabase 对嵌套字段
+            # (如 exts.endDateExts) 的 name 使用 JSON 路径、display_name 使用裸字段名
+            # 的场景，避免 source_field_map 配置与实际列名不一致时字段丢失。
+            records: List[Dict] = []
+            for row in rows:
+                record: Dict = {}
+                for col, value in zip(cols, row):
+                    name = col.get("name")
+                    display_name = col.get("display_name")
+                    if name:
+                        record[name] = value
+                    if display_name and display_name != name:
+                        record.setdefault(display_name, value)
+                records.append(record)
+            return records
+
+        names = _unique_non_empty(list(self.sync_config.source_field_map.values()) + list(self.sync_config.schema.values()))
         return [dict(zip(names, row)) for row in rows]
 
     def _build_smartsheet_values(self, record: Dict) -> Dict:
