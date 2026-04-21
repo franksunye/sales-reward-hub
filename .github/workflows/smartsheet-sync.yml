@@ -13,6 +13,8 @@ on:
           - project-settlement-smartsheet
           - contract-completion-smartsheet
           - payment-records-smartsheet
+          - crew-settlement-finance-ledger-smartsheet
+          - material-replenishment-smartsheet
       dry_run:
         description: "Generate smartsheet records but do not send webhook"
         required: false
@@ -36,6 +38,8 @@ jobs:
       WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK }}
       WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK }}
       WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK }}
+      WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK }}
+      WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK: ${{ secrets.WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK }}
       CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +58,8 @@ jobs:
             export PROJECT_SETTLEMENT_SMARTSHEET_DRY_RUN=1
             export CONTRACT_COMPLETION_SMARTSHEET_DRY_RUN=1
             export PAYMENT_RECORDS_SMARTSHEET_DRY_RUN=1
+            export CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_DRY_RUN=1
+            export MATERIAL_REPLENISHMENT_SMARTSHEET_DRY_RUN=1
           fi
 
           run_task() {
@@ -65,8 +71,10 @@ jobs:
               run_task project-settlement-smartsheet
               run_task contract-completion-smartsheet
               run_task payment-records-smartsheet
+              run_task crew-settlement-finance-ledger-smartsheet
+              run_task material-replenishment-smartsheet
               ;;
-            project-settlement-smartsheet|contract-completion-smartsheet|payment-records-smartsheet)
+            project-settlement-smartsheet|contract-completion-smartsheet|payment-records-smartsheet|crew-settlement-finance-ledger-smartsheet|material-replenishment-smartsheet)
               run_task "$TASK_SELECTOR"
               ;;
             *)

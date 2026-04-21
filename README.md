@@ -21,6 +21,20 @@ pip install -r requirements.txt
 - 本地开发：`DB_SOURCE=local`（默认，使用 `LOCAL_DB_PATH`）
 - 线上生产：`DB_SOURCE=cloud`（使用 `TURSO_DB_URL` + `TURSO_AUTH_TOKEN`）
 
+### 数据库运维（推荐）
+```bash
+# 默认只读查询（推荐先用 cloud 看线上）
+DB_SOURCE=cloud python scripts/turso_sql.py --sql "SELECT activity_code, status, COUNT(*) AS cnt FROM notification_outbox GROUP BY activity_code, status ORDER BY activity_code, status"
+
+# JSON 输出，便于复制给同事/AI 分析
+DB_SOURCE=cloud python scripts/turso_sql.py --output json --sql "SELECT * FROM notification_outbox ORDER BY id DESC LIMIT 5"
+
+# 写操作必须显式加 --write（防误操作）
+DB_SOURCE=cloud python scripts/turso_sql.py --write --sql "DELETE FROM notification_outbox WHERE activity_code='PAYMENT-RECORDS-SMARTSHEET-SYNC' AND status!='sent'"
+```
+
+> `scripts/turso_sql.py` 默认是只读模式；如果没加 `--write`，`DELETE/UPDATE/INSERT/DDL` 会被拒绝执行。
+
 ### 新架构（推荐）
 ```bash
 # 北京签约播报（常驻，按月累计）

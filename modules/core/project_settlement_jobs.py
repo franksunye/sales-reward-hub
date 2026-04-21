@@ -18,9 +18,13 @@ except ImportError:  # pragma: no cover - Python < 3.9 fallback
     ZoneInfo = None
 
 from modules.config import (
+    API_URL_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET,
+    API_URL_MATERIAL_REPLENISHMENT_SMARTSHEET,
     API_URL_CONTRACT_COMPLETION_SMARTSHEET,
     API_URL_PAYMENT_RECORDS_SMARTSHEET,
     API_URL_PROJECT_SETTLEMENT_SMARTSHEET,
+    WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK,
+    WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK,
     WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK,
     WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK,
     WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK,
@@ -138,6 +142,86 @@ PAYMENT_RECORDS_SYNC_CONFIG = SmartsheetSyncConfig(
     numeric_fields={"fO4cAe"},
     datetime_fields={"fBaRQ1"},
     identity_keys=("fi9MN0", "fO4cAe", "fBaRQ1"),
+)
+
+CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG = SmartsheetSyncConfig(
+    activity_code="CREW-SETTLEMENT-FINANCE-LEDGER-SMARTSHEET-SYNC",
+    api_url=API_URL_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET,
+    webhook_url=WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK,
+    schema={
+        "fyxgvW": "预结单状态",
+        "fqGMHE": "结算确认状态",
+        "f8Ry3L": "工单编号",
+        "fSrE1M": "合同编号",
+        "fZ1PWS": "委托方",
+        "fvHszr": "项目地址",
+        "ftHROL": "签约日期",
+        "fyMWu1": "合同金额",
+        "farqyU": "实际分派工队",
+        "f7pEOc": "工队所属服务商",
+        "fsJj7A": "邮件完工时间",
+        "fRYz36": "工队预结金额",
+        "fGjQL1": "工队补货金额",
+        "fPv1dh": "项目预估成本",
+        "f4Lihh": "工队结算金额",
+        "fyhv18": "工队结算月份",
+        "fvoF0B": "已支付金额",
+    },
+    source_field_map={
+        "fyxgvW": "",
+        "fqGMHE": "",
+        "f8Ry3L": "serviceAppointmentNum",
+        "fSrE1M": "contractdocNum",
+        "fZ1PWS": "contactsName",
+        "fvHszr": "address",
+        "ftHROL": "signedDate",
+        "fyMWu1": "adjustRefundMoney",
+        "farqyU": "",
+        "f7pEOc": "",
+        "fsJj7A": "",
+        "fRYz36": "",
+        "fGjQL1": "",
+        "fPv1dh": "",
+        "f4Lihh": "",
+        "fyhv18": "",
+        "fvoF0B": "",
+    },
+    primary_field_id="f8Ry3L",
+    log_label="吉柿工队结算财务台账",
+    dry_run_env="CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_DRY_RUN",
+    dedupe_prefix="wedoc-crew-settlement-finance-ledger",
+    numeric_fields={"fyMWu1", "fRYz36", "fGjQL1", "fPv1dh", "f4Lihh", "fvoF0B"},
+    datetime_fields={"ftHROL", "fsJj7A"},
+    identity_keys=("f8Ry3L", "fSrE1M", "fyxgvW", "fqGMHE", "fsJj7A", "f4Lihh", "fyhv18"),
+)
+
+MATERIAL_REPLENISHMENT_SYNC_CONFIG = SmartsheetSyncConfig(
+    activity_code="MATERIAL-REPLENISHMENT-SMARTSHEET-SYNC",
+    api_url=API_URL_MATERIAL_REPLENISHMENT_SMARTSHEET,
+    webhook_url=WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK,
+    schema={
+        "fhXiIM": "合同编号",
+        "fJUGSa": "材料名称",
+        "feCgfE": "规格",
+        "fqTjL6": "数量",
+        "fxVadL": "补货日期",
+        "fBiHT1": "补货确认",
+    },
+    source_field_map={
+        "fhXiIM": "contractNum",
+        "fJUGSa": "name",
+        "feCgfE": "",
+        "fqTjL6": "count",
+        "fxVadL": "",
+        "fBiHT1": "",
+    },
+    primary_field_id="fhXiIM",
+    log_label="材料补货",
+    dry_run_env="MATERIAL_REPLENISHMENT_SMARTSHEET_DRY_RUN",
+    dedupe_prefix="wedoc-material-replenishment",
+    numeric_fields={"fqTjL6"},
+    datetime_fields={"fxVadL"},
+    identity_keys=("fhXiIM", "fJUGSa", "feCgfE", "fqTjL6", "fxVadL", "fBiHT1"),
 )
 
 
@@ -548,6 +632,14 @@ def sync_contract_completion_smartsheet_v2(now: Optional[datetime] = None) -> Di
 
 def sync_payment_records_smartsheet_v2(now: Optional[datetime] = None) -> Dict[str, int]:
     return _sync_smartsheet_task(PAYMENT_RECORDS_SYNC_CONFIG, now=now)
+
+
+def sync_crew_settlement_finance_ledger_smartsheet_v2(now: Optional[datetime] = None) -> Dict[str, int]:
+    return _sync_smartsheet_task(CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG, now=now)
+
+
+def sync_material_replenishment_smartsheet_v2(now: Optional[datetime] = None) -> Dict[str, int]:
+    return _sync_smartsheet_task(MATERIAL_REPLENISHMENT_SYNC_CONFIG, now=now)
 
 
 def sync_project_settlement_smartsheet() -> Dict[str, int]:

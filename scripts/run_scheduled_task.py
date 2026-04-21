@@ -7,7 +7,9 @@ import logging
 from modules.log_config import setup_logging
 from main import run_contract_completion_smartsheet_task
 from main import run_beijing_sign_broadcast_task
+from main import run_crew_settlement_finance_ledger_smartsheet_task
 from main import run_daily_service_report_task
+from main import run_material_replenishment_smartsheet_task
 from main import run_pending_orders_reminder_task
 from main import run_payment_records_smartsheet_task
 from main import run_project_settlement_smartsheet_task
@@ -23,6 +25,8 @@ def main():
             "project-settlement-smartsheet",
             "contract-completion-smartsheet",
             "payment-records-smartsheet",
+            "crew-settlement-finance-ledger-smartsheet",
+            "material-replenishment-smartsheet",
             "daily-service-report",
         ],
         required=True,
@@ -41,6 +45,10 @@ def main():
         run_contract_completion_smartsheet_task()
     elif args.task == "payment-records-smartsheet":
         run_payment_records_smartsheet_task()
+    elif args.task == "crew-settlement-finance-ledger-smartsheet":
+        run_crew_settlement_finance_ledger_smartsheet_task()
+    elif args.task == "material-replenishment-smartsheet":
+        run_material_replenishment_smartsheet_task()
     elif args.task == "project-settlement-smartsheet":
         run_project_settlement_smartsheet_task()
     else:

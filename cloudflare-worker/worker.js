@@ -6,7 +6,7 @@
  *
  * 然后在 Worker 内部根据北京时间路由不同 workflow：
  * - 每个心跳都触发北京签约播报
- * - 每个心跳都触发统一电子表格同步 workflow（项目结算 / 合同完工 / 支付记录）
+ * - 每个心跳都触发统一电子表格同步 workflow（项目结算 / 合同完工 / 支付记录 / 吉柿工队结算财务台账 / 材料补货）
  * - 08:30 额外触发待预约工单提醒
  * - 09:00 额外触发 SLA 日报
  */
@@ -98,6 +98,14 @@ function getTargetWorkflows(env, options = {}) {
 
   if (options.target === 'payment-records-smartsheet') {
     return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'payment-records-smartsheet', dry_run: 'false' })];
+  }
+
+  if (options.target === 'crew-settlement-finance-ledger-smartsheet') {
+    return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'crew-settlement-finance-ledger-smartsheet', dry_run: 'false' })];
+  }
+
+  if (options.target === 'material-replenishment-smartsheet') {
+    return [createWorkflowDispatch(workflows.smartsheetSync, { task: 'material-replenishment-smartsheet', dry_run: 'false' })];
   }
 
   if (options.target === 'pending-orders') {

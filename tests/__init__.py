@@ -45,6 +45,8 @@ def _seed_test_env() -> None:
         "WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK": "https://example.com/wedoc",
         "WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-contract-completion",
         "WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-payment-records",
+        "WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-crew-settlement-finance-ledger",
+        "WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-material-replenishment",
         "DB_SOURCE": "local",
     }
     for key, value in defaults.items():

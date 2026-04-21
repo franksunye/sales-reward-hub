@@ -45,12 +45,14 @@ metabase_session.json
 # IDE文件
 .vscode/
 .idea/
+.cursor/
 .VSCodeCounter/
 
 # 项目特有目录
 archive/
 state/
 config/
+cloudflare-worker/.wrangler/
 weekly_reports/
 
 # 数据文件

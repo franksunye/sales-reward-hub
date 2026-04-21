@@ -57,9 +57,13 @@ os.environ.setdefault("WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT", "https://example.c
 os.environ.setdefault("WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK", "https://example.com/wedoc")
 os.environ.setdefault("WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK", "https://example.com/wedoc-contract-completion")
 os.environ.setdefault("WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK", "https://example.com/wedoc-payment-records")
+os.environ.setdefault("WECOM_CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_WEBHOOK", "https://example.com/wedoc-crew-settlement-finance-ledger")
+os.environ.setdefault("WECOM_MATERIAL_REPLENISHMENT_SMARTSHEET_WEBHOOK", "https://example.com/wedoc-material-replenishment")
 os.environ.setdefault("DB_SOURCE", "local")
 
 from modules.core.project_settlement_jobs import CONTRACT_COMPLETION_SYNC_CONFIG
+from modules.core.project_settlement_jobs import CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG
+from modules.core.project_settlement_jobs import MATERIAL_REPLENISHMENT_SYNC_CONFIG
 from modules.core.project_settlement_jobs import PAYMENT_RECORDS_SYNC_CONFIG
 from modules.core.project_settlement_jobs import ProjectSettlementSmartsheetService
 from modules.core.project_settlement_jobs import SmartsheetSyncService
@@ -408,6 +412,154 @@ class PaymentRecordsSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(stats["eligible_records"], 0)
         self.assertEqual(stats["sent"], 0)
         mock_post.assert_not_called()
+
+
+class CrewSettlementFinanceLedgerSmartsheetJobTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.temp_dir.name, "crew-settlement-finance-ledger-smartsheet.db")
+        os.environ["LOCAL_DB_PATH"] = self.db_path
+        os.environ.pop("CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_DRY_RUN", None)
+        self.storage = create_data_store(storage_type="sqlite", db_path=self.db_path)
+        self.now = datetime(2026, 4, 15, 10, 0, 0)
+
+    def tearDown(self):
+        os.environ.pop("CREW_SETTLEMENT_FINANCE_LEDGER_SMARTSHEET_DRY_RUN", None)
+        self.temp_dir.cleanup()
+
+    def _response(self, rows):
+        cols = [{"name": name} for name in [
+            "预结单状态", "结算确认状态", "serviceAppointmentNum", "contractdocNum", "contactsName",
+            "address", "signedDate", "实际分派工队", "工队所属服务商", "邮件完工时间",
+            "adjustRefundMoney", "工队预结金额", "工队补货金额", "项目预估成本", "工队结算金额", "工队结算月份", "已支付金额",
+        ]]
+        return {"data": {"cols": cols, "rows": rows}}
+
+    def _row(self, order_no="GD001", contract_no="HT001"):
+        return [
+            "已发起",
+            "已确认",
+            order_no,
+            contract_no,
+            "张三",
+            "北京市朝阳区测试地址",
+            "2026-04-01",
+            "吉柿工队A",
+            "服务商甲",
+            "2026-04-12 18:30:00",
+            "19999.5",
+            "8000",
+            "300",
+            "12000",
+            "8300",
+            "2026-04",
+            "5000",
+        ]
+
+    def test_first_run_sends_finance_ledger_payload(self):
+        response = self._response([self._row()])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":0}')
+            stats = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        self.assertEqual(stats["raw_records"], 1)
+        self.assertEqual(stats["sent"], 1)
+        payload = mock_post.call_args_list[0].kwargs["json"]
+        values = payload["add_records"][0]["values"]
+        self.assertEqual(payload["schema"], CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG.schema)
+        self.assertEqual(values["f8Ry3L"], "GD001")
+        self.assertEqual(values["fSrE1M"], "HT001")
+        self.assertEqual(values["fyMWu1"], 19999.5)
+        self.assertEqual(values["fRYz36"], 8000)
+        self.assertEqual(values["ftHROL"], _ms_for_naive_beijing("2026-04-01"))
+        self.assertEqual(values["fsJj7A"], _ms_for_naive_beijing("2026-04-12 18:30:00"))
+
+    def test_missing_order_number_is_skipped(self):
+        response = self._response([self._row(order_no="")])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            stats = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=CREW_SETTLEMENT_FINANCE_LEDGER_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        self.assertEqual(stats["eligible_records"], 0)
+        self.assertEqual(stats["sent"], 0)
+        mock_post.assert_not_called()
+
+
+class MaterialReplenishmentSmartsheetJobTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.temp_dir.name, "material-replenishment-smartsheet.db")
+        os.environ["LOCAL_DB_PATH"] = self.db_path
+        os.environ.pop("MATERIAL_REPLENISHMENT_SMARTSHEET_DRY_RUN", None)
+        self.storage = create_data_store(storage_type="sqlite", db_path=self.db_path)
+        self.now = datetime(2026, 4, 15, 10, 0, 0)
+
+    def tearDown(self):
+        os.environ.pop("MATERIAL_REPLENISHMENT_SMARTSHEET_DRY_RUN", None)
+        self.temp_dir.cleanup()
+
+    def _response(self, rows):
+        cols = [{"name": name} for name in ["contractNum", "name", "规格", "count", "补货日期", "补货确认"]]
+        return {"data": {"cols": cols, "rows": rows}}
+
+    def _row(self, contract_no="HT001", material_name="石膏板", replenish_date="2026-04-13 09:30:00"):
+        return [contract_no, material_name, "1200x2400", "12", replenish_date, "已确认"]
+
+    def test_first_run_sends_material_replenishment_payload(self):
+        response = self._response([self._row()])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":0}')
+            stats = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=MATERIAL_REPLENISHMENT_SYNC_CONFIG,
+                now=self.now,
+            ).run()
+
+        self.assertEqual(stats["raw_records"], 1)
+        self.assertEqual(stats["sent"], 1)
+        payload = mock_post.call_args_list[0].kwargs["json"]
+        values = payload["add_records"][0]["values"]
+        self.assertEqual(payload["schema"], MATERIAL_REPLENISHMENT_SYNC_CONFIG.schema)
+        self.assertEqual(values["fhXiIM"], "HT001")
+        self.assertEqual(values["fJUGSa"], "石膏板")
+        self.assertEqual(values["fqTjL6"], 12)
+        self.assertEqual(values["fxVadL"], _ms_for_naive_beijing("2026-04-13 09:30:00"))
+
+    def test_duplicate_record_is_not_resent(self):
+        response = self._response([self._row()])
+
+        with patch("modules.core.project_settlement_jobs.send_request_with_managed_session", return_value=response), patch(
+            "modules.core.project_settlement_jobs.requests.post"
+        ) as mock_post:
+            mock_post.return_value = MagicMock(status_code=200, text='{"errcode":0}')
+            service = SmartsheetSyncService(
+                storage=self.storage,
+                sync_config=MATERIAL_REPLENISHMENT_SYNC_CONFIG,
+                now=self.now,
+            )
+            first_stats = service.run()
+            service.now = datetime(2026, 4, 15, 10, 30, 0)
+            second_stats = service.run()
+
+        self.assertEqual(first_stats["sent"], 1)
+        self.assertEqual(second_stats["sent"], 0)
+        self.assertEqual(mock_post.call_count, 1)
 
 
 if __name__ == "__main__":
