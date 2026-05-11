@@ -13,7 +13,7 @@ from modules.core.notification_service import NotificationService
 
 
 class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
-    def test_parse_2084_response_maps_performance_and_conversion_fields(self):
+    def test_parse_2084_response_maps_adjust_refund_money_as_performance_field(self):
         response = {
             "data": {
                 "cols": [
@@ -34,7 +34,7 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
                         "contract-1",
                         "刘沐泽",
                         "YHWX-BJ-JSJZ-2026050029",
-                        36000,
+                        50000,
                         18000,
                         "2026-05-11T10:17:08.317+08:00",
                         "2",
@@ -49,7 +49,7 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
 
         records = _parse_metabase_response(response)
 
-        self.assertEqual(records[0]["计入业绩金额"], 36000)
+        self.assertEqual(records[0]["计入业绩金额"], 50000)
         self.assertEqual(records[0]["转化率(conversion)"], 0.2222222222222222)
         self.assertEqual(records[0]["个人累计签约单数"], 6)
 

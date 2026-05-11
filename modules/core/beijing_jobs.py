@@ -244,7 +244,7 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
             '款项来源类型(tradeIn)': pick_value(raw_dict, 'tradeIn', '款项来源类型(tradeIn)', default=''),
             '转化率(conversion)': pick_value(raw_dict, 'conversion', 'conversionRate', '转化率(conversion)', default=0),
             '平均客单价(average)': pick_value(raw_dict, 'average', '平均客单价(average)', default=0),
-            '计入业绩金额': pick_value(raw_dict, 'afterRefundMoney', '计入业绩金额', 'performanceAmount', default=0),
+            '计入业绩金额': pick_value(raw_dict, 'adjustRefundMoney', '计入业绩金额', 'performanceAmount', default=0),
             '平台累计签约单数': pick_value(raw_dict, 'scount', '平台累计签约单数', default=0),
             '个人累计签约单数': pick_value(raw_dict, 'ccount', '个人累计签约单数', default=0),
             '管家ID(serviceHousekeeperId)': pick_value(raw_dict, 'serviceHousekeeperId', '管家ID(serviceHousekeeperId)', default=''),
@@ -647,7 +647,7 @@ def performance_broadcast_beijing_v2() -> List[PerformanceRecord]:
     """
     北京业绩播报（常驻任务，按月累计）
     - 数据源：/api/card/2084/query
-    - 使用 afterRefundMoney 作为单合同计入业绩金额
+    - 使用 adjustRefundMoney 作为单合同计入业绩金额
     - activity_code 按北京时间按月切分：BJ-PERFORMANCE-BROADCAST-YYYY-MM
     """
     logging.info("开始执行北京业绩播报任务（常驻）")
