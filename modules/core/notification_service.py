@@ -196,6 +196,7 @@ class NotificationService:
             '管家(serviceHousekeeper)': housekeeper_name,
             '合同编号(contractdocNum)': extensions.get('合同编号(contractdocNum)', ''),
             '合同金额(adjustRefundMoney)': record['contract_amount'],
+            '计入业绩金额': extensions.get('计入业绩金额', record.get('performance_amount', 0)),
             '活动期内第几个合同': record.get('contract_sequence', 0),
             '管家累计单数': extensions.get('管家累计单数', 0),
             '管家累计金额': extensions.get('管家累计金额', 0),
@@ -240,6 +241,7 @@ class NotificationService:
         # 根据配置决定备注逻辑
         if self.config.config_key == "BJ-PERFORMANCE-BROADCAST":
             contract_num = record.get("合同编号(contractdocNum)", "")
+            contract_performance = self._format_amount_without_grouping(record.get("计入业绩金额", 0))
             accumulated_performance = self._format_amount(record.get("管家累计业绩金额", 0))
             conversion_rate = self._format_rate(record.get("转化率(conversion)", ""))
 
@@ -248,7 +250,9 @@ class NotificationService:
 恭喜 {service_housekeeper} 签约合同 {contract_num} 并完成首付款支付条件🎉🎉🎉
 
 
-🌻 本月个人累计签约业绩 {accumulated_performance} 元，当前全年平台转化率为{conversion_rate}
+🌻 本合同计入业绩金额为{contract_performance}，本月个人累计签约业绩 {accumulated_performance} 元
+
+🌻 当前全年平台转化率为{conversion_rate}
 
 👊 继续加油，再接再厉！🎉🎉🎉
 '''
@@ -408,6 +412,13 @@ class NotificationService:
         """格式化金额显示"""
         try:
             return f"{int(float(amount)):,d}"
+        except (ValueError, TypeError):
+            return "0"
+
+    def _format_amount_without_grouping(self, amount) -> str:
+        """格式化单合同金额，不加千分位，匹配北京业绩播报文案。"""
+        try:
+            return str(int(float(amount)))
         except (ValueError, TypeError):
             return "0"
 

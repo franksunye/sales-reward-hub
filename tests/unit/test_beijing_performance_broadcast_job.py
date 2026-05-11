@@ -92,6 +92,7 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
             "合同ID(_id)": "contract-1",
             "管家(serviceHousekeeper)": "刘沐泽",
             "合同编号(contractdocNum)": "YHWX-BJ-JSJZ-2026050029",
+            "计入业绩金额": 16900,
             "管家累计业绩金额": 75799,
             "转化率(conversion)": 0.2222222222222222,
             "是否发送通知": "N",
@@ -100,7 +101,8 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
         msg = service._build_group_notification_message(record)
 
         self.assertIn("恭喜 刘沐泽 签约合同 YHWX-BJ-JSJZ-2026050029 并完成首付款支付条件", msg)
-        self.assertIn("本月个人累计签约业绩 75,799 元，当前全年平台转化率为22%", msg)
+        self.assertIn("本合同计入业绩金额为16900，本月个人累计签约业绩 75,799 元", msg)
+        self.assertIn("🌻 当前全年平台转化率为22%", msg)
         os.environ["WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST"] = "https://example.com/bj-performance-broadcast"
         from modules import config as config_module
         from modules.core import webhook_router as webhook_router_module
