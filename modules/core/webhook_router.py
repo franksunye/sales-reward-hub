@@ -7,11 +7,13 @@ from modules.config import (
     PENDING_ORDER_ORG_WEBHOOKS,
     WEBHOOK_URL_DEFAULT,
     WECOM_WEBHOOK_PENDING_ORDERS_FORCE_URL,
+    WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST,
     WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT,
 )
 
 
 CHANNEL_SIGN_BROADCAST = "sign_broadcast"
+CHANNEL_BJ_PERFORMANCE_BROADCAST = "bj_performance_broadcast"
 CHANNEL_PENDING_ORDERS = "pending_orders_reminder"
 CHANNEL_SLA_DAILY_REPORT = "sla_daily_report"
 
@@ -27,6 +29,9 @@ def resolve_wecom_webhook(channel: str, org_name: Optional[str] = None) -> str:
 
     if channel == CHANNEL_SIGN_BROADCAST:
         return WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT
+
+    if channel == CHANNEL_BJ_PERFORMANCE_BROADCAST:
+        return WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST
 
     if channel == CHANNEL_SLA_DAILY_REPORT:
         if org_name and org_name in PENDING_ORDER_ORG_WEBHOOKS:

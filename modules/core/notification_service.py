@@ -18,7 +18,12 @@ import requests
 
 from .storage import PerformanceDataStore
 from .data_models import ProcessingConfig
-from .webhook_router import CHANNEL_SIGN_BROADCAST, format_safe_webhook_target, resolve_wecom_webhook
+from .webhook_router import (
+    CHANNEL_BJ_PERFORMANCE_BROADCAST,
+    CHANNEL_SIGN_BROADCAST,
+    format_safe_webhook_target,
+    resolve_wecom_webhook,
+)
 from ..config import *
 
 
@@ -233,6 +238,22 @@ class NotificationService:
         order_type = record.get("工单类型", "平台单")
 
         # 根据配置决定备注逻辑
+        if self.config.config_key == "BJ-PERFORMANCE-BROADCAST":
+            contract_num = record.get("合同编号(contractdocNum)", "")
+            accumulated_performance = self._format_amount(record.get("管家累计业绩金额", 0))
+            conversion_rate = self._format_rate(record.get("转化率(conversion)", ""))
+
+            msg = f'''🧨🧨🧨 签约喜报 🧨🧨🧨
+
+恭喜 {service_housekeeper} 签约合同 {contract_num} 并完成首付款支付条件🎉🎉🎉
+
+
+🌻 本月个人累计签约业绩 {accumulated_performance} 元，当前全年平台转化率为{conversion_rate}
+
+👊 继续加油，再接再厉！🎉🎉🎉
+'''
+            return msg
+
         if self.config.config_key == "BJ-2025-11":
             # 🔧 新增：北京11月专用消息模板（仅播报模式）
             contract_num = record.get("合同编号(contractdocNum)", "")
@@ -357,11 +378,15 @@ class NotificationService:
         dedupe_key = f"{record['合同ID(_id)']}::{message_type}"
         payload_json = json.dumps(payload, ensure_ascii=False)
         hash_value = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()[:16]
+        channel = CHANNEL_SIGN_BROADCAST
+        if self.config.config_key == "BJ-PERFORMANCE-BROADCAST":
+            channel = CHANNEL_BJ_PERFORMANCE_BROADCAST
+
         return self.storage.enqueue_outbox_message(
             activity_code=self.config.activity_code,
             contract_id=record["合同ID(_id)"],
             message_type=message_type,
-            webhook_url=resolve_wecom_webhook(CHANNEL_SIGN_BROADCAST),
+            webhook_url=resolve_wecom_webhook(channel),
             payload_json=payload_json,
             dedupe_key=f"{dedupe_key}::{hash_value}",
         )

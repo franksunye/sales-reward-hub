@@ -41,6 +41,7 @@ def _seed_test_env() -> None:
         "METABASE_PASSWORD": "test-password",
         "WECOM_WEBHOOK_DEFAULT": "https://example.com/default",
         "WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT": "https://example.com/sign-broadcast",
+        "WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST": "https://example.com/bj-performance-broadcast",
         "WECOM_WEBHOOK_PENDING_ORDERS_ORG_MAP": '{"北京经常亮工程技术有限公司":"https://example.com/pending-provider-a"}',
         "WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK": "https://example.com/wedoc",
         "WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK": "https://example.com/wedoc-contract-completion",

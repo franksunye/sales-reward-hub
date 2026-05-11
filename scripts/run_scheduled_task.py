@@ -6,6 +6,7 @@ import logging
 
 from modules.log_config import setup_logging
 from main import run_contract_completion_smartsheet_task
+from main import run_beijing_performance_broadcast_task
 from main import run_beijing_sign_broadcast_task
 from main import run_crew_settlement_finance_ledger_smartsheet_task
 from main import run_daily_service_report_task
@@ -21,6 +22,7 @@ def main():
         "--task",
         choices=[
             "beijing-sign-broadcast",
+            "beijing-performance-broadcast",
             "pending-orders-reminder",
             "project-settlement-smartsheet",
             "contract-completion-smartsheet",
@@ -39,6 +41,8 @@ def main():
 
     if args.task == "beijing-sign-broadcast":
         run_beijing_sign_broadcast_task()
+    elif args.task == "beijing-performance-broadcast":
+        run_beijing_performance_broadcast_task()
     elif args.task == "daily-service-report":
         run_daily_service_report_task()
     elif args.task == "contract-completion-smartsheet":

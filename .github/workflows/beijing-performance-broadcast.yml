@@ -1,0 +1,31 @@
+name: Beijing Performance Broadcast
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: beijing-performance-broadcast
+  cancel-in-progress: false
+
+jobs:
+  run-broadcast:
+    runs-on: ubuntu-latest
+    env:
+      DB_SOURCE: cloud
+      TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      METABASE_USERNAME: ${{ secrets.METABASE_USERNAME }}
+      METABASE_PASSWORD: ${{ secrets.METABASE_PASSWORD }}
+      WECOM_WEBHOOK_DEFAULT: ${{ secrets.WECOM_WEBHOOK_DEFAULT }}
+      WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST: ${{ secrets.WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST }}
+      CONTACT_PHONE_NUMBER: ${{ secrets.CONTACT_PHONE_NUMBER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run Beijing performance broadcast once
+        run: PYTHONPATH=. python scripts/run_scheduled_task.py --task beijing-performance-broadcast

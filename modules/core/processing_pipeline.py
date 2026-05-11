@@ -289,6 +289,12 @@ class DataProcessingPipeline:
         计算计入业绩的金额（带工单级别跟踪）
         参考旧架构的 process_historical_contract_with_project_limit 逻辑
         """
+        if self.config.config_key == "BJ-PERFORMANCE-BROADCAST":
+            try:
+                return float(contract_data.raw_data.get("计入业绩金额", 0) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
         # 1. 先应用单合同上限（支持差异化上限）
         from .config_adapter import get_reward_config
         config_data = get_reward_config(self.config.config_key)

@@ -5,6 +5,7 @@ import traceback
 
 from modules.log_config import setup_logging
 from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
+from modules.core.beijing_jobs import performance_broadcast_beijing
 from modules.core.beijing_jobs import signing_broadcast_beijing
 from modules.core.pending_orders_jobs import send_pending_orders_reminder_v2
 from modules.core.project_settlement_jobs import sync_contract_completion_smartsheet_v2
@@ -26,6 +27,17 @@ def run_beijing_sign_broadcast_task():
         logging.info("北京签约播报任务执行完成")
     except Exception as e:
         logging.error(f"执行北京签约播报任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
+def run_beijing_performance_broadcast_task():
+    """北京业绩播报常驻任务（无月份限制）。"""
+    try:
+        logging.info("开始执行北京业绩播报任务")
+        performance_broadcast_beijing()
+        logging.info("北京业绩播报任务执行完成")
+    except Exception as e:
+        logging.error(f"执行北京业绩播报任务失败: {e}")
         logging.error(traceback.format_exc())
 
 
@@ -108,6 +120,7 @@ def run_material_replenishment_smartsheet_task():
 
 # 常驻任务
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_sign_broadcast_task)
+schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_performance_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_pending_orders_reminder_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_project_settlement_smartsheet_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_contract_completion_smartsheet_task)
@@ -118,7 +131,7 @@ schedule.every().day.at("08:10").do(run_daily_service_report_task)
 
 
 if __name__ == "__main__":
-    logging.info("Program started (Beijing sign broadcast + pending orders reminder + project settlement smartsheet + contract completion smartsheet + payment records smartsheet + crew settlement finance ledger smartsheet + material replenishment smartsheet + daily service report)")
+    logging.info("Program started (Beijing sign broadcast + Beijing performance broadcast + pending orders reminder + project settlement smartsheet + contract completion smartsheet + payment records smartsheet + crew settlement finance ledger smartsheet + material replenishment smartsheet + daily service report)")
 
     while True:
         try:

@@ -404,6 +404,44 @@ REWARD_CONFIGS = {
             "enable_rising_star_badge": False
         }
     },
+    # 北京业绩播报常驻任务配置
+    "BJ-PERFORMANCE-BROADCAST": {
+        "lucky_number": "",
+        "lucky_number_mode": "personal_sequence",
+        "lucky_number_sequence_type": "personal",
+        "lucky_rewards": {
+            "base": {"name": "", "threshold": 0},
+            "high": {"name": "", "threshold": 999999999}
+        },
+        "performance_limits": {
+            "enable_cap": False
+        },
+        "tiered_rewards": {
+            "min_contracts": 0,
+            "tiers": []
+        },
+        "awards_mapping": {},
+        "self_referral_rewards": {
+            "enable": False
+        },
+        "reward_calculation_strategy": {
+            "type": "announcement_only",
+            "rules": {
+                "default": {
+                    "enable_tiered_rewards": False,
+                    "stats_source": "platform_only"
+                }
+            }
+        },
+        "processing_config": {
+            "process_platform_only": True,
+            "enable_historical_contracts": False
+        },
+        "badge_config": {
+            "enable_elite_badge": False,
+            "enable_rising_star_badge": False
+        }
+    },
 }
 
 # 归档文件夹
@@ -437,6 +475,8 @@ WEBHOOK_URL_DEFAULT = os.getenv(
 )
 _sign_broadcast = os.getenv('WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT', '').strip()
 WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT = _sign_broadcast or WEBHOOK_URL_DEFAULT
+_bj_performance_broadcast = os.getenv('WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST', '').strip()
+WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST = _bj_performance_broadcast or WEBHOOK_URL_DEFAULT
 WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK = os.getenv(
     "WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK",
     ""
@@ -534,6 +574,10 @@ STATUS_FILENAME_BJ_OCT = 'state/send_status_bj_oct.json'
 API_URL_BJ_SIGN_BROADCAST = os.getenv(
     "API_URL_BJ_SIGN_BROADCAST",
     METABASE_URL + "/question/2003"
+)
+API_URL_BJ_PERFORMANCE_BROADCAST = os.getenv(
+    "API_URL_BJ_PERFORMANCE_BROADCAST",
+    METABASE_URL + "/api/card/2084/query"
 )
 
 ## 北京地区，2025年11月活动

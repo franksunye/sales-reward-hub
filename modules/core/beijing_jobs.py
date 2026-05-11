@@ -242,8 +242,11 @@ def _parse_metabase_response(response: dict) -> List[Dict]:
             '签约时间(signedDate)': pick_value(raw_dict, 'signedDate', '签约时间(signedDate)', 'signTime', default=''),
             'Doorsill': pick_value(raw_dict, 'Doorsill', default=0),
             '款项来源类型(tradeIn)': pick_value(raw_dict, 'tradeIn', '款项来源类型(tradeIn)', default=''),
-            '转化率(conversion)': pick_value(raw_dict, 'conversion', '转化率(conversion)', default=0),
+            '转化率(conversion)': pick_value(raw_dict, 'conversion', 'conversionRate', '转化率(conversion)', default=0),
             '平均客单价(average)': pick_value(raw_dict, 'average', '平均客单价(average)', default=0),
+            '计入业绩金额': pick_value(raw_dict, 'afterRefundMoney', '计入业绩金额', 'performanceAmount', default=0),
+            '平台累计签约单数': pick_value(raw_dict, 'scount', '平台累计签约单数', default=0),
+            '个人累计签约单数': pick_value(raw_dict, 'ccount', '个人累计签约单数', default=0),
             '管家ID(serviceHousekeeperId)': pick_value(raw_dict, 'serviceHousekeeperId', '管家ID(serviceHousekeeperId)', default=''),
             '工单类型(sourceType)': source_type,  # ✅ 使用转换后的数字值
             '联系地址(contactsAddress)': pick_value(raw_dict, 'contactsAddress', '联系地址(contactsAddress)', default=''),
@@ -555,6 +558,25 @@ def _get_bj_sign_broadcast_activity_code(now: Optional[datetime] = None) -> str:
     return f"BJ-SIGN-BROADCAST-{now.strftime('%Y-%m')}"
 
 
+def _normalize_beijing_now(now: Optional[datetime] = None) -> datetime:
+    if ZoneInfo is not None:
+        beijing_tz = ZoneInfo("Asia/Shanghai")
+    else:
+        beijing_tz = timezone(timedelta(hours=8))
+
+    if now is None:
+        return datetime.now(beijing_tz)
+    if now.tzinfo is None:
+        return now.replace(tzinfo=beijing_tz)
+    return now.astimezone(beijing_tz)
+
+
+def _get_bj_performance_broadcast_activity_code(now: Optional[datetime] = None) -> str:
+    """按北京时间生成北京业绩播报 activity_code。"""
+    current = _normalize_beijing_now(now)
+    return f"BJ-PERFORMANCE-BROADCAST-{current.strftime('%Y-%m')}"
+
+
 def signing_broadcast_beijing_v2() -> List[PerformanceRecord]:
     """
     北京签约播报（常驻任务，按月累计）
@@ -619,6 +641,96 @@ def _get_contract_data_from_metabase_broadcast() -> List[Dict]:
 def signing_broadcast_beijing():
     """兼容性包装函数 - 北京签约播报"""
     return signing_broadcast_beijing_v2()
+
+
+def performance_broadcast_beijing_v2() -> List[PerformanceRecord]:
+    """
+    北京业绩播报（常驻任务，按月累计）
+    - 数据源：/api/card/2084/query
+    - 使用 afterRefundMoney 作为单合同计入业绩金额
+    - activity_code 按北京时间按月切分：BJ-PERFORMANCE-BROADCAST-YYYY-MM
+    """
+    logging.info("开始执行北京业绩播报任务（常驻）")
+
+    try:
+        now = _normalize_beijing_now()
+        activity_code = _get_bj_performance_broadcast_activity_code(now)
+        logging.info(f"北京业绩播报：使用月度 activity_code={activity_code}")
+
+        pipeline, config, store = create_standard_pipeline(
+            config_key="BJ-PERFORMANCE-BROADCAST",
+            activity_code=activity_code,
+            city="BJ",
+            housekeeper_key_format="管家",
+            storage_type="sqlite",
+            enable_dual_track=False,
+            enable_project_limit=False,
+            enable_historical_contracts=False,
+            db_path="performance_data.db"
+        )
+
+        contract_data = _get_contract_data_from_metabase_performance_broadcast(now)
+        logging.info(f"北京业绩播报：获取到 {len(contract_data)} 条本月业绩数据")
+
+        processed_records = pipeline.process(contract_data)
+        logging.info(f"北京业绩播报：处理完成 {len(processed_records)} 条记录")
+
+        _send_notifications(processed_records, config)
+        return processed_records
+
+    except Exception as e:
+        logging.error(f"北京业绩播报任务执行失败: {e}")
+        raise
+
+
+def _get_contract_data_from_metabase_performance_broadcast(now: Optional[datetime] = None) -> List[Dict]:
+    """获取北京业绩播报数据，并限定为北京时间当前月份。"""
+    logging.info("从Metabase获取北京业绩播报数据...")
+    try:
+        from modules.config import API_URL_BJ_PERFORMANCE_BROADCAST
+        from modules.request_module import send_request_with_managed_session
+
+        response = send_request_with_managed_session(API_URL_BJ_PERFORMANCE_BROADCAST)
+        if response is None:
+            logging.error("Metabase API调用失败")
+            return []
+
+        contract_data = _parse_metabase_response(response)
+        contract_data.sort(key=lambda item: item.get("签约时间(signedDate)", ""))
+        contract_data = _apply_latest_housekeeper_conversion_rate(contract_data)
+        if contract_data:
+            logging.info(f"从Metabase获取到 {len(contract_data)} 条业绩播报数据")
+        return contract_data
+    except Exception as e:
+        logging.error(f"获取北京业绩播报数据失败: {e}")
+        raise
+
+
+def _apply_latest_housekeeper_conversion_rate(records: List[Dict]) -> List[Dict]:
+    """每个管家统一使用其最新一条记录的 conversionRate。"""
+    latest_by_housekeeper: Dict[str, Dict] = {}
+
+    for record in records:
+        housekeeper = record.get("管家(serviceHousekeeper)", "")
+        signed_at_raw = record.get("签约时间(signedDate)", "")
+        if not housekeeper or not signed_at_raw:
+            continue
+        current_latest = latest_by_housekeeper.get(housekeeper)
+        if current_latest is None or signed_at_raw >= current_latest.get("签约时间(signedDate)", ""):
+            latest_by_housekeeper[housekeeper] = record
+
+    for record in records:
+        housekeeper = record.get("管家(serviceHousekeeper)", "")
+        latest_record = latest_by_housekeeper.get(housekeeper)
+        if latest_record is not None:
+            record["转化率(conversion)"] = latest_record.get("转化率(conversion)", record.get("转化率(conversion)", ""))
+
+    return records
+
+
+def performance_broadcast_beijing():
+    """兼容性包装函数 - 北京业绩播报"""
+    return performance_broadcast_beijing_v2()
 
 
 def signing_and_sales_incentive_dec_beijing_v2() -> List[PerformanceRecord]:
