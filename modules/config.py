@@ -435,7 +435,8 @@ REWARD_CONFIGS = {
         },
         "processing_config": {
             "process_platform_only": True,
-            "enable_historical_contracts": False
+            "enable_historical_contracts": False,
+            "refresh_existing_contracts": True
         },
         "badge_config": {
             "enable_elite_badge": False,

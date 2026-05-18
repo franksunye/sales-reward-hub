@@ -258,6 +258,11 @@ class PerformanceDataStore(ABC):
         pass
 
     @abstractmethod
+    def delete_performance_records_not_in(self, activity_code: str, contract_ids: set) -> int:
+        """删除指定活动中不在当前快照内的业绩记录，返回删除数量"""
+        pass
+
+    @abstractmethod
     def enqueue_outbox_message(
         self,
         activity_code: str,
@@ -744,6 +749,32 @@ class SQLitePerformanceDataStore(PerformanceDataStore):
         except Exception as e:
             logging.error(f"Error getting all records: {e}")
             return []
+
+    def delete_performance_records_not_in(self, activity_code: str, contract_ids: set) -> int:
+        """删除指定活动中不在当前快照内的业绩记录。"""
+        try:
+            with self._connect() as conn:
+                if not contract_ids:
+                    cursor = conn.execute(
+                        "DELETE FROM performance_data WHERE activity_code = ?",
+                        (activity_code,)
+                    )
+                    return cursor.rowcount if cursor.rowcount is not None else 0
+
+                placeholders = ",".join("?" for _ in contract_ids)
+                params = [activity_code, *sorted(str(contract_id) for contract_id in contract_ids)]
+                cursor = conn.execute(
+                    f"""
+                    DELETE FROM performance_data
+                    WHERE activity_code = ?
+                      AND contract_id NOT IN ({placeholders})
+                    """,
+                    params
+                )
+                return cursor.rowcount if cursor.rowcount is not None else 0
+        except Exception as e:
+            logging.error(f"Error deleting stale performance records: {e}")
+            raise
 
 
 

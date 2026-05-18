@@ -1,5 +1,7 @@
 import unittest
 import os
+import json
+import tempfile
 from datetime import datetime
 from importlib import reload
 
@@ -10,6 +12,8 @@ from modules.core.beijing_jobs import (
 )
 from modules.core.data_models import City, ProcessingConfig
 from modules.core.notification_service import NotificationService
+from modules.core.processing_pipeline import DataProcessingPipeline
+from modules.core.storage import SQLitePerformanceDataStore
 
 
 class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
@@ -113,6 +117,108 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
             webhook_router_module.resolve_wecom_webhook(webhook_router_module.CHANNEL_BJ_PERFORMANCE_BROADCAST),
             "https://example.com/bj-performance-broadcast",
         )
+
+    def test_performance_broadcast_refreshes_existing_contract_snapshot(self):
+        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+            store = SQLitePerformanceDataStore(tmp.name)
+            activity_code = "BJ-PERFORMANCE-BROADCAST-2026-05"
+            config = ProcessingConfig(
+                config_key="BJ-PERFORMANCE-BROADCAST",
+                activity_code=activity_code,
+                city=City.BEIJING,
+                housekeeper_key_format="管家",
+            )
+
+            with store._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO performance_data (
+                        activity_code, contract_id, housekeeper, service_provider,
+                        contract_amount, performance_amount, order_type, project_id,
+                        contract_sequence, reward_types, reward_names, is_historical,
+                        notification_sent, remarks, extensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        activity_code,
+                        "4094726635973593636",
+                        "李俊达",
+                        "",
+                        24000,
+                        15000,
+                        "platform",
+                        "GD2026040513",
+                        1,
+                        "[]",
+                        "[]",
+                        0,
+                        1,
+                        "无",
+                        json.dumps({"管家累计业绩金额": 15000}, ensure_ascii=False),
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO performance_data (
+                        activity_code, contract_id, housekeeper, service_provider,
+                        contract_amount, performance_amount, order_type, project_id,
+                        contract_sequence, reward_types, reward_names, is_historical,
+                        notification_sent, remarks, extensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        activity_code,
+                        "missing-from-source",
+                        "李俊达",
+                        "",
+                        9000,
+                        9000,
+                        "platform",
+                        "GD-OLD",
+                        2,
+                        "[]",
+                        "[]",
+                        0,
+                        1,
+                        "无",
+                        "{}",
+                    ),
+                )
+
+            pipeline = DataProcessingPipeline(config, store)
+            pipeline.process([
+                {
+                    "合同ID(_id)": "4094726635973593636",
+                    "管家(serviceHousekeeper)": "李俊达",
+                    "合同编号(contractdocNum)": "YHWX-BJ-JSJZ-2026040024",
+                    "合同金额(adjustRefundMoney)": 24000,
+                    "计入业绩金额": 24000,
+                    "支付金额(paidAmount)": 24000,
+                    "工单编号(serviceAppointmentNum)": "GD2026040513",
+                    "签约时间(signedDate)": "2026-04-03T20:00:14.471+08:00",
+                    "工单类型(sourceType)": "2",
+                },
+                {
+                    "合同ID(_id)": "new-contract",
+                    "管家(serviceHousekeeper)": "李俊达",
+                    "合同编号(contractdocNum)": "YHWX-BJ-JSJZ-2026050002",
+                    "合同金额(adjustRefundMoney)": 1000,
+                    "计入业绩金额": 1000,
+                    "支付金额(paidAmount)": 1000,
+                    "工单编号(serviceAppointmentNum)": "GD2026050002",
+                    "签约时间(signedDate)": "2026-05-03T10:46:30.383+08:00",
+                    "工单类型(sourceType)": "2",
+                },
+            ])
+
+            rows = {row["contract_id"]: row for row in store.get_all_records(activity_code)}
+            refreshed = rows["4094726635973593636"]
+            new_row_extensions = json.loads(rows["new-contract"]["extensions"])
+
+            self.assertNotIn("missing-from-source", rows)
+            self.assertEqual(refreshed["performance_amount"], 24000)
+            self.assertEqual(refreshed["notification_sent"], 1)
+            self.assertEqual(new_row_extensions["管家累计业绩金额"], 25000)
 
 
 if __name__ == "__main__":

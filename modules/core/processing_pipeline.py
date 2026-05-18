@@ -55,6 +55,7 @@ class DataProcessingPipeline:
         reward_config = ConfigAdapter.get_reward_config(self.config.config_key)
         processing_config = reward_config.get("processing_config", {})
         process_platform_only = processing_config.get("process_platform_only", False)
+        refresh_existing_contracts = processing_config.get("refresh_existing_contracts", False)
 
         if process_platform_only:
             # 过滤：仅保留平台单（sourceType=2 雨虹平台单，sourceType=4 修链平台单，sourceType=5 修链自获客）
@@ -81,10 +82,25 @@ class DataProcessingPipeline:
 
         # 🔧 新增：管家累计业绩金额跟踪器（用于累计业绩金额计算）
         housekeeper_cumulative_performance = {}
+        snapshot_housekeeper_stats = {}
+
+        existing_records_by_contract = {}
+        if refresh_existing_contracts:
+            existing_records_by_contract = {
+                str(record.get("contract_id")): record
+                for record in self.store.get_all_records(self.config.activity_code)
+            }
+            logging.info(
+                "全量快照刷新模式：将刷新 %s 个已存在合同并保留通知状态",
+                len(existing_records_by_contract),
+            )
 
         # 全局合同序号计数器（所有活动都需要用于"活动期内第几个合同"字段显示）
         # 🔧 修复：对于有历史合同的活动，只计算非历史合同的数量
-        if self.config.enable_historical_contracts:
+        if refresh_existing_contracts:
+            global_contract_sequence = 1
+            logging.info("全量快照刷新模式：从 1 重新计算全局序号和累计金额")
+        elif self.config.enable_historical_contracts:
             # 有历史合同的活动：只计算非历史合同数量
             global_contract_sequence = self.store.get_existing_non_historical_contract_count(self.config.activity_code) + 1
             logging.info(f"历史合同模式：从非历史合同数量 {global_contract_sequence - 1} 开始计算全局序号")
@@ -99,14 +115,25 @@ class DataProcessingPipeline:
                 contract_data = ContractData.from_dict(contract_dict)
                 
                 # 2. 数据库去重查询 - 替代复杂的CSV读取
-                if self.store.contract_exists(contract_data.contract_id, self.config.activity_code):
+                existing_record = existing_records_by_contract.get(contract_data.contract_id)
+                if not refresh_existing_contracts and self.store.contract_exists(contract_data.contract_id, self.config.activity_code):
                     skipped_count += 1
                     continue
                 
                 # 3. 数据库聚合查询 - 替代复杂的内存累计计算
                 housekeeper_key = self._build_housekeeper_key(contract_data)
-                hk_stats = self.store.get_housekeeper_stats(housekeeper_key, self.config.activity_code)
-                hk_awards = self.store.get_housekeeper_awards(housekeeper_key, self.config.activity_code)
+                if refresh_existing_contracts:
+                    hk_stats = snapshot_housekeeper_stats.get(
+                        housekeeper_key,
+                        HousekeeperStats(
+                            housekeeper=housekeeper_key,
+                            activity_code=self.config.activity_code,
+                        )
+                    )
+                    hk_awards = []
+                else:
+                    hk_stats = self.store.get_housekeeper_stats(housekeeper_key, self.config.activity_code)
+                    hk_awards = self.store.get_housekeeper_awards(housekeeper_key, self.config.activity_code)
 
                 # 🔧 关键修复：优先使用传入的历史奖励信息（参考旧系统逻辑）
                 if self.housekeeper_award_lists and housekeeper_key in self.housekeeper_award_lists:
@@ -150,6 +177,8 @@ class DataProcessingPipeline:
                         historical_count=hk_stats.historical_count + (1 if contract_data.is_historical else 0),
                         new_count=hk_stats.new_count + (0 if contract_data.is_historical else 1)
                     )
+                    if refresh_existing_contracts:
+                        snapshot_housekeeper_stats[housekeeper_key] = updated_hk_stats
 
                     # 计算两种序号，供业务逻辑选择使用
                     global_sequence = global_contract_sequence  # 全局合同签署序号
@@ -197,6 +226,8 @@ class DataProcessingPipeline:
                             self.runtime_awards[housekeeper_key].append(reward.reward_name)
 
                 # 8.5. 🔧 新增：计算并保存累计业绩金额
+                if refresh_existing_contracts and housekeeper_key not in housekeeper_cumulative_performance:
+                    housekeeper_cumulative_performance[housekeeper_key] = 0.0
                 cumulative_performance_amount = self._calculate_cumulative_performance_amount(
                     housekeeper_key, performance_amount, contract_data.is_historical,
                     housekeeper_cumulative_performance)
@@ -213,6 +244,8 @@ class DataProcessingPipeline:
                     contract_sequence=contract_sequence,
                     next_reward_gap=next_reward_gap
                 )
+                if refresh_existing_contracts and existing_record:
+                    record.notification_sent = bool(existing_record.get("notification_sent"))
                 
                 # 10. 保存记录
                 self.store.save_performance_record(record)
@@ -236,6 +269,14 @@ class DataProcessingPipeline:
                 continue
         
         logging.info(f"Processing completed: {processed_count} processed, {skipped_count} skipped")
+        if refresh_existing_contracts:
+            current_contract_ids = {str(item.get("合同ID(_id)")) for item in contract_data_list}
+            deleted_count = self.store.delete_performance_records_not_in(
+                self.config.activity_code,
+                current_contract_ids,
+            )
+            if deleted_count:
+                logging.info("全量快照刷新模式：删除 %s 条源数据已不存在的旧记录", deleted_count)
         return performance_records
 
     def _build_housekeeper_key(self, contract_data: ContractData) -> str:
