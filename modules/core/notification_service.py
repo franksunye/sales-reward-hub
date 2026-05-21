@@ -58,6 +58,7 @@ class NotificationService:
         for record in records:
             try:
                 if self._should_send_group_notification(record):
+                    record = self._normalize_record_before_enqueue(record)
                     msg = self._build_group_notification_message(record)
                     outbox_id = self._enqueue_text_outbox(record, msg, "group_broadcast")
                     if outbox_id:
@@ -152,6 +153,50 @@ class NotificationService:
             notification_records.append(record_dict)
         
         return notification_records
+
+    def _normalize_record_before_enqueue(self, record: Dict) -> Dict:
+        """对即将播报的记录做发送时口径保护。"""
+        if self.config.config_key != "BJ-PERFORMANCE-BROADCAST":
+            return record
+        return self._apply_current_snapshot_bj_performance_cumulative(record)
+
+    def _apply_current_snapshot_bj_performance_cumulative(self, record: Dict) -> Dict:
+        """
+        北京业绩播报使用发送当下的当前月快照累计金额。
+
+        数据源会补入较早签约时间的合同，也会取消合同或修正金额。对外播报不应使用
+        合同历史序位上的累计值，也不应按已播报历史强行递增；应反映当前有效合同快照。
+        """
+        housekeeper = record.get("管家(serviceHousekeeper)", "")
+        if not housekeeper:
+            return record
+
+        current_cumulative = self._to_float(record.get("管家累计业绩金额", 0))
+        snapshot_cumulative = self._to_float(
+            self.storage.get_housekeeper_stats(
+                housekeeper=housekeeper,
+                activity_code=self.config.activity_code,
+            ).performance_amount
+        )
+        if snapshot_cumulative == current_cumulative:
+            return record
+
+        adjusted = record.copy()
+        adjusted["管家累计业绩金额"] = snapshot_cumulative
+        self.logger.info(
+            "北京业绩播报使用当前快照累计金额: housekeeper=%s contract=%s source_cumulative=%s snapshot_cumulative=%s",
+            housekeeper,
+            record.get("合同编号(contractdocNum)", ""),
+            current_cumulative,
+            snapshot_cumulative,
+        )
+        return adjusted
+
+    def _to_float(self, value) -> float:
+        try:
+            return float(str(value).replace(",", ""))
+        except (TypeError, ValueError):
+            return 0.0
     
     def _convert_record_to_dict(self, record) -> Dict:
         """将数据库记录转换为字典格式，兼容现有消息模板"""

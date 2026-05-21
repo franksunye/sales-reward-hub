@@ -118,6 +118,67 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
             "https://example.com/bj-performance-broadcast",
         )
 
+    def test_performance_broadcast_uses_current_snapshot_cumulative_for_late_contract(self):
+        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+            store = SQLitePerformanceDataStore(tmp.name)
+            activity_code = "BJ-PERFORMANCE-BROADCAST-2026-05"
+            config = ProcessingConfig(
+                config_key="BJ-PERFORMANCE-BROADCAST",
+                activity_code=activity_code,
+                city=City.BEIJING,
+                housekeeper_key_format="管家",
+            )
+            with store._connect() as conn:
+                rows = [
+                    ("older-active", 113581),
+                    ("8579533488360997034", 7000),
+                ]
+                for contract_id, performance_amount in rows:
+                    conn.execute(
+                        """
+                        INSERT INTO performance_data (
+                            activity_code, contract_id, housekeeper, service_provider,
+                            contract_amount, performance_amount, order_type, project_id,
+                            contract_sequence, reward_types, reward_names, is_historical,
+                            notification_sent, remarks, extensions
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            activity_code,
+                            contract_id,
+                            "李小军",
+                            "",
+                            performance_amount,
+                            performance_amount,
+                            "platform",
+                            "",
+                            1,
+                            "[]",
+                            "[]",
+                            0,
+                            0,
+                            "无",
+                            "{}",
+                        ),
+                    )
+
+            service = NotificationService(storage=store, config=config)
+            record = {
+                "合同ID(_id)": "8579533488360997034",
+                "管家(serviceHousekeeper)": "李小军",
+                "合同编号(contractdocNum)": "YHWX-BJ-JSJZ-2026050060",
+                "计入业绩金额": 7000,
+                "管家累计业绩金额": 143998,
+                "转化率(conversion)": 0.2155688622754491,
+                "是否发送通知": "N",
+            }
+
+            adjusted = service._normalize_record_before_enqueue(record)
+            msg = service._build_group_notification_message(adjusted)
+
+            self.assertEqual(adjusted["管家累计业绩金额"], 120581)
+            self.assertIn("本合同计入业绩金额为7000，本月个人累计签约业绩 120,581 元", msg)
+
     def test_performance_broadcast_refreshes_existing_contract_snapshot(self):
         with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
             store = SQLitePerformanceDataStore(tmp.name)
