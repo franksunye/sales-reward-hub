@@ -55,20 +55,34 @@ class DataProcessingPipeline:
         reward_config = ConfigAdapter.get_reward_config(self.config.config_key)
         processing_config = reward_config.get("processing_config", {})
         process_platform_only = processing_config.get("process_platform_only", False)
+        source_type_filter = processing_config.get("source_type_filter")
         refresh_existing_contracts = processing_config.get("refresh_existing_contracts", False)
 
-        if process_platform_only:
-            # 过滤：仅保留平台单（sourceType=2 雨虹平台单，sourceType=4 修链平台单，sourceType=5 修链自获客）
+        if source_type_filter or process_platform_only:
+            if source_type_filter:
+                allowed_source_types = source_type_filter.get("allowed_source_types", [])
+                filter_label = source_type_filter.get("label", "sourceType")
+            else:
+                # 平台单：sourceType=2 雨虹平台单，sourceType=4 修链平台单，sourceType=5 修链自获客
+                allowed_source_types = [2, 4, 5]
+                filter_label = "平台单"
+
             # 🐛 修复：Metabase返回的sourceType是字符串类型，需同时支持字符串和整数
             original_count = len(contract_data_list)
-            allowed_source_types = processing_config.get("allowed_source_types", [2, 4, 5])
-            platform_source_types = {str(source_type) for source_type in allowed_source_types}
+            allowed_source_type_values = {str(source_type) for source_type in allowed_source_types}
             contract_data_list = [
                 c for c in contract_data_list
-                if str(c.get('工单类型(sourceType)', 2)) in platform_source_types
+                if str(c.get('工单类型(sourceType)', 2)) in allowed_source_type_values
             ]
             filtered_count = original_count - len(contract_data_list)
-            logging.info(f"平台单过滤：原始 {original_count} 个，过滤掉 {filtered_count} 个非平台单，保留 {len(contract_data_list)} 个平台单")
+            logging.info(
+                "%s过滤：原始 %s 个，过滤掉 %s 个不在 sourceType=%s 范围内的合同，保留 %s 个",
+                filter_label,
+                original_count,
+                filtered_count,
+                sorted(allowed_source_type_values),
+                len(contract_data_list),
+            )
 
         # 🔧 关键修复：保存历史奖励信息
         self.housekeeper_award_lists = housekeeper_award_lists or {}

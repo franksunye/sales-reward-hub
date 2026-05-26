@@ -434,8 +434,11 @@ REWARD_CONFIGS = {
             }
         },
         "processing_config": {
-            "process_platform_only": True,
-            "allowed_source_types": [1, 2, 4, 5],
+            "process_platform_only": False,
+            "source_type_filter": {
+                "allowed_source_types": [1, 2, 4, 5],
+                "label": "北京业绩播报合同"
+            },
             "enable_historical_contracts": False,
             "refresh_existing_contracts": True
         },

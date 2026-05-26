@@ -281,7 +281,7 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
             self.assertEqual(refreshed["notification_sent"], 1)
             self.assertEqual(new_row_extensions["管家累计业绩金额"], 25000)
 
-    def test_performance_broadcast_keeps_source_type_one(self):
+    def test_performance_broadcast_source_type_filter_includes_self_referral(self):
         with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
             store = SQLitePerformanceDataStore(tmp.name)
             activity_code = "BJ-PERFORMANCE-BROADCAST-2026-05"
