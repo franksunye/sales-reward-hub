@@ -281,6 +281,39 @@ class BeijingPerformanceBroadcastJobTest(unittest.TestCase):
             self.assertEqual(refreshed["notification_sent"], 1)
             self.assertEqual(new_row_extensions["管家累计业绩金额"], 25000)
 
+    def test_performance_broadcast_keeps_source_type_one(self):
+        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+            store = SQLitePerformanceDataStore(tmp.name)
+            activity_code = "BJ-PERFORMANCE-BROADCAST-2026-05"
+            config = ProcessingConfig(
+                config_key="BJ-PERFORMANCE-BROADCAST",
+                activity_code=activity_code,
+                city=City.BEIJING,
+                housekeeper_key_format="管家",
+            )
+
+            pipeline = DataProcessingPipeline(config, store)
+            records = pipeline.process([
+                {
+                    "合同ID(_id)": "1051315186252954795",
+                    "管家(serviceHousekeeper)": "李小军",
+                    "合同编号(contractdocNum)": "YHWX-BJ-JSJZ-2026050109",
+                    "合同金额(adjustRefundMoney)": 10000,
+                    "计入业绩金额": 10000,
+                    "支付金额(paidAmount)": 5000,
+                    "工单编号(serviceAppointmentNum)": "GD2026050109",
+                    "签约时间(signedDate)": "2026-05-25T19:39:43.051+08:00",
+                    "工单类型(sourceType)": "1",
+                    "转化率(conversion)": 0.2155688622754491,
+                },
+            ])
+
+            rows = store.get_all_records(activity_code)
+
+            self.assertEqual(len(records), 1)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["contract_id"], "1051315186252954795")
+
 
 if __name__ == "__main__":
     unittest.main()

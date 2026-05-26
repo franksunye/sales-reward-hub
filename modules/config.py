@@ -435,6 +435,7 @@ REWARD_CONFIGS = {
         },
         "processing_config": {
             "process_platform_only": True,
+            "allowed_source_types": [1, 2, 4, 5],
             "enable_historical_contracts": False,
             "refresh_existing_contracts": True
         },

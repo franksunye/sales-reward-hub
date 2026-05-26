@@ -61,10 +61,11 @@ class DataProcessingPipeline:
             # 过滤：仅保留平台单（sourceType=2 雨虹平台单，sourceType=4 修链平台单，sourceType=5 修链自获客）
             # 🐛 修复：Metabase返回的sourceType是字符串类型，需同时支持字符串和整数
             original_count = len(contract_data_list)
-            platform_source_types = [2, 4, 5, '2', '4', '5']
+            allowed_source_types = processing_config.get("allowed_source_types", [2, 4, 5])
+            platform_source_types = {str(source_type) for source_type in allowed_source_types}
             contract_data_list = [
                 c for c in contract_data_list
-                if c.get('工单类型(sourceType)', 2) in platform_source_types
+                if str(c.get('工单类型(sourceType)', 2)) in platform_source_types
             ]
             filtered_count = original_count - len(contract_data_list)
             logging.info(f"平台单过滤：原始 {original_count} 个，过滤掉 {filtered_count} 个非平台单，保留 {len(contract_data_list)} 个平台单")
