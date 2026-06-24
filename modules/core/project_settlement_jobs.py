@@ -75,6 +75,7 @@ PROJECT_SETTLEMENT_SYNC_CONFIG = SmartsheetSyncConfig(
         "fESKNz": "是否发起预结单",
         "f28Fkl": "结算状态",
         "fStRfT": "合同金额",
+        "fl2HuS": "质保年限",
     },
     source_field_map={
         "f04Gwj": "contractdocNum",
@@ -90,6 +91,7 @@ PROJECT_SETTLEMENT_SYNC_CONFIG = SmartsheetSyncConfig(
         "fESKNz": "",
         "f28Fkl": "",
         "fStRfT": "adjustRefundMoney",
+        "fl2HuS": "warrantyYears",
     },
     primary_field_id="f04Gwj",
     log_label="项目结算",

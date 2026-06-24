@@ -86,7 +86,7 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
     def _response(self, rows):
         cols = [{"name": name} for name in [
             "合同编号", "项目施工地址", "业主姓名", "联系电话", "serviceHousekeeper", "部位", "进场日期", "完工日期",
-            "项目用工数", "班组名称", "是否发起预结单", "结算状态", "合同金额",
+            "项目用工数", "班组名称", "是否发起预结单", "结算状态", "合同金额", "warrantyYears",
         ]]
         return {"data": {"cols": cols, "rows": rows}}
 
@@ -105,6 +105,7 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
             "已发起",
             settle_status,
             "9999",
+            "5",
         ]
 
     def test_first_run_sends_new_records_with_expected_payload(self):
@@ -131,6 +132,7 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(values["fMqDX0"], 3)
         self.assertEqual(values["f8xImK"], [{"text": "刘振海"}])
         self.assertEqual(values["fESKNz"], [{"text": "已发起"}])
+        self.assertEqual(values["fl2HuS"], "5")
 
         with sqlite3.connect(self.db_path) as conn:
             outbox_rows = conn.execute(
