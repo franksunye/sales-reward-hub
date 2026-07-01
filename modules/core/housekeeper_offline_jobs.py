@@ -7,6 +7,7 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -21,6 +22,7 @@ from modules.request_module import send_request_with_managed_session
 
 
 HOUSEKEEPER_OFFLINE_ACTIVITY_CODE = "HOUSEKEEPER-OFFLINE-BROADCAST"
+SHANGHAI_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 def _is_truthy(value: str) -> bool:
@@ -80,8 +82,13 @@ def _parse_event_time(value) -> datetime | None:
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
 
 
-def _format_housekeeper_offline_message(create_user_name: str, operation: str) -> str:
-    return f"管家【{create_user_name}】【{operation}】了。"
+def _format_housekeeper_offline_message(
+    create_user_name: str,
+    operation: str,
+    event_time: datetime,
+) -> str:
+    occurred_at = event_time.astimezone(SHANGHAI_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+    return f"管家【{create_user_name}】于【{occurred_at}】【{operation}】了。"
 
 
 def _event_fingerprint(record: Dict) -> str:
@@ -129,7 +136,7 @@ class HousekeeperOfflineBroadcastService:
                 continue
 
             stats["valid_events"] += 1
-            message = _format_housekeeper_offline_message(create_user_name, operation)
+            message = _format_housekeeper_offline_message(create_user_name, operation, event_time)
             if self.dry_run:
                 self.logger.info("[DRY RUN] 管家下线播报预览: %s", message)
                 continue

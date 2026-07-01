@@ -33,7 +33,22 @@ class HousekeeperOfflineBroadcastJobTest(unittest.TestCase):
 
         self.assertEqual(records[0]["createUserName"], "张三")
         self.assertEqual(records[0]["事件ID"], "event-1")
-        self.assertEqual(_format_housekeeper_offline_message("张三", "下线"), "管家【张三】【下线】了。")
+        self.assertEqual(
+            _format_housekeeper_offline_message(
+                "张三",
+                "下线",
+                datetime(2026, 7, 1, 9, 19, 9, tzinfo=timezone.utc),
+            ),
+            "管家【张三】于【2026-07-01 17:19:09】【下线】了。",
+        )
+        self.assertEqual(
+            _format_housekeeper_offline_message(
+                "李四",
+                "上线",
+                datetime(2026, 7, 1, 10, 5, tzinfo=timezone.utc),
+            ),
+            "管家【李四】于【2026-07-01 18:05:00】【上线】了。",
+        )
 
     def test_full_source_row_distinguishes_repeated_operations(self):
         records = _parse_metabase_records({
@@ -64,7 +79,13 @@ class HousekeeperOfflineBroadcastJobTest(unittest.TestCase):
         self.assertEqual(second["sent"], 0)
         self.assertEqual(post.call_count, 1)
         payload = post.call_args.kwargs["json"]
-        self.assertEqual(payload, {"msgtype": "text", "text": {"content": "管家【张三】【下线】了。"}})
+        self.assertEqual(
+            payload,
+            {
+                "msgtype": "text",
+                "text": {"content": "管家【张三】于【2026-07-01 17:19:09】【下线】了。"},
+            },
+        )
 
     def test_wecom_business_error_is_retryable_failure(self):
         fake_response = Mock(status_code=200, text='{"errcode":93000,"errmsg":"invalid webhook"}')
