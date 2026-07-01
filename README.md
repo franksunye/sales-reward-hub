@@ -82,6 +82,7 @@ cat docs/BACKLOG.md
 ## 🎯 主要功能
 
 - **北京签约播报**: 自动播报签约数据（仅播报，无奖励）
+- **管家下线播报**: 从 Metabase 2085 获取事件并自动播报到专用企业微信群
 - **服务监控**: SLA违规监控和通知
 - **工单提醒**: 待预约工单自动提醒
 - **数据处理**: 合同数据自动化处理
@@ -125,12 +126,14 @@ python tests/manual/beijing_november.py
 
 当前工作流：
 - `.github/workflows/beijing-signing-broadcast.yml`
+- `.github/workflows/housekeeper-offline-broadcast.yml`
 - `.github/workflows/smartsheet-sync.yml`
 - `.github/workflows/pending-orders-reminder.yml`
 - `.github/workflows/daily-service-report.yml`
 
 默认计划：
 - 北京时间 `08:00-23:30` 每 30 分钟：执行北京签约播报
+- 北京时间 `08:00-23:30` 每 30 分钟：执行管家下线播报
 - 北京时间 `08:00-23:30` 每 30 分钟：执行电子表格同步（项目结算 / 合同完工 / 支付记录）
 - 北京时间 `08:30`：额外执行待预约工单提醒
 - 北京时间 `09:00`：额外执行 SLA 日报
@@ -141,6 +144,7 @@ python tests/manual/beijing_november.py
 - `METABASE_USERNAME`
 - `METABASE_PASSWORD`
 - `WECOM_WEBHOOK_DEFAULT`
+- `WECOM_WEBHOOK_HOUSEKEEPER_OFFLINE`
 - `WECOM_PROJECT_SETTLEMENT_SMARTSHEET_WEBHOOK`
 - `WECOM_CONTRACT_COMPLETION_SMARTSHEET_WEBHOOK`
 - `WECOM_PAYMENT_RECORDS_SMARTSHEET_WEBHOOK`

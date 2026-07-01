@@ -8,6 +8,7 @@ from modules.config import RUN_JOBS_SERIALLY_SCHEDULE
 from modules.core.beijing_jobs import performance_broadcast_beijing
 from modules.core.beijing_jobs import signing_broadcast_beijing
 from modules.core.pending_orders_jobs import send_pending_orders_reminder_v2
+from modules.core.housekeeper_offline_jobs import broadcast_housekeeper_offline_v2
 from modules.core.project_settlement_jobs import sync_contract_completion_smartsheet_v2
 from modules.core.project_settlement_jobs import sync_crew_settlement_finance_ledger_smartsheet_v2
 from modules.core.project_settlement_jobs import sync_material_replenishment_smartsheet_v2
@@ -49,6 +50,17 @@ def run_pending_orders_reminder_task():
         logging.info("待预约工单提醒任务执行完成")
     except Exception as e:
         logging.error(f"执行待预约工单提醒任务失败: {e}")
+        logging.error(traceback.format_exc())
+
+
+def run_housekeeper_offline_broadcast_task():
+    """管家下线企业微信群播报任务。"""
+    try:
+        logging.info("开始执行管家下线播报任务")
+        broadcast_housekeeper_offline_v2()
+        logging.info("管家下线播报任务执行完成")
+    except Exception as e:
+        logging.error(f"执行管家下线播报任务失败: {e}")
         logging.error(traceback.format_exc())
 
 
@@ -122,6 +134,7 @@ def run_material_replenishment_smartsheet_task():
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_sign_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_beijing_performance_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_pending_orders_reminder_task)
+schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_housekeeper_offline_broadcast_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_project_settlement_smartsheet_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_contract_completion_smartsheet_task)
 schedule.every(RUN_JOBS_SERIALLY_SCHEDULE).minutes.do(run_payment_records_smartsheet_task)
@@ -131,7 +144,7 @@ schedule.every().day.at("08:10").do(run_daily_service_report_task)
 
 
 if __name__ == "__main__":
-    logging.info("Program started (Beijing sign broadcast + Beijing performance broadcast + pending orders reminder + project settlement smartsheet + contract completion smartsheet + payment records smartsheet + crew settlement finance ledger smartsheet + material replenishment smartsheet + daily service report)")
+    logging.info("Program started (Beijing sign broadcast + Beijing performance broadcast + housekeeper offline broadcast + pending orders reminder + project settlement smartsheet + contract completion smartsheet + payment records smartsheet + crew settlement finance ledger smartsheet + material replenishment smartsheet + daily service report)")
 
     while True:
         try:

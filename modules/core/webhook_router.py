@@ -8,12 +8,14 @@ from modules.config import (
     WEBHOOK_URL_DEFAULT,
     WECOM_WEBHOOK_PENDING_ORDERS_FORCE_URL,
     WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST,
+    WECOM_WEBHOOK_HOUSEKEEPER_OFFLINE,
     WECOM_WEBHOOK_SIGN_BROADCAST_DEFAULT,
 )
 
 
 CHANNEL_SIGN_BROADCAST = "sign_broadcast"
 CHANNEL_BJ_PERFORMANCE_BROADCAST = "bj_performance_broadcast"
+CHANNEL_HOUSEKEEPER_OFFLINE = "housekeeper_offline"
 CHANNEL_PENDING_ORDERS = "pending_orders_reminder"
 CHANNEL_SLA_DAILY_REPORT = "sla_daily_report"
 
@@ -32,6 +34,11 @@ def resolve_wecom_webhook(channel: str, org_name: Optional[str] = None) -> str:
 
     if channel == CHANNEL_BJ_PERFORMANCE_BROADCAST:
         return WECOM_WEBHOOK_BJ_PERFORMANCE_BROADCAST
+
+    if channel == CHANNEL_HOUSEKEEPER_OFFLINE:
+        if not WECOM_WEBHOOK_HOUSEKEEPER_OFFLINE:
+            raise ValueError("WECOM_WEBHOOK_HOUSEKEEPER_OFFLINE 环境变量未设置")
+        return WECOM_WEBHOOK_HOUSEKEEPER_OFFLINE
 
     if channel == CHANNEL_SLA_DAILY_REPORT:
         if org_name and org_name in PENDING_ORDER_ORG_WEBHOOKS:

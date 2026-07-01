@@ -11,6 +11,7 @@ from main import run_beijing_sign_broadcast_task
 from main import run_crew_settlement_finance_ledger_smartsheet_task
 from main import run_daily_service_report_task
 from main import run_material_replenishment_smartsheet_task
+from main import run_housekeeper_offline_broadcast_task
 from main import run_pending_orders_reminder_task
 from main import run_payment_records_smartsheet_task
 from main import run_project_settlement_smartsheet_task
@@ -23,6 +24,7 @@ def main():
         choices=[
             "beijing-sign-broadcast",
             "beijing-performance-broadcast",
+            "housekeeper-offline-broadcast",
             "pending-orders-reminder",
             "project-settlement-smartsheet",
             "contract-completion-smartsheet",
@@ -43,6 +45,8 @@ def main():
         run_beijing_sign_broadcast_task()
     elif args.task == "beijing-performance-broadcast":
         run_beijing_performance_broadcast_task()
+    elif args.task == "housekeeper-offline-broadcast":
+        run_housekeeper_offline_broadcast_task()
     elif args.task == "daily-service-report":
         run_daily_service_report_task()
     elif args.task == "contract-completion-smartsheet":

@@ -6,6 +6,7 @@
  *
  * 然后在 Worker 内部根据北京时间路由不同 workflow：
  * - 每个心跳都触发北京签约播报和北京业绩播报
+ * - 每个心跳都触发管家下线播报
  * - 每个心跳都触发统一电子表格同步 workflow（项目结算 / 合同完工 / 支付记录 / 吉柿工队结算财务台账 / 材料补货）
  * - 08:30 额外触发待预约工单提醒
  * - 09:00 额外触发 SLA 日报
@@ -63,6 +64,7 @@ function getWorkflowNames(env) {
   return {
     signBroadcast: env.GITHUB_WORKFLOW_SIGN_BROADCAST || 'beijing-signing-broadcast.yml',
     performanceBroadcast: env.GITHUB_WORKFLOW_PERFORMANCE_BROADCAST || 'beijing-performance-broadcast.yml',
+    housekeeperOfflineBroadcast: env.GITHUB_WORKFLOW_HOUSEKEEPER_OFFLINE_BROADCAST || 'housekeeper-offline-broadcast.yml',
     smartsheetSync: env.GITHUB_WORKFLOW_SMARTSHEET_SYNC || 'smartsheet-sync.yml',
     pendingOrders: env.GITHUB_WORKFLOW_PENDING_ORDERS || 'pending-orders-reminder.yml',
     dailyServiceReport: env.GITHUB_WORKFLOW_DAILY_SERVICE_REPORT || 'daily-service-report.yml',
@@ -72,7 +74,7 @@ function getWorkflowNames(env) {
 function getTimeBasedScheduleConfig(env) {
   const workflows = getWorkflowNames(env);
   return {
-    "08:00-23:30/30m": [workflows.signBroadcast, workflows.performanceBroadcast, workflows.smartsheetSync],
+    "08:00-23:30/30m": [workflows.signBroadcast, workflows.performanceBroadcast, workflows.housekeeperOfflineBroadcast, workflows.smartsheetSync],
     "08:30": [workflows.pendingOrders],
     "09:00": [workflows.dailyServiceReport],
   };
@@ -91,6 +93,10 @@ function getTargetWorkflows(env, options = {}) {
 
   if (options.target === 'performance-broadcast') {
     return [createWorkflowDispatch(workflows.performanceBroadcast)];
+  }
+
+  if (options.target === 'housekeeper-offline-broadcast') {
+    return [createWorkflowDispatch(workflows.housekeeperOfflineBroadcast)];
   }
 
   if (options.target === 'smartsheet-sync') {
@@ -125,6 +131,7 @@ function getTargetWorkflows(env, options = {}) {
     return [
       createWorkflowDispatch(workflows.signBroadcast),
       createWorkflowDispatch(workflows.performanceBroadcast),
+      createWorkflowDispatch(workflows.housekeeperOfflineBroadcast),
       createWorkflowDispatch(workflows.smartsheetSync, { task: 'all', dry_run: 'false' }),
       createWorkflowDispatch(workflows.pendingOrders),
       createWorkflowDispatch(workflows.dailyServiceReport),
@@ -136,6 +143,7 @@ function getTargetWorkflows(env, options = {}) {
   const targetWorkflows = [
     createWorkflowDispatch(workflows.signBroadcast),
     createWorkflowDispatch(workflows.performanceBroadcast),
+    createWorkflowDispatch(workflows.housekeeperOfflineBroadcast),
     createWorkflowDispatch(workflows.smartsheetSync, { task: 'all', dry_run: 'false' }),
   ];
 
