@@ -97,7 +97,7 @@ PROJECT_SETTLEMENT_SYNC_CONFIG = SmartsheetSyncConfig(
     log_label="项目结算",
     dry_run_env="PROJECT_SETTLEMENT_SMARTSHEET_DRY_RUN",
     dedupe_prefix="wedoc-project-settlement",
-    numeric_fields={"fMqDX0", "fStRfT"},
+    numeric_fields={"fMqDX0", "fStRfT", "fl2HuS"},
     multi_text_fields={"f8xImK", "fESKNz", "f28Fkl"},
     identity_keys=("f04Gwj", "ftQMc5", "ftk5Tx", "ffFwIh", "fn8TJd", "signedDate", "f8xImK"),
 )

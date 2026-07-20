@@ -132,7 +132,7 @@ class ProjectSettlementSmartsheetJobTest(unittest.TestCase):
         self.assertEqual(values["fMqDX0"], 3)
         self.assertEqual(values["f8xImK"], [{"text": "刘振海"}])
         self.assertEqual(values["fESKNz"], [{"text": "已发起"}])
-        self.assertEqual(values["fl2HuS"], "5")
+        self.assertEqual(values["fl2HuS"], 5)
 
         with sqlite3.connect(self.db_path) as conn:
             outbox_rows = conn.execute(
